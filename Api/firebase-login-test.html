@@ -1,0 +1,128 @@
+<!-- TEST TOOL ONLY — do not deploy or commit real credentials here beyond the public Firebase web config, which is safe to expose. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBTC Firebase Auth Test Tool</title>
+  
+  <!-- Firebase JS SDK CDN (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f4f6f8; padding: 40px 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .card { background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 520px; }
+    h2 { margin-top: 0; color: #1a1a1a; font-size: 22px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #334155; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+    input:focus { outline: none; border-color: #2563eb; ring: 2px rgba(37, 99, 235, 0.2); }
+    button { width: 100%; padding: 12px; background-color: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button:hover { background-color: #1d4ed8; }
+    .copy-btn { background-color: #059669; margin-top: 10px; }
+    .copy-btn:hover { background-color: #047857; }
+    .error-box { display: none; background-color: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; padding: 12px; border-radius: 6px; font-size: 14px; margin-top: 16px; word-break: break-word; }
+    .result-box { display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+    .user-info { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    textarea { width: 100%; height: 120px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: monospace; font-size: 12px; resize: vertical; background-color: #f8fafc; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>DBTC Firebase Test Login</h2>
+    <div class="subtitle">Dev tool for obtaining Firebase ID Tokens to test <code>/api/me</code></div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" placeholder="e.g. user@dbtc-cebu.edu.ph" required>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter password" required>
+      </div>
+
+      <button type="submit" id="submit-btn">Log In & Get Token</button>
+    </form>
+
+    <div id="error-box" class="error-box"></div>
+
+    <div id="result-box" class="result-box">
+      <div class="user-info" id="user-info">Logged in as: -</div>
+      <label for="token-output">Firebase ID Token (Bearer Token):</label>
+      <textarea id="token-output" readonly></textarea>
+      <button type="button" class="copy-btn" id="copy-btn">Copy Token to Clipboard</button>
+    </div>
+  </div>
+
+  <script>
+    // Exact Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDDjMVje56MVJgYJvMrUhmgjJz2uDQSPyI",
+      authDomain: "dbtc-cebu.firebaseapp.com",
+      projectId: "dbtc-cebu",
+      storageBucket: "dbtc-cebu.firebasestorage.app",
+      messagingSenderId: "842895749365",
+      appId: "1:842895749365:web:a549bba87e41d1566b15bc",
+      measurementId: "G-S5GB4SRGFS"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    const loginForm = document.getElementById('login-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const errorBox = document.getElementById('error-box');
+    const resultBox = document.getElementById('result-box');
+    const userInfo = document.getElementById('user-info');
+    const tokenOutput = document.getElementById('token-output');
+    const copyBtn = document.getElementById('copy-btn');
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      errorBox.style.display = 'none';
+      resultBox.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Logging in...';
+
+      try {
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        const idToken = await user.getIdToken(true);
+
+        userInfo.textContent = `Logged in as: ${user.email}`;
+        tokenOutput.value = idToken;
+        resultBox.style.display = 'block';
+      } catch (error) {
+        console.error('Firebase Auth Error:', error);
+        errorBox.textContent = `Login Failed: ${error.message} (Code: ${error.code})`;
+        errorBox.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Log In & Get Token';
+      }
+    });
+
+    copyBtn.addEventListener('click', () => {
+      tokenOutput.select();
+      navigator.clipboard.writeText(tokenOutput.value).then(() => {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = originalText; }, 2000);
+      }).catch(err => {
+        alert('Failed to copy token: ' + err);
+      });
+    });
+  </script>
+</body>
+</html>

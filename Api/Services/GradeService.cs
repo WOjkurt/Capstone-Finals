@@ -1,0 +1,290 @@
+using Api.Auth;
+using Api.Domain.Grading;
+using Api.DTOs.Grading;
+using Api.Repositories;
+using Microsoft.EntityFrameworkCore;
+
+namespace Api.Services;
+
+public class GradeService : IGradeService
+{
+    private readonly AppDbContext _context;
+    private readonly IGradeRepository _gradeRepository;
+    private readonly IGradeClearanceService _clearanceService;
+
+    public GradeService(AppDbContext context, IGradeRepository gradeRepository, IGradeClearanceService clearanceService)
+    {
+        _context = context;
+        _gradeRepository = gradeRepository;
+        _clearanceService = clearanceService;
+    }
+
+    public async Task<GradeResponseDto> SubmitGradeAsync(SubmitGradeDto dto, Guid authenticatedUserId)
+    {
+        var studyLoad = await _context.StudyLoads
+            .AsNoTracking()
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.Subject)
+            .Include(sl => sl.User)
+            .FirstOrDefaultAsync(sl => sl.StudyLoadID == dto.StudyLoadId);
+
+        if (studyLoad == null)
+        {
+            throw new KeyNotFoundException($"StudyLoad with ID '{dto.StudyLoadId}' was not found.");
+        }
+
+        if (studyLoad.Class == null || studyLoad.Class.UserID != authenticatedUserId)
+        {
+            throw new UnauthorizedAccessException("Only the assigned teacher of this class can submit grades.");
+        }
+
+        if (!dto.MidtermGrade.HasValue && !dto.FinalGrade.HasValue)
+        {
+            throw new InvalidOperationException("At least one grade field (MidtermGrade or FinalGrade) must be provided for submission.");
+        }
+
+        var existingGrade = await _gradeRepository.GetByStudyLoadIdAsync(dto.StudyLoadId);
+
+        if (existingGrade == null)
+        {
+            var newGrade = new Grade
+            {
+                GradeID = Guid.NewGuid(),
+                StudyLoadID = dto.StudyLoadId,
+                MidtermGrade = dto.MidtermGrade,
+                FinalGrade = dto.FinalGrade,
+                Remarks = dto.FinalGrade.HasValue ? (dto.FinalGrade.Value > 3.0m ? 2 : 1) : null,
+                SubmittedByUserID = authenticatedUserId,
+                DateSubmitted = DateTime.UtcNow
+            };
+
+            await _gradeRepository.AddAsync(newGrade);
+
+            var created = await _gradeRepository.GetByIdAsync(newGrade.GradeID);
+            var createdGrade = created ?? newGrade;
+            if (createdGrade.StudyLoad == null)
+            {
+                createdGrade.StudyLoad = studyLoad;
+            }
+            return await MapToDtoAsync(createdGrade);
+        }
+
+        // Grade row already exists — check per-field immutability
+        bool midtermConflict = dto.MidtermGrade.HasValue && existingGrade.MidtermGrade.HasValue;
+        bool finalConflict = dto.FinalGrade.HasValue && existingGrade.FinalGrade.HasValue;
+
+        if (midtermConflict && finalConflict)
+        {
+            throw new InvalidOperationException("Both MidtermGrade and FinalGrade have already been submitted. Use a GradeCorrection request to change them.");
+        }
+        if (midtermConflict)
+        {
+            throw new InvalidOperationException("MidtermGrade has already been submitted. Use a GradeCorrection request to change it.");
+        }
+        if (finalConflict)
+        {
+            throw new InvalidOperationException("FinalGrade has already been submitted. Use a GradeCorrection request to change it.");
+        }
+
+        if (dto.MidtermGrade.HasValue)
+        {
+            existingGrade.MidtermGrade = dto.MidtermGrade.Value;
+        }
+
+        if (dto.FinalGrade.HasValue)
+        {
+            existingGrade.FinalGrade = dto.FinalGrade.Value;
+        }
+
+        existingGrade.Remarks = existingGrade.FinalGrade.HasValue ? (existingGrade.FinalGrade.Value > 3.0m ? 2 : 1) : null;
+        existingGrade.SubmittedByUserID = authenticatedUserId;
+        existingGrade.DateSubmitted = DateTime.UtcNow;
+
+        await _gradeRepository.UpdateAsync(existingGrade);
+
+        var updated = await _gradeRepository.GetByIdAsync(existingGrade.GradeID);
+        var updatedGrade = updated ?? existingGrade;
+        if (updatedGrade.StudyLoad == null)
+        {
+            updatedGrade.StudyLoad = studyLoad;
+        }
+        return await MapToDtoAsync(updatedGrade);
+    }
+
+    public async Task<GradeResponseDto?> GetByStudyLoadIdAsync(Guid studyLoadId)
+    {
+        var grade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
+        if (grade == null)
+        {
+            return null;
+        }
+
+        var fullGrade = await _gradeRepository.GetByIdAsync(grade.GradeID);
+        return await MapToDtoAsync(fullGrade ?? grade);
+    }
+
+    public async Task<List<GradeResponseDto>> GetByClassIdAsync(Guid classId, Guid authenticatedUserId, int authenticatedUserRole)
+    {
+        var targetClass = await _context.Classes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.ClassID == classId);
+
+        if (targetClass == null)
+        {
+            throw new KeyNotFoundException($"Class with ID '{classId}' was not found.");
+        }
+
+        bool isStaff = authenticatedUserRole == RoleUtils.Registrar ||
+                       authenticatedUserRole == RoleUtils.Admin ||
+                       authenticatedUserRole == RoleUtils.ProgramHead;
+        bool isAssignedTeacher = targetClass.UserID.HasValue && targetClass.UserID.Value == authenticatedUserId;
+
+        if (!isStaff && !isAssignedTeacher)
+        {
+            throw new UnauthorizedAccessException("Access denied. Only the assigned teacher, Registrar, Admin, or Program Head can access class grades.");
+        }
+
+        var studyLoads = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.ClassID == classId)
+            .Select(sl => sl.StudyLoadID)
+            .ToListAsync();
+
+        var grades = await _context.Grades
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.User)
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.Class)
+                    .ThenInclude(c => c!.Subject)
+            .Include(g => g.SubmittedByUser)
+            .Where(g => studyLoads.Contains(g.StudyLoadID))
+            .ToListAsync();
+
+        var result = new List<GradeResponseDto>();
+        foreach (var g in grades)
+        {
+            result.Add(await MapToDtoAsync(g));
+        }
+
+        return result;
+    }
+
+    public async Task<List<GradeResponseDto>> GetByStudentIdAsync(Guid userId, Guid? termId, Guid authenticatedUserId, int authenticatedUserRole)
+    {
+        bool isSelf = authenticatedUserId == userId;
+        bool isStaff = authenticatedUserRole == RoleUtils.Registrar ||
+                       authenticatedUserRole == RoleUtils.Admin ||
+                       authenticatedUserRole == RoleUtils.ProgramHead;
+
+        if (!isSelf && !isStaff)
+        {
+            throw new UnauthorizedAccessException("Access denied. You can only view your own grades unless you are a Registrar, Admin, or Program Head.");
+        }
+
+        var query = _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.UserID == userId);
+
+        if (termId.HasValue)
+        {
+            query = query.Where(sl => sl.Class != null && sl.Class.TermID == termId.Value);
+        }
+
+        var studyLoadIds = await query.Select(sl => sl.StudyLoadID).ToListAsync();
+
+        var grades = await _context.Grades
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.User)
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.Class)
+                    .ThenInclude(c => c!.Subject)
+            .Include(g => g.SubmittedByUser)
+            .Where(g => studyLoadIds.Contains(g.StudyLoadID))
+            .ToListAsync();
+
+        if (isSelf)
+        {
+            var distinctTermIds = grades
+                .Where(g => g.StudyLoad?.Class != null)
+                .Select(g => g.StudyLoad!.Class!.TermID)
+                .Distinct()
+                .ToList();
+
+            var clearedTerms = new HashSet<Guid>();
+            foreach (var tId in distinctTermIds)
+            {
+                if (await _clearanceService.IsClearedAsync(userId, tId))
+                {
+                    clearedTerms.Add(tId);
+                }
+            }
+
+            grades = grades
+                .Where(g => g.StudyLoad?.Class != null && clearedTerms.Contains(g.StudyLoad.Class.TermID))
+                .ToList();
+        }
+
+        var result = new List<GradeResponseDto>();
+        foreach (var g in grades)
+        {
+            result.Add(await MapToDtoAsync(g));
+        }
+
+        return result;
+    }
+
+    // ── Helper Methods ─────────────────────────────────────────────────
+    private async Task<GradeResponseDto> MapToDtoAsync(Grade g)
+    {
+        string? teacherName = await ResolveUserNameAsync(g.SubmittedByUserID);
+        if (string.IsNullOrWhiteSpace(teacherName) && g.StudyLoad?.Class?.UserID.HasValue == true)
+        {
+            teacherName = await ResolveUserNameAsync(g.StudyLoad.Class.UserID.Value);
+        }
+
+        Guid? studentUserId = g.StudyLoad?.UserID;
+        string? studentName = studentUserId.HasValue ? await ResolveUserNameAsync(studentUserId.Value) : null;
+
+        return new GradeResponseDto
+        {
+            GradeId = g.GradeID,
+            StudyLoadId = g.StudyLoadID,
+            MidtermGrade = g.MidtermGrade,
+            FinalGrade = g.FinalGrade,
+            Remarks = g.Remarks,
+            RemarksLabel = FormatRemarks(g.Remarks),
+            SubmittedByUserID = g.SubmittedByUserID,
+            TeacherName = teacherName,
+            DateSubmitted = g.DateSubmitted,
+            StudentUserId = studentUserId,
+            StudentName = studentName,
+            SubjectCode = g.StudyLoad?.Class?.Subject?.SubjectCode,
+            SubjectTitle = g.StudyLoad?.Class?.Subject?.SubjectTitle,
+            ClassName = g.StudyLoad?.Class?.ClassName
+        };
+    }
+
+    private async Task<string?> ResolveUserNameAsync(Guid userId)
+    {
+        var ud = await _context.UserDetails
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (ud != null && (!string.IsNullOrWhiteSpace(ud.Firstname) || !string.IsNullOrWhiteSpace(ud.Lastname)))
+        {
+            return $"{ud.Firstname} {ud.Lastname}".Trim();
+        }
+
+        return null;
+    }
+
+    private static string? FormatRemarks(int? remarks)
+    {
+        return remarks switch
+        {
+            1 => "Passed",
+            2 => "Failed",
+            _ => null
+        };
+    }
+}

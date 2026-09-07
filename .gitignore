@@ -1,0 +1,19 @@
+# Firebase Service Account Credentials (CRITICAL: NEVER COMMIT)
+*service-account*.json
+*firebase-adminsdk*.json
+service-account.json
+dbtc-firebase-service-account.json
+
+# Build & OS Outputs
+bin/
+obj/
+.DS_Store
+*.user
+*.suo
+
+# IDE / Agent Metadata
+.agents/
+skills-lock.json
+
+# Old project scaffold
+project/

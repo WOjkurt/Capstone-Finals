@@ -1,0 +1,158 @@
+using Api.Auth;
+using Api.DTOs.StudyLoad;
+using Api.Repositories;
+using Api.Services;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Api.Controllers;
+
+[ApiController]
+[Route("api/studyloads")]
+public class StudyLoadsController : ControllerBase
+{
+    private readonly IStudyLoadService _studyLoadService;
+    private readonly IClassRepository _classRepository;
+
+    public StudyLoadsController(IStudyLoadService studyLoadService, IClassRepository classRepository)
+    {
+        _studyLoadService = studyLoadService;
+        _classRepository = classRepository;
+    }
+
+    [HttpGet("proposed-block")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> GetProposedBlock([FromQuery] Guid userId, [FromQuery] Guid termId)
+    {
+        try
+        {
+            var block = await _studyLoadService.GetProposedBlockAsync(userId, termId);
+            return Ok(block);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("enroll-batch")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> EnrollBatch([FromBody] EnrollBatchRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid createdByUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var result = await _studyLoadService.EnrollBatchAsync(dto, createdByUserId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("enroll-single")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> EnrollSingle([FromBody] EnrollSingleRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid createdByUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var result = await _studyLoadService.EnrollSingleAsync(dto, createdByUserId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStudyLoadStatusDto dto)
+    {
+        try
+        {
+            var result = await _studyLoadService.UpdateStatusAsync(id, dto.LoadStatus);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("student/{userId:guid}")]
+    public async Task<IActionResult> GetByStudent(Guid userId, [FromQuery] Guid termId)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var authUserIdObj) || authUserIdObj is not Guid authUserId ||
+            !HttpContext.Items.TryGetValue("role", out var authRoleObj) || authRoleObj is not int authRole)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        bool isSelf = authUserId == userId;
+        bool isStaff = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin || authRole == RoleUtils.ProgramHead;
+
+        if (!isSelf && !isStaff)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var loads = await _studyLoadService.GetByStudentAsync(userId, termId);
+            return Ok(loads);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("class/{classId:guid}")]
+    public async Task<IActionResult> GetByClass(Guid classId)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var authUserIdObj) || authUserIdObj is not Guid authUserId ||
+            !HttpContext.Items.TryGetValue("role", out var authRoleObj) || authRoleObj is not int authRole)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        var targetClass = await _classRepository.GetByIdAsync(classId);
+        if (targetClass == null)
+        {
+            return NotFound(new { message = $"Class with ID '{classId}' was not found." });
+        }
+
+        bool isStaff = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
+        bool isTeacher = targetClass.UserID.HasValue && targetClass.UserID.Value == authUserId;
+
+        if (!isStaff && !isTeacher)
+        {
+            return Forbid();
+        }
+
+        var loads = await _studyLoadService.GetByClassAsync(classId);
+        return Ok(loads);
+    }
+}

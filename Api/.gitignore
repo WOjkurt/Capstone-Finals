@@ -1,0 +1,10 @@
+# Firebase Service Account Credentials (CRITICAL: NEVER COMMIT)
+*service-account*.json
+*firebase-adminsdk*.json
+service-account.json
+dbtc-firebase-service-account.json
+
+# .NET Build Outputs
+bin/
+obj/
+*.user
