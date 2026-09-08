@@ -48,39 +48,24 @@ builder.Services.AddScoped<IGradeCorrectionService, GradeCorrectionService>();
 builder.Services.AddScoped<IGradeClearanceService, GradeClearanceService>();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORS POLICY — LOCAL DEVELOPMENT ONLY
-//
-// This policy is intentionally permissive for local dev:
-//   • Allows any loopback origin (localhost/*) regardless of port, so
-//     `flutter run -d chrome` works even when Chrome picks a random ephemeral port.
-//   • Allows ALL HTTP methods including PATCH (required by PATCH /api/gradeclearances).
-//   • Allows ALL request headers so Authorization: Bearer <token> passes through.
-//
-// ⚠️  WARNING: Before deploying to any environment beyond local dev, replace this
-//     with a strict policy that explicitly lists your production origin(s),
-//     restricts methods to only those your API actually exposes, and enumerates
-//     only the headers your clients send (Authorization, Content-Type).
+// CORS POLICY — reads allowed origins from configuration.
+// Local dev origins are listed in appsettings.Development.json.
+// In production (Render), set the Cors__AllowedOrigins__0 env var to your
+// deployed frontend URL.
 // ─────────────────────────────────────────────────────────────────────────────
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFlutterDev", policy =>
-    {
-        policy
-            // Accept any localhost origin regardless of port (handles flutter run's random ports).
-            // Uri.IsLoopback covers 127.0.0.1, ::1, and localhost.
-            .SetIsOriginAllowed(origin => new Uri(origin).IsLoopback)
-            // Allow ALL methods — explicitly includes PATCH (needed for grade clearance toggle)
-            // as well as GET, POST, PUT, DELETE, OPTIONS (preflight).
-            .AllowAnyMethod()
-            // Allow ALL headers — needed for Authorization: Bearer <token> plus any
-            // browser-injected headers like Accept, Content-Type, X-Requested-With, etc.
-            .AllowAnyHeader();
-    });
+    options.AddPolicy("Frontend", policy =>
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod());
 });
 
 // Firebase Admin Setup
 var firebaseProjectId = builder.Configuration["Firebase:ProjectId"];
-var serviceAccountConfigPath = builder.Configuration["Firebase:ServiceAccountKeyPath"] ?? "dbtc-firebase-service-account.json";
+var serviceAccountConfigPath = Environment.GetEnvironmentVariable("FIREBASE_KEY_PATH")
+    ?? builder.Configuration["Firebase:ServiceAccountKeyPath"]
+    ?? "dbtc-firebase-service-account.json";
 var serviceAccountPath = Path.IsPathRooted(serviceAccountConfigPath)
     ? serviceAccountConfigPath
     : Path.Combine(Directory.GetCurrentDirectory(), serviceAccountConfigPath);
@@ -110,6 +95,11 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// Bind to 0.0.0.0 on the port Render assigns (or 5054 for local dev)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5054";
+app.Urls.Clear();
+app.Urls.Add($"http://0.0.0.0:{port}");
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -119,7 +109,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 
-app.UseCors("AllowFlutterDev");
+app.UseCors("Frontend");
 
 app.UseMiddleware<FirebaseAuthMiddleware>();
 
