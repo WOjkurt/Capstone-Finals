@@ -41,6 +41,13 @@ public class AppDbContext : DbContext
                 .UseIdentityByDefaultColumn();
         });
 
+        // ── User ─────────────────────────────────────────────────────
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(u => u.IsActive)
+                .HasDefaultValue(true);
+        });
+
         // ── UserDetails ─────────────────────────────────────────────
         modelBuilder.Entity<UserDetails>(entity =>
         {

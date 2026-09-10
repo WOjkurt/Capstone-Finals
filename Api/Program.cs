@@ -46,6 +46,7 @@ builder.Services.AddScoped<IStudyLoadService, StudyLoadService>();
 builder.Services.AddScoped<IGradeService, GradeService>();
 builder.Services.AddScoped<IGradeCorrectionService, GradeCorrectionService>();
 builder.Services.AddScoped<IGradeClearanceService, GradeClearanceService>();
+builder.Services.AddScoped<IStaffService, StaffService>();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORS POLICY — reads allowed origins from configuration.
@@ -77,7 +78,7 @@ if (!string.IsNullOrEmpty(firebaseProjectId) && FirebaseApp.DefaultInstance == n
         FirebaseApp.Create(new AppOptions
         {
             ProjectId = firebaseProjectId,
-            Credential = GoogleCredential.FromFile(serviceAccountPath)
+            Credential = CredentialFactory.FromFile<ServiceAccountCredential>(serviceAccountPath).ToGoogleCredential()
         });
 
         Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountPath);

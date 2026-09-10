@@ -100,6 +100,18 @@ public class FirebaseAuthMiddleware
             Console.WriteLine($"[AUTH] Auto-created new Users row for FirebaseUID: {uid} with Email: {email}");
         }
 
+        if (!user.IsActive)
+        {
+            Console.WriteLine($"[AUTH] Account '{email}' (uid: {uid}) is disabled.");
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                message = "This account has been disabled. Please contact an administrator."
+            });
+            return;
+        }
+
         if (!RoleUtils.IsValidRole(user.Role))
         {
             Console.WriteLine($"[AUTH DEBUG] Invalid or missing role for uid: {uid}");
