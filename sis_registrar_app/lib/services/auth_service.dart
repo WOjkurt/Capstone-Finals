@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../utils/error_handler.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -29,7 +30,10 @@ class AuthService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    throw Exception('Failed to fetch user info: ${response.body}');
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: 'Failed to fetch user info: ${response.body}',
+    );
   }
 
   Future<Map<String, dynamic>?> fetchCurrentUserInfo() async {

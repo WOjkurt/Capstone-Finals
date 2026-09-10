@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../repositories/enrollment_repository.dart';
 import '../repositories/grading_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class DashboardEvent {}
@@ -65,8 +66,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         approvedApplicationsCount: approvedApps.length,
         pendingCorrectionsCount: pendingCorrections.length,
       ));
-    } catch (e) {
-      emit(DashboardError(e.toString().replaceFirst('Exception: ', '')));
+    } catch (e, st) {
+      emit(DashboardError(getFriendlyErrorMessage(e, st)));
     }
   }
 }

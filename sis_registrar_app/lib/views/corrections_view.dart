@@ -279,10 +279,8 @@ class _CorrectionsViewState extends State<CorrectionsView> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       ElevatedButton(
-                                        onPressed: () {
-                                          context.read<CorrectionsBloc>().add(
-                                              ApproveCorrectionEvent(c.correctionId));
-                                        },
+                                        onPressed: () =>
+                                            _openApproveDialog(context, c),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: const Color(0xFF10B981),
                                           foregroundColor: Colors.white,
@@ -320,6 +318,39 @@ class _CorrectionsViewState extends State<CorrectionsView> {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+
+  void _openApproveDialog(BuildContext context, GradeCorrectionModel c) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => BlocProvider.value(
+        value: context.read<CorrectionsBloc>(),
+        child: AlertDialog(
+          title: const Text('Approve Grade Correction'),
+          content: Text(
+            'Are you sure you want to approve the grade amendment for ${c.studentName ?? "Student"} in ${c.subjectCode ?? (c.subjectTitle ?? "Subject")}?\n\nGrade will change from ${c.oldGrade.toStringAsFixed(2)} to ${c.newGrade.toStringAsFixed(2)}.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                context.read<CorrectionsBloc>().add(
+                    ApproveCorrectionEvent(c.correctionId));
+                Navigator.of(dialogCtx).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirm Approval'),
+            ),
+          ],
         ),
       ),
     );

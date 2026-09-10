@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/setup_models.dart';
 import '../repositories/enrollment_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class SetupEvent {}
@@ -151,7 +152,7 @@ class SetupState {
 class SetupBloc extends Bloc<SetupEvent, SetupState> {
   final AcademicSetupRepository _setupRepo;
 
-  SetupBloc(this._setupRepo) : super(SetupState()) {
+  SetupBloc(this._setupRepo) : super(SetupState(programs: const [])) {
     on<LoadSetupData>(_onLoadSetupData);
     on<SwitchSetupTab>(_onSwitchSetupTab);
     on<CreateProgramEvent>(_onCreateProgram);
@@ -184,10 +185,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         terms: results[1] as List<AcademicTermModel>,
         subjects: results[2] as List<SubjectModel>,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isLoading: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -207,10 +208,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         programs: updated,
         successMessage: 'Academic Program "${event.code}" created successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -227,10 +228,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         programs: updated,
         successMessage: 'Academic Program "${event.code}" updated successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -246,10 +247,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         programs: updated,
         successMessage: 'Academic Program deleted successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -266,10 +267,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         terms: updated,
         successMessage: 'Academic Term created successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -286,10 +287,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         terms: updated,
         successMessage: 'Academic Term updated successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -305,10 +306,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         terms: updated,
         successMessage: 'Academic Term deleted successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -324,10 +325,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         subjects: updated,
         successMessage: 'Subject created successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -343,10 +344,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         subjects: updated,
         successMessage: 'Subject updated successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -362,10 +363,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         subjects: updated,
         successMessage: 'Subject deleted successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -392,10 +393,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         isPrereqsLoading: false,
         prerequisites: list,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isPrereqsLoading: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -413,10 +414,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         prerequisites: updated,
         successMessage: 'Prerequisite added successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -434,10 +435,10 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         prerequisites: updated,
         successMessage: 'Prerequisite removed successfully!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(state.copyWith(
         isSubmitting: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }

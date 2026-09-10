@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import '../repositories/enrollment_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class ApplicationsEvent {}
@@ -133,8 +134,8 @@ class ApplicationsBloc extends Bloc<ApplicationsEvent, ApplicationsState> {
         programs: results[1] as List<AcademicProgramModel>,
         terms: results[2] as List<AcademicTermModel>,
       ));
-    } catch (e) {
-      emit(ApplicationsError(e.toString().replaceFirst('Exception: ', '')));
+    } catch (e, st) {
+      emit(ApplicationsError(getFriendlyErrorMessage(e, st)));
     }
   }
 
@@ -176,10 +177,10 @@ class ApplicationsBloc extends Bloc<ApplicationsEvent, ApplicationsState> {
         programs: current.programs,
         terms: current.terms,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(current.copyWith(isActionInProgress: false));
       emit(ApplicationsError(
-        e.toString().replaceFirst('Exception: ', ''),
+        getFriendlyErrorMessage(e, st),
         applications: current.applications,
         statusFilter: current.statusFilter,
         programs: current.programs,
@@ -206,10 +207,10 @@ class ApplicationsBloc extends Bloc<ApplicationsEvent, ApplicationsState> {
         programs: current.programs,
         terms: current.terms,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(current.copyWith(isActionInProgress: false));
       emit(ApplicationsError(
-        e.toString().replaceFirst('Exception: ', ''),
+        getFriendlyErrorMessage(e, st),
         applications: current.applications,
         statusFilter: current.statusFilter,
         programs: current.programs,

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class AuthEvent {}
@@ -121,8 +122,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         roleName: roleName,
         userId: userId,
       ));
-    } catch (e) {
-      final msg = e.toString().replaceFirst('Exception: ', '');
+    } catch (e, st) {
+      final msg = getFriendlyErrorMessage(e, st);
       emit(UnauthenticatedState(errorMessage: msg));
     }
   }

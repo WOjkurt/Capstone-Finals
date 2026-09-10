@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/grading_models.dart';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
 
 String _extractMessage(String body) {
   try {
@@ -21,7 +22,10 @@ class GradeClearanceRepository {
     final headers = await _auth.getAuthHeaders();
     final res = await http
         .get(Uri.parse('$baseUrl/api/gradeclearances/$userId'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
     return (jsonDecode(res.body) as List)
         .map((e) =>
             GradeClearanceModel.fromJson(e as Map<String, dynamic>))
@@ -35,7 +39,10 @@ class GradeClearanceRepository {
         Uri.parse('$baseUrl/api/gradeclearances/$userId/$termId'),
         headers: headers,
         body: jsonEncode({'isCleared': isCleared}));
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
     return GradeClearanceModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -49,7 +56,10 @@ class GradeCorrectionRepository {
     final headers = await _auth.getAuthHeaders();
     final res = await http
         .get(Uri.parse('$baseUrl/api/gradecorrections/pending'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
     return (jsonDecode(res.body) as List)
         .map((e) =>
             GradeCorrectionModel.fromJson(e as Map<String, dynamic>))
@@ -62,7 +72,10 @@ class GradeCorrectionRepository {
         Uri.parse('$baseUrl/api/gradecorrections/$id/approve'),
         headers: headers,
         body: '{}');
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
     return GradeCorrectionModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -75,7 +88,10 @@ class GradeCorrectionRepository {
         Uri.parse('$baseUrl/api/gradecorrections/$id/reject'),
         headers: headers,
         body: body);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
     return GradeCorrectionModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -94,7 +110,10 @@ class UserSearchRepository {
     final uri = Uri.parse('$baseUrl/api/UserDetails')
         .replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await http.get(uri, headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
     return (jsonDecode(res.body) as List)
         .map((e) =>
             UserSearchResultModel.fromJson(e as Map<String, dynamic>))

@@ -4,6 +4,7 @@ import '../config/api_config.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
 
 String _extractMessage(String body) {
   try {
@@ -22,7 +23,7 @@ class EnrollmentRepository {
     final headers = await _auth.getAuthHeaders();
     final res =
         await http.get(Uri.parse('$baseUrl/api/EnrollmentResponses/unprocessed'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => EnrollmentResponseModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -33,7 +34,7 @@ class EnrollmentRepository {
     final uri = Uri.parse('$baseUrl/api/EnrollmentApplications')
         .replace(queryParameters: status != null ? {'status': status} : null);
     final res = await http.get(uri, headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => EnrollmentApplicationModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -43,7 +44,7 @@ class EnrollmentRepository {
     final headers = await _auth.getAuthHeaders();
     final res = await http
         .get(Uri.parse('$baseUrl/api/EnrollmentApplications/approved'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => EnrollmentApplicationModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -53,7 +54,7 @@ class EnrollmentRepository {
     final headers = await _auth.getAuthHeaders();
     final res =
         await http.get(Uri.parse('$baseUrl/api/EnrollmentApplications/$id'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return EnrollmentApplicationModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -77,7 +78,7 @@ class EnrollmentRepository {
         Uri.parse('$baseUrl/api/EnrollmentApplications'),
         headers: headers,
         body: body);
-    if (res.statusCode != 201) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   Future<void> approveApplication(String id, {int? yearLevel}) async {
@@ -87,7 +88,7 @@ class EnrollmentRepository {
         Uri.parse('$baseUrl/api/EnrollmentApplications/$id/approve'),
         headers: headers,
         body: body);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   Future<void> rejectApplication(String id, {String? reason}) async {
@@ -97,7 +98,7 @@ class EnrollmentRepository {
         Uri.parse('$baseUrl/api/EnrollmentApplications/$id/reject'),
         headers: headers,
         body: body);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   Future<Map<String, dynamic>> linkAccount(String id, String email) async {
@@ -106,7 +107,7 @@ class EnrollmentRepository {
         Uri.parse('$baseUrl/api/EnrollmentApplications/$id/link-account'),
         headers: headers,
         body: jsonEncode({'email': email}));
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 }
@@ -120,7 +121,7 @@ class AcademicSetupRepository {
     final headers = await _auth.getAuthHeaders();
     final res =
         await http.get(Uri.parse('$baseUrl/api/AcademicPrograms'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => AcademicProgramModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -132,7 +133,7 @@ class AcademicSetupRepository {
     final res = await http.post(Uri.parse('$baseUrl/api/AcademicPrograms'),
         headers: headers,
         body: jsonEncode({'programCode': code, 'programName': name}));
-    if (res.statusCode != 201) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return AcademicProgramModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -143,7 +144,7 @@ class AcademicSetupRepository {
     final res = await http.put(Uri.parse('$baseUrl/api/AcademicPrograms/$id'),
         headers: headers,
         body: jsonEncode({'programCode': code, 'programName': name}));
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return AcademicProgramModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -153,7 +154,7 @@ class AcademicSetupRepository {
     final res = await http.delete(
         Uri.parse('$baseUrl/api/AcademicPrograms/$id'),
         headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   // Terms
@@ -161,7 +162,7 @@ class AcademicSetupRepository {
     final headers = await _auth.getAuthHeaders();
     final res =
         await http.get(Uri.parse('$baseUrl/api/AcademicTerms'), headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => AcademicTermModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -173,7 +174,7 @@ class AcademicSetupRepository {
     final res = await http.post(Uri.parse('$baseUrl/api/AcademicTerms'),
         headers: headers,
         body: jsonEncode({'schoolYear': schoolYear, 'semester': semester}));
-    if (res.statusCode != 201) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return AcademicTermModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -184,7 +185,7 @@ class AcademicSetupRepository {
     final res = await http.put(Uri.parse('$baseUrl/api/AcademicTerms/$id'),
         headers: headers,
         body: jsonEncode({'schoolYear': schoolYear, 'semester': semester}));
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return AcademicTermModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -194,7 +195,7 @@ class AcademicSetupRepository {
     final res = await http.delete(
         Uri.parse('$baseUrl/api/AcademicTerms/$id'),
         headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   // Subjects
@@ -206,7 +207,7 @@ class AcademicSetupRepository {
     final uri =
         Uri.parse('$baseUrl/api/Subjects').replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await http.get(uri, headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => SubjectModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -216,7 +217,7 @@ class AcademicSetupRepository {
     final headers = await _auth.getAuthHeaders();
     final res = await http.post(Uri.parse('$baseUrl/api/Subjects'),
         headers: headers, body: jsonEncode(dto));
-    if (res.statusCode != 201) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return SubjectModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
@@ -224,7 +225,7 @@ class AcademicSetupRepository {
     final headers = await _auth.getAuthHeaders();
     final res = await http.put(Uri.parse('$baseUrl/api/Subjects/$id'),
         headers: headers, body: jsonEncode(dto));
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return SubjectModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
@@ -232,7 +233,7 @@ class AcademicSetupRepository {
     final headers = await _auth.getAuthHeaders();
     final res = await http.delete(Uri.parse('$baseUrl/api/Subjects/$id'),
         headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   Future<List<PrerequisiteModel>> getPrerequisites(String subjectId) async {
@@ -240,7 +241,7 @@ class AcademicSetupRepository {
     final res = await http.get(
         Uri.parse('$baseUrl/api/Subjects/$subjectId/prerequisites'),
         headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return (jsonDecode(res.body) as List)
         .map((e) => PrerequisiteModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -253,7 +254,7 @@ class AcademicSetupRepository {
         Uri.parse('$baseUrl/api/Subjects/$subjectId/prerequisites'),
         headers: headers,
         body: jsonEncode({'prerequisiteSubjectID': prerequisiteSubjectId}));
-    if (res.statusCode != 201) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
   Future<void> removePrerequisite(String prerequisiteId) async {
@@ -261,6 +262,6 @@ class AcademicSetupRepository {
     final res = await http.delete(
         Uri.parse('$baseUrl/api/Subjects/prerequisites/$prerequisiteId'),
         headers: headers);
-    if (res.statusCode != 200) throw Exception(_extractMessage(res.body));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 }

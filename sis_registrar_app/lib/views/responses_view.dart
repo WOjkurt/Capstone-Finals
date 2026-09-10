@@ -16,6 +16,8 @@ class ResponsesView extends StatefulWidget {
 }
 
 class _ResponsesViewState extends State<ResponsesView> {
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +25,12 @@ class _ResponsesViewState extends State<ResponsesView> {
     if (bloc.state is ResponsesInitial) {
       bloc.add(LoadResponses());
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -50,6 +58,10 @@ class _ResponsesViewState extends State<ResponsesView> {
           }
         },
         builder: (context, state) {
+          final totalCount = (state is ResponsesLoaded)
+              ? state.responses.length
+              : (state is ResponsesError ? state.responses?.length ?? 0 : 0);
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -73,12 +85,71 @@ class _ResponsesViewState extends State<ResponsesView> {
                   label: const Text('Refresh'),
                 ),
               ),
+              _buildSearchBar(context, totalCount),
               Expanded(
                 child: _buildContent(context, state),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context, int totalCount) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '$totalCount Unprocessed ${totalCount == 1 ? "Response" : "Responses"}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const Spacer(),
+          SizedBox(
+            width: 320,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search by applicant email...',
+                hintStyle:
+                    TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                prefixIcon:
+                    const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -168,6 +239,40 @@ class _ResponsesViewState extends State<ResponsesView> {
       );
     }
 
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredResponses = query.isEmpty
+        ? responses
+        : responses.where((r) => r.emailAddress.toLowerCase().contains(query)).toList();
+
+    if (filteredResponses.isEmpty && query.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_outlined, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No responses found matching "$query"',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF334155),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+              icon: const Icon(Icons.clear, size: 16),
+              label: const Text('Clear search'),
+            ),
+          ],
+        ),
+      );
+    }
+
     final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
 
     return SingleChildScrollView(
@@ -216,7 +321,7 @@ class _ResponsesViewState extends State<ResponsesView> {
                             style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ],
-                    rows: responses.map((r) {
+                    rows: filteredResponses.map((r) {
                       return DataRow(
                         cells: [
                           DataCell(
@@ -399,7 +504,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
         _ContactItemData(
           firstName: TextEditingController(),
           lastName: TextEditingController(),
-          relationType: 1, // Parent
+          relationType: 1, // Father
           occupation: TextEditingController(),
           contactNo: TextEditingController(),
         ),
@@ -926,7 +1031,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                                 DropdownMenuItem(
                                   value: 2,
                                   child: Text(
-                                    'ABM',
+                                    'HUMSS',
                                     overflow: TextOverflow.ellipsis,
                                     maxLines: 1,
                                   ),
@@ -934,7 +1039,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                                 DropdownMenuItem(
                                   value: 3,
                                   child: Text(
-                                    'HUMSS',
+                                    'ABM',
                                     overflow: TextOverflow.ellipsis,
                                     maxLines: 1,
                                   ),
@@ -1096,7 +1201,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                                         DropdownMenuItem(
                                           value: 1,
                                           child: Text(
-                                            'Parent',
+                                            'Father',
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
                                           ),
@@ -1104,7 +1209,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                                         DropdownMenuItem(
                                           value: 2,
                                           child: Text(
-                                            'Guardian',
+                                            'Mother',
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
                                           ),
@@ -1112,7 +1217,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                                         DropdownMenuItem(
                                           value: 3,
                                           child: Text(
-                                            'Sibling',
+                                            'Guardian',
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
                                           ),
@@ -1120,13 +1225,21 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                                         DropdownMenuItem(
                                           value: 4,
                                           child: Text(
-                                            'Spouse',
+                                            'Sibling',
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
                                           ),
                                         ),
                                         DropdownMenuItem(
                                           value: 5,
+                                          child: Text(
+                                            'Spouse',
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 1,
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 6,
                                           child: Text(
                                             'Other',
                                             overflow: TextOverflow.ellipsis,

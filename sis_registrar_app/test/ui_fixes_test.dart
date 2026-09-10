@@ -13,6 +13,8 @@ import 'package:sis_registrar_app/models/enrollment_models.dart';
 import 'package:sis_registrar_app/models/setup_models.dart';
 
 import 'package:sis_registrar_app/models/grading_models.dart';
+import 'package:sis_registrar_app/blocs/auth_bloc.dart';
+import 'package:sis_registrar_app/views/main_layout_view.dart';
 
 class TestResponsesBloc extends Bloc<ResponsesEvent, ResponsesState> implements ResponsesBloc {
   TestResponsesBloc(super.initialState);
@@ -36,6 +38,15 @@ class TestApplicationsBloc extends Bloc<ApplicationsEvent, ApplicationsState> im
   final List<ApplicationsEvent> recordedEvents = [];
   TestApplicationsBloc(super.initialState) {
     on<ApplicationsEvent>((event, emit) {
+      recordedEvents.add(event);
+    });
+  }
+}
+
+class TestAuthBloc extends Bloc<AuthEvent, AuthState> implements AuthBloc {
+  final List<AuthEvent> recordedEvents = [];
+  TestAuthBloc(super.initialState) {
+    on<AuthEvent>((event, emit) {
       recordedEvents.add(event);
     });
   }
@@ -592,5 +603,149 @@ void main() {
       expect(event.yearLevel, 2);
     });
   });
-}
 
+  // ---------------------------------------------------------------------------
+  // Logout Confirmation Dialog
+  // ---------------------------------------------------------------------------
+  group('Logout confirmation dialog', () {
+    late TestAuthBloc authBloc;
+
+    setUp(() {
+      authBloc = TestAuthBloc(
+        AuthenticatedState(
+          email: 'registrar@dbtc-cebu.edu.ph',
+          role: 2,
+          roleName: 'Registrar',
+          userId: 'test-uid-123',
+        ),
+      );
+    });
+
+    tearDown(() => authBloc.close());
+
+    /// Builds a minimal scaffold that contains only the Sign Out button
+    /// wired to the same _confirmLogout logic, avoiding the need to provide
+    /// all seven child-view BLoCs that the full MainLayoutView requires.
+    Widget buildSubject() {
+      final auth = AuthenticatedState(
+        email: 'registrar@dbtc-cebu.edu.ph',
+        role: 2,
+        roleName: 'Registrar',
+        userId: 'test-uid-123',
+      );
+
+      return MaterialApp(
+        home: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: Builder(
+            builder: (context) => Scaffold(
+              body: OutlinedButton.icon(
+                key: const Key('sign_out_button'),
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Log out?'),
+                      content: const Text(
+                        "You'll need to sign in again to access the Registrar portal.",
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                          child: const Text('Log out'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed == true && context.mounted) {
+                    context.read<AuthBloc>().add(LogoutRequested());
+                  }
+                },
+                icon: const Icon(Icons.logout_rounded, size: 16),
+                label: const Text('Sign Out'),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('tapping Sign Out shows the confirmation dialog', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      // Tap the Sign Out button in the sidebar
+      await tester.tap(find.text('Sign Out'));
+      await tester.pumpAndSettle();
+
+      // Dialog must appear with the correct title and body text
+      expect(find.text('Log out?'), findsOneWidget);
+      expect(
+        find.text("You'll need to sign in again to access the Registrar portal."),
+        findsOneWidget,
+      );
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Log out'), findsOneWidget);
+    });
+
+    testWidgets('tapping Cancel closes the dialog without dispatching LogoutRequested', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      // Open dialog
+      await tester.tap(find.text('Sign Out'));
+      await tester.pumpAndSettle();
+      expect(find.text('Log out?'), findsOneWidget);
+
+      // Tap Cancel
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      // Dialog is dismissed
+      expect(find.text('Log out?'), findsNothing);
+
+      // No LogoutRequested was dispatched — bloc stays in AuthenticatedState
+      expect(authBloc.state, isA<AuthenticatedState>());
+      expect(authBloc.recordedEvents.whereType<LogoutRequested>(), isEmpty);
+    });
+
+    testWidgets('tapping Log out dispatches LogoutRequested', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      // Open dialog
+      await tester.tap(find.text('Sign Out'));
+      await tester.pumpAndSettle();
+      expect(find.text('Log out?'), findsOneWidget);
+
+      // Tap the destructive confirm button
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+
+      // Dialog is dismissed
+      expect(find.text('Log out?'), findsNothing);
+
+      // Exactly one LogoutRequested was dispatched
+      expect(authBloc.recordedEvents.whereType<LogoutRequested>().length, 1);
+    });
+  });
+}

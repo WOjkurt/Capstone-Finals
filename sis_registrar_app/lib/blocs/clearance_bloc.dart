@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/grading_models.dart';
 import '../repositories/grading_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class ClearanceEvent {}
@@ -120,11 +121,11 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
           isSearching: false,
           searchResults: results,
         ));
-      } catch (e) {
+      } catch (e, st) {
         emit(current.copyWith(
           searchQuery: event.query,
           isSearching: false,
-          errorMessage: e.toString().replaceFirst('Exception: ', ''),
+          errorMessage: getFriendlyErrorMessage(e, st),
         ));
       }
       completer.complete();
@@ -154,11 +155,11 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
         isClearanceLoading: false,
         clearances: list,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(current.copyWith(
         selectedStudent: event.student,
         isClearanceLoading: false,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }
@@ -194,10 +195,10 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
         successMessage:
             'Clearance status updated to ${event.isCleared ? "Cleared" : "Hold"}!',
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(current.copyWith(
         clearToggling: true,
-        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+        errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
   }

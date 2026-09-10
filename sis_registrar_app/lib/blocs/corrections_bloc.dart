@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/grading_models.dart';
 import '../repositories/grading_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class CorrectionsEvent {}
@@ -79,8 +80,8 @@ class CorrectionsBloc extends Bloc<CorrectionsEvent, CorrectionsState> {
     try {
       final list = await _correctionRepo.getPendingCorrections();
       emit(CorrectionsLoaded(corrections: list));
-    } catch (e) {
-      emit(CorrectionsError(e.toString().replaceFirst('Exception: ', '')));
+    } catch (e, st) {
+      emit(CorrectionsError(getFriendlyErrorMessage(e, st)));
     }
   }
 
@@ -97,10 +98,10 @@ class CorrectionsBloc extends Bloc<CorrectionsEvent, CorrectionsState> {
         message: 'Grade correction request approved successfully!',
         corrections: updated,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(current.copyWith(clearProcessing: true));
       emit(CorrectionsError(
-        e.toString().replaceFirst('Exception: ', ''),
+        getFriendlyErrorMessage(e, st),
         corrections: current.corrections,
       ));
     }
@@ -119,10 +120,10 @@ class CorrectionsBloc extends Bloc<CorrectionsEvent, CorrectionsState> {
         message: 'Grade correction request rejected.',
         corrections: updated,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(current.copyWith(clearProcessing: true));
       emit(CorrectionsError(
-        e.toString().replaceFirst('Exception: ', ''),
+        getFriendlyErrorMessage(e, st),
         corrections: current.corrections,
       ));
     }

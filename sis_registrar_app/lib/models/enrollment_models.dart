@@ -109,6 +109,23 @@ class EnrollmentFormModel {
       '${firstName.isNotEmpty ? firstName : ''} ${middleName.isNotEmpty ? middleName : ''} $lastName'
           .replaceAll(RegExp(r'  +'), ' ')
           .trim();
+
+  String get strandName {
+    switch (shsStrand) {
+      case 1:
+        return 'STEM';
+      case 2:
+        return 'HUMSS';
+      case 3:
+        return 'ABM';
+      case 4:
+        return 'GAS';
+      case 5:
+        return 'TVL';
+      default:
+        return shsStrand > 0 ? 'Strand $shsStrand' : '—';
+    }
+  }
 }
 
 class ContactModel {
@@ -145,6 +162,25 @@ class ContactModel {
         'occupation': occupation,
         'contactNo': contactNo,
       };
+
+  String get relationName {
+    switch (relationType) {
+      case 1:
+        return 'Father';
+      case 2:
+        return 'Mother';
+      case 3:
+        return 'Guardian';
+      case 4:
+        return 'Sibling';
+      case 5:
+        return 'Spouse';
+      case 6:
+        return 'Other';
+      default:
+        return relationType > 0 ? 'Relation #$relationType' : '—';
+    }
+  }
 }
 
 class EnrollmentResponseDataModel {

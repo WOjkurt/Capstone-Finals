@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import '../repositories/enrollment_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class LinkAccountsEvent {}
@@ -89,8 +90,8 @@ class LinkAccountsBloc extends Bloc<LinkAccountsEvent, LinkAccountsState> {
         applications: results[0] as List<EnrollmentApplicationModel>,
         programs: results[1] as List<AcademicProgramModel>,
       ));
-    } catch (e) {
-      emit(LinkAccountsError(e.toString().replaceFirst('Exception: ', '')));
+    } catch (e, st) {
+      emit(LinkAccountsError(getFriendlyErrorMessage(e, st)));
     }
   }
 
@@ -113,8 +114,8 @@ class LinkAccountsBloc extends Bloc<LinkAccountsEvent, LinkAccountsState> {
         applications: updatedList,
         programs: current.programs,
       ));
-    } catch (e) {
-      final errorMsg = e.toString().replaceFirst('Exception: ', '');
+    } catch (e, st) {
+      final errorMsg = getFriendlyErrorMessage(e, st);
       emit(current.copyWith(clearLinking: true));
       emit(LinkAccountsError(
         errorMsg,

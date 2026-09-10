@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import '../repositories/enrollment_repository.dart';
+import '../utils/error_handler.dart';
 
 // Events
 abstract class ResponsesEvent {}
@@ -96,8 +97,8 @@ class ResponsesBloc extends Bloc<ResponsesEvent, ResponsesState> {
         programs: results[1] as List<AcademicProgramModel>,
         terms: results[2] as List<AcademicTermModel>,
       ));
-    } catch (e) {
-      emit(ResponsesError(e.toString().replaceFirst('Exception: ', '')));
+    } catch (e, st) {
+      emit(ResponsesError(getFriendlyErrorMessage(e, st)));
     }
   }
 
@@ -129,9 +130,9 @@ class ResponsesBloc extends Bloc<ResponsesEvent, ResponsesState> {
         programs: current.programs,
         terms: current.terms,
       ));
-    } catch (e) {
+    } catch (e, st) {
       emit(ResponsesError(
-        e.toString().replaceFirst('Exception: ', ''),
+        getFriendlyErrorMessage(e, st),
         responses: current.responses,
         programs: current.programs,
         terms: current.terms,

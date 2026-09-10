@@ -38,6 +38,43 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     });
   }
 
+  /// Shows a confirmation dialog before signing out.
+  /// The [LogoutRequested] event is only dispatched if the user confirms.
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text(
+          "You'll need to sign in again to access the Registrar portal.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF991B1B),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      context.read<AuthBloc>().add(LogoutRequested());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -240,9 +277,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  onPressed: () {
-                    context.read<AuthBloc>().add(LogoutRequested());
-                  },
+                  onPressed: () => _confirmLogout(context),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFFF87171),
                     side: const BorderSide(color: AppColors.sidebarBorder),
@@ -262,4 +297,3 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     );
   }
 }
-

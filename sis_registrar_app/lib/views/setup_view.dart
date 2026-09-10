@@ -966,11 +966,17 @@ class _SubjectsTab extends StatelessWidget {
                                   icon: const Icon(Icons.link_off_rounded,
                                       size: 18, color: Colors.red),
                                   tooltip: 'Unlink Prerequisite',
-                                  onPressed: () {
-                                    context.read<SetupBloc>().add(
-                                        RemovePrerequisiteEvent(
-                                            p.prerequisiteId));
-                                  },
+                                  onPressed: () => _confirmDelete(
+                                    context,
+                                    title: 'Unlink Prerequisite',
+                                    message:
+                                        'Are you sure you want to remove ${p.prerequisiteSubjectCode ?? "this subject"} as a prerequisite for ${subject.subjectCode}?',
+                                    confirmLabel: 'Confirm Unlink',
+                                    onConfirm: () => context
+                                        .read<SetupBloc>()
+                                        .add(RemovePrerequisiteEvent(
+                                            p.prerequisiteId)),
+                                  ),
                                 ),
                               ],
                             ),
@@ -1319,6 +1325,7 @@ void _confirmDelete(
   BuildContext context, {
   required String title,
   required String message,
+  String confirmLabel = 'Confirm Delete',
   required VoidCallback onConfirm,
 }) {
   showDialog(
@@ -1342,7 +1349,7 @@ void _confirmDelete(
               backgroundColor: const Color(0xFFDC2626),
               foregroundColor: Colors.white,
             ),
-            child: const Text('Confirm Delete'),
+            child: Text(confirmLabel),
           ),
         ],
       ),

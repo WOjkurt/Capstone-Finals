@@ -16,6 +16,8 @@ class ApplicationsView extends StatefulWidget {
 }
 
 class _ApplicationsViewState extends State<ApplicationsView> {
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -23,6 +25,12 @@ class _ApplicationsViewState extends State<ApplicationsView> {
     if (bloc.state is ApplicationsInitial) {
       bloc.add(LoadApplications());
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -76,7 +84,7 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                   label: const Text('Refresh'),
                 ),
               ),
-              // Status Filter Tabs
+              // Status Filter Tabs & Search
               _buildFilterTabs(context, state),
               // Content Area
               Expanded(
@@ -108,38 +116,83 @@ class _ApplicationsViewState extends State<ApplicationsView> {
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Row(
-        children: filters.map((f) {
-          final isSelected = currentFilter == f['value'];
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(f['label'] as String),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (selected) {
-                  context.read<ApplicationsBloc>().add(
-                        LoadApplications(statusFilter: f['value']),
-                      );
-                }
-              },
-              selectedColor: AppColors.primary,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF475569),
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 13,
-              ),
-              backgroundColor: const Color(0xFFF1F5F9),
-              side: BorderSide(
-                color: isSelected
-                    ? AppColors.primary
-                    : const Color(0xFFE2E8F0),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: filters.map((f) {
+                  final isSelected = currentFilter == f['value'];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(f['label'] as String),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) {
+                          context.read<ApplicationsBloc>().add(
+                                LoadApplications(statusFilter: f['value']),
+                              );
+                        }
+                      },
+                      selectedColor: AppColors.primary,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      side: BorderSide(
+                        color: isSelected
+                            ? AppColors.primary
+                            : const Color(0xFFE2E8F0),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
-          );
-        }).toList(),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 320,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search by name, program, or status...',
+                hintStyle:
+                    TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                prefixIcon:
+                    const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -189,7 +242,54 @@ class _ApplicationsViewState extends State<ApplicationsView> {
 
     // Lookup maps
     final programMap = {for (var p in programs) p.programId: p.programCode};
+    final programNameMap = {for (var p in programs) p.programId: p.programName};
     final termMap = {for (var t in terms) t.termId: t.label};
+
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredApps = query.isEmpty
+        ? apps
+        : apps.where((app) {
+            final name = (app.form?.fullName ?? '').toLowerCase();
+            final progCode = (programMap[app.programId] ?? '').toLowerCase();
+            final progName = (programNameMap[app.programId] ?? '').toLowerCase();
+            final statusLabel = app.statusLabel.toLowerCase();
+            final appId = app.applicationId.toLowerCase();
+
+            return name.contains(query) ||
+                progCode.contains(query) ||
+                progName.contains(query) ||
+                statusLabel.contains(query) ||
+                appId.contains(query);
+          }).toList();
+
+    if (filteredApps.isEmpty && query.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_outlined, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No applications found matching "$query"',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF334155),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+              icon: const Icon(Icons.clear, size: 16),
+              label: const Text('Clear search'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
@@ -245,7 +345,7 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                             style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ],
-                    rows: apps.map((app) {
+                    rows: filteredApps.map((app) {
                       final name = app.form?.fullName ?? 'Unnamed Applicant';
                       final prog = programMap[app.programId] ?? 'Prog #${app.programId}';
                       final term = termMap[app.termId] ?? 'Term';
@@ -698,7 +798,7 @@ class _ApplicationDetailDialog extends StatelessWidget {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('SHS Strand', 'Strand ${form?.shsStrand ?? "—"}')),
+                            Expanded(child: _buildInfoPair('SHS Strand', form?.strandName ?? '—')),
                             Expanded(child: _buildInfoPair('Year Graduated', form?.yearGraduated ?? '—')),
                             Expanded(child: _buildInfoPair('Previous College', form?.previousCollege.isNotEmpty == true ? form!.previousCollege : 'None')),
                             Expanded(child: _buildInfoPair('Previous Course', form?.previousCourse.isNotEmpty == true ? form!.previousCourse : 'None')),
@@ -725,7 +825,7 @@ class _ApplicationDetailDialog extends StatelessWidget {
                               child: Row(
                                 children: [
                                   Expanded(child: _buildInfoPair('Name', '${c.firstName} ${c.lastName}')),
-                                  Expanded(child: _buildInfoPair('Relation', 'Relation #${c.relationType}')),
+                                  Expanded(child: _buildInfoPair('Relation', c.relationName)),
                                   Expanded(child: _buildInfoPair('Occupation', c.occupation)),
                                   Expanded(child: _buildInfoPair('Phone', c.contactNo)),
                                 ],
