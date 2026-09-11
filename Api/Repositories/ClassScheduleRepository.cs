@@ -16,6 +16,7 @@ public class ClassScheduleRepository : IClassScheduleRepository
     {
         return await _context.ClassSchedules
             .Include(cs => cs.Class)
+                .ThenInclude(c => c!.Subject)
             .FirstOrDefaultAsync(cs => cs.ScheduleID == scheduleId);
     }
 

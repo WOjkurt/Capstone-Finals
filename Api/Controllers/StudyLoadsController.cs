@@ -12,11 +12,19 @@ public class StudyLoadsController : ControllerBase
 {
     private readonly IStudyLoadService _studyLoadService;
     private readonly IClassRepository _classRepository;
+    private readonly IUserDetailsRepository _userDetailsRepository;
+    private readonly IProgramScopingService _scopingService;
 
-    public StudyLoadsController(IStudyLoadService studyLoadService, IClassRepository classRepository)
+    public StudyLoadsController(
+        IStudyLoadService studyLoadService,
+        IClassRepository classRepository,
+        IUserDetailsRepository userDetailsRepository,
+        IProgramScopingService scopingService)
     {
         _studyLoadService = studyLoadService;
         _classRepository = classRepository;
+        _userDetailsRepository = userDetailsRepository;
+        _scopingService = scopingService;
     }
 
     [HttpGet("proposed-block")]
@@ -118,6 +126,19 @@ public class StudyLoadsController : ControllerBase
             return Forbid();
         }
 
+        if (authRole == RoleUtils.ProgramHead && !isSelf)
+        {
+            var studentDetails = await _userDetailsRepository.GetByUserIdAsync(userId);
+            try
+            {
+                await _scopingService.EnsureProgramHeadAccessAsync(authUserId, studentDetails?.ProgramID, "student");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+        }
+
         try
         {
             var loads = await _studyLoadService.GetByStudentAsync(userId, termId);
@@ -144,12 +165,25 @@ public class StudyLoadsController : ControllerBase
             return NotFound(new { message = $"Class with ID '{classId}' was not found." });
         }
 
-        bool isStaff = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
+        bool isRegistrarOrAdmin = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
         bool isTeacher = targetClass.UserID.HasValue && targetClass.UserID.Value == authUserId;
+        bool isProgramHead = authRole == RoleUtils.ProgramHead;
 
-        if (!isStaff && !isTeacher)
+        if (!isRegistrarOrAdmin && !isTeacher && !isProgramHead)
         {
             return Forbid();
+        }
+
+        if (isProgramHead && !isTeacher)
+        {
+            try
+            {
+                await _scopingService.EnsureProgramHeadAccessAsync(authUserId, targetClass.Subject?.ProgramID, "class");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
         }
 
         var loads = await _studyLoadService.GetByClassAsync(classId);

@@ -17,9 +17,20 @@ public class UserDetailsController : ControllerBase
     }
 
     [HttpGet]
-    [RequireRegistrarOrAdmin]
     public async Task<IActionResult> Search([FromQuery] string? search, [FromQuery] int? role)
     {
+        if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int authRole)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        bool isRegistrarOrAdmin = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
+        bool isProgramHeadSearchingTeachers = authRole == RoleUtils.ProgramHead && role == RoleUtils.Teacher;
+
+        if (!isRegistrarOrAdmin && !isProgramHeadSearchingTeachers)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. Registrar or Admin privileges required." });
+        }
         var list = await _userDetailsRepository.SearchAsync(search, role);
         var dtos = list.Select(ud => new UserSearchResultDto
         {

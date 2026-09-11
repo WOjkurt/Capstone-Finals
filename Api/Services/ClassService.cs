@@ -52,7 +52,7 @@ public class ClassService : IClassService
         return MapToDto(created!, new List<ClassSchedule>());
     }
 
-    public async Task<List<ClassDto>> GetAllAsync(Guid? termId = null, Guid? subjectId = null, Guid? teacherUserId = null)
+    public async Task<List<ClassDto>> GetAllAsync(Guid? termId = null, Guid? subjectId = null, Guid? teacherUserId = null, int? programId = null)
     {
         var query = _context.Classes
             .Include(c => c.Subject)
@@ -73,6 +73,11 @@ public class ClassService : IClassService
         if (teacherUserId.HasValue)
         {
             query = query.Where(c => c.UserID == teacherUserId.Value);
+        }
+
+        if (programId.HasValue)
+        {
+            query = query.Where(c => c.Subject != null && c.Subject.ProgramID == programId.Value);
         }
 
         var classes = await query.ToListAsync();

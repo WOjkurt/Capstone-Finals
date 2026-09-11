@@ -11,12 +11,18 @@ public class GradeService : IGradeService
     private readonly AppDbContext _context;
     private readonly IGradeRepository _gradeRepository;
     private readonly IGradeClearanceService _clearanceService;
+    private readonly IProgramScopingService _scopingService;
 
-    public GradeService(AppDbContext context, IGradeRepository gradeRepository, IGradeClearanceService clearanceService)
+    public GradeService(
+        AppDbContext context,
+        IGradeRepository gradeRepository,
+        IGradeClearanceService clearanceService,
+        IProgramScopingService scopingService)
     {
         _context = context;
         _gradeRepository = gradeRepository;
         _clearanceService = clearanceService;
+        _scopingService = scopingService;
     }
 
     public async Task<GradeResponseDto> SubmitGradeAsync(SubmitGradeDto dto, Guid authenticatedUserId)
@@ -126,6 +132,7 @@ public class GradeService : IGradeService
     public async Task<List<GradeResponseDto>> GetByClassIdAsync(Guid classId, Guid authenticatedUserId, int authenticatedUserRole)
     {
         var targetClass = await _context.Classes
+            .Include(c => c.Subject)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.ClassID == classId);
 
@@ -142,6 +149,11 @@ public class GradeService : IGradeService
         if (!isStaff && !isAssignedTeacher)
         {
             throw new UnauthorizedAccessException("Access denied. Only the assigned teacher, Registrar, Admin, or Program Head can access class grades.");
+        }
+
+        if (authenticatedUserRole == RoleUtils.ProgramHead && !isAssignedTeacher)
+        {
+            await _scopingService.EnsureProgramHeadAccessAsync(authenticatedUserId, targetClass.Subject?.ProgramID, "class");
         }
 
         var studyLoads = await _context.StudyLoads
@@ -179,6 +191,12 @@ public class GradeService : IGradeService
         if (!isSelf && !isStaff)
         {
             throw new UnauthorizedAccessException("Access denied. You can only view your own grades unless you are a Registrar, Admin, or Program Head.");
+        }
+
+        if (authenticatedUserRole == RoleUtils.ProgramHead && !isSelf)
+        {
+            var studentDetails = await _context.UserDetails.FirstOrDefaultAsync(ud => ud.UserID == userId);
+            await _scopingService.EnsureProgramHeadAccessAsync(authenticatedUserId, studentDetails?.ProgramID, "student");
         }
 
         var query = _context.StudyLoads

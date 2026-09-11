@@ -1,5 +1,6 @@
 using Api.Auth;
 using Api.DTOs.Grading;
+using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,10 +11,17 @@ namespace Api.Controllers;
 public class GradeClearancesController : ControllerBase
 {
     private readonly IGradeClearanceService _clearanceService;
+    private readonly IUserDetailsRepository _userDetailsRepository;
+    private readonly IProgramScopingService _scopingService;
 
-    public GradeClearancesController(IGradeClearanceService clearanceService)
+    public GradeClearancesController(
+        IGradeClearanceService clearanceService,
+        IUserDetailsRepository userDetailsRepository,
+        IProgramScopingService scopingService)
     {
         _clearanceService = clearanceService;
+        _userDetailsRepository = userDetailsRepository;
+        _scopingService = scopingService;
     }
 
     [HttpPatch("{userId:guid}/{termId:guid}")]
@@ -57,6 +65,19 @@ public class GradeClearancesController : ControllerBase
         if (!isSelf && !isStaff)
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. You can only view your own grade clearances unless you are a Registrar, Admin, or Program Head." });
+        }
+
+        if (authenticatedUserRole == RoleUtils.ProgramHead && !isSelf)
+        {
+            var studentDetails = await _userDetailsRepository.GetByUserIdAsync(userId);
+            try
+            {
+                await _scopingService.EnsureProgramHeadAccessAsync(authenticatedUserId, studentDetails?.ProgramID, "student");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
         }
 
         var clearances = await _clearanceService.GetByStudentAsync(userId);

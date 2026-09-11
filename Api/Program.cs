@@ -47,6 +47,7 @@ builder.Services.AddScoped<IGradeService, GradeService>();
 builder.Services.AddScoped<IGradeCorrectionService, GradeCorrectionService>();
 builder.Services.AddScoped<IGradeClearanceService, GradeClearanceService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
+builder.Services.AddScoped<IProgramScopingService, ProgramScopingService>();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORS POLICY — reads allowed origins from configuration.
