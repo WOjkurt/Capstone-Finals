@@ -8,7 +8,7 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[RequireRegistrar]
+[RequireRegistrarOrAdmin]
 public class EnrollmentApplicationsController : ControllerBase
 {
     private readonly IEnrollmentService _enrollmentService;

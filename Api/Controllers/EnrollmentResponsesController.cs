@@ -34,7 +34,7 @@ public class EnrollmentResponsesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [RequireRegistrar]
+    [RequireRegistrarOrAdmin]
     public async Task<IActionResult> GetResponseById(Guid id)
     {
         var response = await _enrollmentService.GetResponseByIdAsync(id);
@@ -46,7 +46,7 @@ public class EnrollmentResponsesController : ControllerBase
     }
 
     [HttpGet("unprocessed")]
-    [RequireRegistrar]
+    [RequireRegistrarOrAdmin]
     public async Task<IActionResult> GetUnprocessedResponses()
     {
         var responses = await _enrollmentService.GetUnprocessedResponsesAsync();

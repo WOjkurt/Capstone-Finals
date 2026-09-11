@@ -44,7 +44,7 @@ public class GradeCorrectionsController : ControllerBase
     }
 
     [HttpGet("pending")]
-    [RequireRegistrar]
+    [RequireRegistrarOrAdmin]
     public async Task<IActionResult> GetPending()
     {
         var pendingList = await _correctionService.GetPendingAsync();
@@ -64,7 +64,7 @@ public class GradeCorrectionsController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/approve")]
-    [RequireRegistrar]
+    [RequireRegistrarOrAdmin]
     public async Task<IActionResult> ApproveCorrection(Guid id)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid reviewerUserId)
@@ -88,7 +88,7 @@ public class GradeCorrectionsController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/reject")]
-    [RequireRegistrar]
+    [RequireRegistrarOrAdmin]
     public async Task<IActionResult> RejectCorrection(Guid id, [FromBody] ReviewGradeCorrectionDto? dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid reviewerUserId)
