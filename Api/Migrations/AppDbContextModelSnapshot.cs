@@ -17,7 +17,7 @@ namespace Api.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -139,27 +139,46 @@ namespace Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("EnrollmentID")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("FacebookAccount")
+                        .HasColumnType("text");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("GuardianRelationshipDescription")
                         .HasColumnType("text");
 
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool?>("LivingWithGuardian")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Occupation")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("RelationType")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Workplace")
+                        .HasColumnType("text");
+
                     b.HasKey("ContactID");
 
-                    b.HasIndex("EnrollmentID");
+                    b.HasIndex("EnrollmentID", "RelationType")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_Contacts_EnrollmentID_RelationType");
 
                     b.ToTable("Contacts");
                 });
@@ -217,11 +236,23 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AcademicYear")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Age")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("ApplicationID")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Barangay")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BirthOrder")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BloodType")
                         .HasColumnType("text");
 
                     b.Property<string>("CityMunicipality")
@@ -235,8 +266,38 @@ namespace Api.Migrations
                     b.Property<DateOnly>("DateOfBirth")
                         .HasColumnType("date");
 
+                    b.Property<string>("DevelopmentalConditions")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FacebookName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FamilyMedicalConditionsNotes")
+                        .HasColumnType("text");
+
+                    b.PrimitiveCollection<string>("FamilyMedicalConditionsSelected")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FamilyStatus")
+                        .HasColumnType("text");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Gender")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HouseStreet")
+                        .HasColumnType("text");
+
+                    b.PrimitiveCollection<string>("ImmunizationHistory")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("IncomingCourse")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LRN")
                         .HasColumnType("text");
 
                     b.Property<string>("LastName")
@@ -259,6 +320,18 @@ namespace Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("NumberOfSiblings")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OngoingMedications")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OtherMedicalDiagnosis")
+                        .HasColumnType("text");
+
+                    b.PrimitiveCollection<string>("PastMedicalHistory")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("PlaceOfBirth")
                         .IsRequired()
                         .HasColumnType("text");
@@ -274,12 +347,30 @@ namespace Api.Migrations
                     b.Property<string>("PreviousStudentID")
                         .HasColumnType("text");
 
+                    b.Property<string>("ProgramTrackStrand")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProvBarangay")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProvCityMunicipality")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProvHouseStreet")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProvProvince")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProvZipCode")
+                        .HasColumnType("text");
+
                     b.Property<string>("Province")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("SHSStrand")
-                        .HasColumnType("integer");
+                    b.Property<string>("Religion")
+                        .HasColumnType("text");
 
                     b.Property<string>("SchoolAddress")
                         .IsRequired()
@@ -288,6 +379,9 @@ namespace Api.Migrations
                     b.Property<string>("Sex")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("StudentType")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Suffix")
                         .IsRequired()

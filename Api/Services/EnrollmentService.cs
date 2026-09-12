@@ -161,28 +161,62 @@ public class EnrollmentService : IEnrollmentService
             {
                 EnrollmentID = Guid.NewGuid(),
                 ApplicationID = application.ApplicationID,
+                // ── Name ────────────────────────────────────────────────────
                 FirstName = dto.Form.FirstName,
                 MiddleName = dto.Form.MiddleName,
                 LastName = dto.Form.LastName,
                 Suffix = dto.Form.Suffix,
+                // ── Personal ────────────────────────────────────────────────
                 DateOfBirth = dto.Form.DateOfBirth,
                 PlaceOfBirth = dto.Form.PlaceOfBirth,
                 Sex = dto.Form.Sex,
                 CivilStatus = dto.Form.CivilStatus,
                 Nationality = dto.Form.Nationality,
+                Gender = dto.Form.Gender,
+                Age = dto.Form.Age,
+                BloodType = dto.Form.BloodType,
+                Religion = dto.Form.Religion,
+                FacebookName = dto.Form.FacebookName,
+                // ── Primary Address ─────────────────────────────────────────
                 MobileNumber = dto.Form.MobileNumber,
+                HouseStreet = dto.Form.HouseStreet,
                 Barangay = dto.Form.Barangay,
                 CityMunicipality = dto.Form.CityMunicipality,
                 Province = dto.Form.Province,
                 ZipCode = dto.Form.ZipCode,
+                // ── Secondary / Provincial Address ──────────────────────────
+                ProvHouseStreet = dto.Form.ProvHouseStreet,
+                ProvBarangay = dto.Form.ProvBarangay,
+                ProvCityMunicipality = dto.Form.ProvCityMunicipality,
+                ProvProvince = dto.Form.ProvProvince,
+                ProvZipCode = dto.Form.ProvZipCode,
+                // ── Educational ─────────────────────────────────────────────
                 LastSchoolAttended = dto.Form.LastSchoolAttended,
                 SchoolAddress = dto.Form.SchoolAddress,
-                SHSStrand = dto.Form.SHSStrand,
+                ProgramTrackStrand = dto.Form.ProgramTrackStrand,
                 YearGraduated = dto.Form.YearGraduated,
                 PreviousCollege = dto.Form.PreviousCollege,
                 PreviousCourse = dto.Form.PreviousCourse,
+                // ── Enrollment Metadata ─────────────────────────────────────
                 YearLevel = dto.Form.YearLevel,
-                PreviousStudentID = dto.Form.PreviousStudentID
+                StudentType = dto.Form.StudentType,
+                LRN = dto.Form.LRN,
+                AcademicYear = dto.Form.AcademicYear,
+                IncomingCourse = dto.Form.IncomingCourse,
+                PreviousStudentID = dto.Form.PreviousStudentID,
+                // ── Family Information ───────────────────────────────────────
+                BirthOrder = dto.Form.BirthOrder,
+                NumberOfSiblings = dto.Form.NumberOfSiblings,
+                FamilyStatus = dto.Form.FamilyStatus,
+                // ── Medical Multi-Select ────────────────────────────────────
+                FamilyMedicalConditionsSelected = dto.Form.FamilyMedicalConditionsSelected,
+                PastMedicalHistory = dto.Form.PastMedicalHistory,
+                ImmunizationHistory = dto.Form.ImmunizationHistory,
+                // ── Family Health History (free text) ───────────────────────
+                FamilyMedicalConditionsNotes = dto.Form.FamilyMedicalConditionsNotes,
+                OngoingMedications = dto.Form.OngoingMedications,
+                DevelopmentalConditions = dto.Form.DevelopmentalConditions,
+                OtherMedicalDiagnosis = dto.Form.OtherMedicalDiagnosis
             };
             await _formRepository.AddAsync(form);
 
@@ -198,7 +232,14 @@ public class EnrollmentService : IEnrollmentService
                         LastName = cDto.LastName,
                         RelationType = cDto.RelationType,
                         Occupation = cDto.Occupation,
-                        ContactNo = cDto.ContactNo
+                        ContactNo = cDto.ContactNo,
+                        // ── Extended contact fields ──────────────────────────
+                        Email = cDto.Email,
+                        DateOfBirth = cDto.DateOfBirth,
+                        Workplace = cDto.Workplace,
+                        FacebookAccount = cDto.FacebookAccount,
+                        LivingWithGuardian = cDto.LivingWithGuardian,
+                        GuardianRelationshipDescription = cDto.GuardianRelationshipDescription
                     };
                     await _contactRepository.AddAsync(contact);
                 }
@@ -408,28 +449,62 @@ public class EnrollmentService : IEnrollmentService
             UserDetails = userDetailsDto,
             Form = form == null ? null : new EnrollmentFormDto
             {
+                // ── Name ────────────────────────────────────────────────────
                 FirstName = form.FirstName,
                 MiddleName = form.MiddleName,
                 LastName = form.LastName,
                 Suffix = form.Suffix,
+                // ── Personal ────────────────────────────────────────────────
                 DateOfBirth = form.DateOfBirth,
                 PlaceOfBirth = form.PlaceOfBirth,
                 Sex = form.Sex,
                 CivilStatus = form.CivilStatus,
                 Nationality = form.Nationality,
+                Gender = form.Gender,
+                Age = form.Age,
+                BloodType = form.BloodType,
+                Religion = form.Religion,
+                FacebookName = form.FacebookName,
+                // ── Primary Address ─────────────────────────────────────────
                 MobileNumber = form.MobileNumber,
+                HouseStreet = form.HouseStreet,
                 Barangay = form.Barangay,
                 CityMunicipality = form.CityMunicipality,
                 Province = form.Province,
                 ZipCode = form.ZipCode,
+                // ── Secondary / Provincial Address ──────────────────────────
+                ProvHouseStreet = form.ProvHouseStreet,
+                ProvBarangay = form.ProvBarangay,
+                ProvCityMunicipality = form.ProvCityMunicipality,
+                ProvProvince = form.ProvProvince,
+                ProvZipCode = form.ProvZipCode,
+                // ── Educational ─────────────────────────────────────────────
                 LastSchoolAttended = form.LastSchoolAttended,
                 SchoolAddress = form.SchoolAddress,
-                SHSStrand = form.SHSStrand,
+                ProgramTrackStrand = form.ProgramTrackStrand,
                 YearGraduated = form.YearGraduated,
                 PreviousCollege = form.PreviousCollege,
                 PreviousCourse = form.PreviousCourse,
+                // ── Enrollment Metadata ─────────────────────────────────────
                 YearLevel = form.YearLevel,
-                PreviousStudentID = form.PreviousStudentID
+                StudentType = form.StudentType,
+                LRN = form.LRN,
+                AcademicYear = form.AcademicYear,
+                IncomingCourse = form.IncomingCourse,
+                PreviousStudentID = form.PreviousStudentID,
+                // ── Family Information ───────────────────────────────────────
+                BirthOrder = form.BirthOrder,
+                NumberOfSiblings = form.NumberOfSiblings,
+                FamilyStatus = form.FamilyStatus,
+                // ── Medical Multi-Select ────────────────────────────────────
+                FamilyMedicalConditionsSelected = form.FamilyMedicalConditionsSelected,
+                PastMedicalHistory = form.PastMedicalHistory,
+                ImmunizationHistory = form.ImmunizationHistory,
+                // ── Family Health History (free text) ───────────────────────
+                FamilyMedicalConditionsNotes = form.FamilyMedicalConditionsNotes,
+                OngoingMedications = form.OngoingMedications,
+                DevelopmentalConditions = form.DevelopmentalConditions,
+                OtherMedicalDiagnosis = form.OtherMedicalDiagnosis
             },
             Contacts = contacts.Select(c => new ContactDto
             {
@@ -437,7 +512,14 @@ public class EnrollmentService : IEnrollmentService
                 LastName = c.LastName,
                 RelationType = c.RelationType,
                 Occupation = c.Occupation,
-                ContactNo = c.ContactNo
+                ContactNo = c.ContactNo,
+                // ── Extended contact fields ──────────────────────────────────
+                Email = c.Email,
+                DateOfBirth = c.DateOfBirth,
+                Workplace = c.Workplace,
+                FacebookAccount = c.FacebookAccount,
+                LivingWithGuardian = c.LivingWithGuardian,
+                GuardianRelationshipDescription = c.GuardianRelationshipDescription
             }).ToList()
         };
     }

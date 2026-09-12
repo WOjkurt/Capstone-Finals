@@ -145,6 +145,14 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(ef => ef.ApplicationID)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Multi-select checkbox fields stored as jsonb string arrays.
+            entity.Property(ef => ef.FamilyMedicalConditionsSelected)
+                .HasColumnType("jsonb");
+            entity.Property(ef => ef.PastMedicalHistory)
+                .HasColumnType("jsonb");
+            entity.Property(ef => ef.ImmunizationHistory)
+                .HasColumnType("jsonb");
         });
 
         // ── Contact ─────────────────────────────────────────────────
@@ -154,6 +162,11 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(c => c.EnrollmentID)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // At most one Father (1), Mother (2), and Guardian (3) per enrollment.
+            entity.HasIndex(c => new { c.EnrollmentID, c.RelationType })
+                .IsUnique()
+                .HasDatabaseName("UQ_Contacts_EnrollmentID_RelationType");
         });
 
         // ── Class ────────────────────────────────────────────────────
