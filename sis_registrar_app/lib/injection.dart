@@ -6,8 +6,10 @@ import 'blocs/dashboard_bloc.dart';
 import 'blocs/link_accounts_bloc.dart';
 import 'blocs/responses_bloc.dart';
 import 'blocs/setup_bloc.dart';
+import 'blocs/staff_bloc.dart';
 import 'repositories/enrollment_repository.dart';
 import 'repositories/grading_repository.dart';
+import 'repositories/staff_repository.dart';
 import 'services/auth_service.dart';
 
 final getIt = GetIt.instance;
@@ -27,6 +29,8 @@ void setupLocator() {
       () => GradeCorrectionRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<UserSearchRepository>(
       () => UserSearchRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<StaffRepository>(
+      () => StaffRepository(getIt<AuthService>()));
 
   // Blocs
   getIt.registerFactory<DashboardBloc>(() => DashboardBloc(
@@ -54,5 +58,8 @@ void setupLocator() {
       ));
   getIt.registerFactory<CorrectionsBloc>(() => CorrectionsBloc(
         getIt<GradeCorrectionRepository>(),
+      ));
+  getIt.registerFactory<StaffBloc>(() => StaffBloc(
+        getIt<StaffRepository>(),
       ));
 }

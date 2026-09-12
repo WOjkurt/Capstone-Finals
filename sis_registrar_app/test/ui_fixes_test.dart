@@ -14,7 +14,6 @@ import 'package:sis_registrar_app/models/setup_models.dart';
 
 import 'package:sis_registrar_app/models/grading_models.dart';
 import 'package:sis_registrar_app/blocs/auth_bloc.dart';
-import 'package:sis_registrar_app/views/main_layout_view.dart';
 
 class TestResponsesBloc extends Bloc<ResponsesEvent, ResponsesState> implements ResponsesBloc {
   TestResponsesBloc(super.initialState);
@@ -627,13 +626,6 @@ void main() {
     /// wired to the same _confirmLogout logic, avoiding the need to provide
     /// all seven child-view BLoCs that the full MainLayoutView requires.
     Widget buildSubject() {
-      final auth = AuthenticatedState(
-        email: 'registrar@dbtc-cebu.edu.ph',
-        role: 2,
-        roleName: 'Registrar',
-        userId: 'test-uid-123',
-      );
-
       return MaterialApp(
         home: BlocProvider<AuthBloc>.value(
           value: authBloc,

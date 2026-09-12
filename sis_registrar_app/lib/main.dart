@@ -9,6 +9,7 @@ import 'blocs/dashboard_bloc.dart';
 import 'blocs/link_accounts_bloc.dart';
 import 'blocs/responses_bloc.dart';
 import 'blocs/setup_bloc.dart';
+import 'blocs/staff_bloc.dart';
 import 'firebase_options.dart';
 import 'injection.dart';
 import 'services/auth_service.dart';
@@ -58,6 +59,9 @@ class SisRegistrarApp extends StatelessWidget {
         ),
         BlocProvider<CorrectionsBloc>(
           create: (_) => getIt<CorrectionsBloc>(),
+        ),
+        BlocProvider<StaffBloc>(
+          create: (_) => getIt<StaffBloc>(),
         ),
       ],
       child: MaterialApp(

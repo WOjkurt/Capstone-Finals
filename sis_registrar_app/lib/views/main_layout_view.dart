@@ -9,11 +9,38 @@ import 'dashboard_view.dart';
 import 'link_accounts_view.dart';
 import 'responses_view.dart';
 import 'setup_view.dart';
+import 'staff_management_view.dart';
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
 
   const MainLayoutView({super.key, required this.auth});
+
+  static List<Map<String, dynamic>> buildNavItems({
+    required int role,
+    required String roleName,
+  }) {
+    final isAdmin = role == 1 || roleName.toLowerCase() == 'admin';
+    final items = [
+      {'title': 'Dashboard', 'icon': Icons.dashboard_outlined, 'activeIcon': Icons.dashboard_rounded},
+      {'title': 'Responses', 'icon': Icons.mark_email_unread_outlined, 'activeIcon': Icons.mark_email_unread_rounded},
+      {'title': 'Applications', 'icon': Icons.description_outlined, 'activeIcon': Icons.description_rounded},
+      {'title': 'Link accounts', 'icon': Icons.link_outlined, 'activeIcon': Icons.link_rounded},
+      {'title': 'Clearance', 'icon': Icons.verified_user_outlined, 'activeIcon': Icons.verified_user_rounded},
+      {'title': 'Setup', 'icon': Icons.settings_outlined, 'activeIcon': Icons.settings_rounded},
+      {'title': 'Corrections', 'icon': Icons.assignment_late_outlined, 'activeIcon': Icons.assignment_late_rounded},
+    ];
+
+    if (isAdmin) {
+      items.add({
+        'title': 'Staff Management',
+        'icon': Icons.admin_panel_settings_outlined,
+        'activeIcon': Icons.admin_panel_settings_rounded,
+      });
+    }
+
+    return items;
+  }
 
   @override
   State<MainLayoutView> createState() => _MainLayoutViewState();
@@ -22,15 +49,13 @@ class MainLayoutView extends StatefulWidget {
 class _MainLayoutViewState extends State<MainLayoutView> {
   int _selectedIndex = 0;
 
-  final List<Map<String, dynamic>> _navItems = [
-    {'title': 'Dashboard', 'icon': Icons.dashboard_outlined, 'activeIcon': Icons.dashboard_rounded},
-    {'title': 'Responses', 'icon': Icons.mark_email_unread_outlined, 'activeIcon': Icons.mark_email_unread_rounded},
-    {'title': 'Applications', 'icon': Icons.description_outlined, 'activeIcon': Icons.description_rounded},
-    {'title': 'Link accounts', 'icon': Icons.link_outlined, 'activeIcon': Icons.link_rounded},
-    {'title': 'Clearance', 'icon': Icons.verified_user_outlined, 'activeIcon': Icons.verified_user_rounded},
-    {'title': 'Setup', 'icon': Icons.settings_outlined, 'activeIcon': Icons.settings_rounded},
-    {'title': 'Corrections', 'icon': Icons.assignment_late_outlined, 'activeIcon': Icons.assignment_late_rounded},
-  ];
+  bool get _isAdmin =>
+      widget.auth.role == 1 || widget.auth.roleName.toLowerCase() == 'admin';
+
+  List<Map<String, dynamic>> get _navItems => MainLayoutView.buildNavItems(
+        role: widget.auth.role,
+        roleName: widget.auth.roleName,
+      );
 
   void _onSelectTab(int index) {
     setState(() {
@@ -77,16 +102,19 @@ class _MainLayoutViewState extends State<MainLayoutView> {
 
   @override
   Widget build(BuildContext context) {
+    final navItems = _navItems;
+    final currentIndex = _selectedIndex < navItems.length ? _selectedIndex : 0;
+
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Left Sidebar
-          _buildSidebar(context),
+          _buildSidebar(context, navItems, currentIndex),
           // Content Area
           Expanded(
             child: IndexedStack(
-              index: _selectedIndex,
+              index: currentIndex,
               children: [
                 DashboardView(onNavigate: _onSelectTab),
                 const ResponsesView(),
@@ -95,6 +123,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                 const ClearanceView(),
                 const SetupView(),
                 const CorrectionsView(),
+                if (_isAdmin) const StaffManagementView(),
               ],
             ),
           ),
@@ -103,7 +132,11 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     );
   }
 
-  Widget _buildSidebar(BuildContext context) {
+  Widget _buildSidebar(
+    BuildContext context,
+    List<Map<String, dynamic>> navItems,
+    int currentIndex,
+  ) {
     return Container(
       width: 260,
       decoration: const BoxDecoration(
@@ -170,11 +203,11 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              itemCount: _navItems.length,
+              itemCount: navItems.length,
               separatorBuilder: (ctx, i) => const SizedBox(height: 4),
               itemBuilder: (ctx, i) {
-                final item = _navItems[i];
-                final isSelected = _selectedIndex == i;
+                final item = navItems[i];
+                final isSelected = currentIndex == i;
 
                 return InkWell(
                   onTap: () => _onSelectTab(i),
