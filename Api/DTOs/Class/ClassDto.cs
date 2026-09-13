@@ -20,5 +20,7 @@ public class ClassDto
     public DateTime CreatedAt { get; set; }
     public Guid? CreatedByUserID { get; set; }
 
+    public int EnrolledCount { get; set; }
+
     public List<ClassScheduleDto> Schedules { get; set; } = new();
 }

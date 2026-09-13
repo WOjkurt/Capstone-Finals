@@ -70,6 +70,7 @@ class ClassModel {
   final String className;
   final DateTime? createdAt;
   final String? createdByUserId;
+  final int enrolledCount;
   final List<ClassScheduleModel> schedules;
 
   const ClassModel({
@@ -85,6 +86,7 @@ class ClassModel {
     required this.className,
     this.createdAt,
     this.createdByUserId,
+    this.enrolledCount = 0,
     this.schedules = const [],
   });
 
@@ -104,6 +106,7 @@ class ClassModel {
           ? DateTime.tryParse(json['createdAt'] as String)
           : null,
       createdByUserId: json['createdByUserID'] as String? ?? json['createdByUserId'] as String?,
+      enrolledCount: (json['enrolledCount'] as num?)?.toInt() ?? 0,
       schedules: (json['schedules'] as List<dynamic>?)
               ?.map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
               .toList() ??

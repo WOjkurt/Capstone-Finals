@@ -91,10 +91,17 @@ public class ClassService : IClassService
             .GroupBy(cs => cs.ClassID)
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        var enrollmentCounts = await _context.StudyLoads
+            .Where(sl => classIds.Contains(sl.ClassID))
+            .GroupBy(sl => sl.ClassID)
+            .Select(g => new { ClassId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ClassId, x => x.Count);
+
         var result = new List<ClassDto>();
         foreach (var c in classes)
         {
             scheduleMap.TryGetValue(c.ClassID, out var schedules);
+            enrollmentCounts.TryGetValue(c.ClassID, out var enrolledCount);
             string? teacherName = null;
             if (c.UserID.HasValue)
             {
@@ -107,7 +114,7 @@ public class ClassService : IClassService
                 }
             }
 
-            result.Add(MapToDto(c, schedules ?? new List<ClassSchedule>(), teacherName));
+            result.Add(MapToDto(c, schedules ?? new List<ClassSchedule>(), teacherName, enrolledCount));
         }
 
         return result;
@@ -122,6 +129,7 @@ public class ClassService : IClassService
         }
 
         var schedules = await _scheduleRepository.GetByClassIdAsync(classId);
+        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId);
 
         string? teacherName = null;
         if (entity.UserID.HasValue)
@@ -135,7 +143,7 @@ public class ClassService : IClassService
             }
         }
 
-        return MapToDto(entity, schedules, teacherName);
+        return MapToDto(entity, schedules, teacherName, enrolledCount);
     }
 
     public async Task<ClassDto> UpdateAsync(Guid classId, UpdateClassDto dto)
@@ -152,6 +160,7 @@ public class ClassService : IClassService
         await _classRepository.UpdateAsync(entity);
 
         var schedules = await _scheduleRepository.GetByClassIdAsync(classId);
+        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId);
 
         string? teacherName = null;
         if (entity.UserID.HasValue)
@@ -165,7 +174,7 @@ public class ClassService : IClassService
             }
         }
 
-        return MapToDto(entity, schedules, teacherName);
+        return MapToDto(entity, schedules, teacherName, enrolledCount);
     }
 
     public async Task DeleteAsync(Guid classId)
@@ -191,7 +200,7 @@ public class ClassService : IClassService
         await _classRepository.DeleteAsync(classId);
     }
 
-    private static ClassDto MapToDto(Class entity, List<ClassSchedule> schedules, string? teacherName = null)
+    private static ClassDto MapToDto(Class entity, List<ClassSchedule> schedules, string? teacherName = null, int enrolledCount = 0)
     {
         return new ClassDto
         {
@@ -207,6 +216,7 @@ public class ClassService : IClassService
             ClassName = entity.ClassName,
             CreatedAt = entity.CreatedAt,
             CreatedByUserID = entity.CreatedByUserID,
+            EnrolledCount = enrolledCount,
             Schedules = schedules.Select(s => new ClassScheduleDto
             {
                 ScheduleID = s.ScheduleID,

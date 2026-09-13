@@ -82,6 +82,7 @@ void main() {
       expect(classModel.className, 'BSIT-3A');
       expect(classModel.teacherName, 'Prof. Rizal');
       expect(classModel.termLabel, '2024-2025 · 1st Sem');
+      expect(classModel.enrolledCount, 0);
       expect(classModel.schedules.length, 2);
       expect(classModel.scheduleSummary,
           'MWF 8:00 AM – 9:30 AM · Lab 1 | Sat 10:00 AM – 12:00 PM · Room 101');
@@ -102,6 +103,20 @@ void main() {
       expect(classModel.schedules, isEmpty);
       expect(classModel.scheduleSummary, 'No schedule assigned');
       expect(classModel.termLabel, '2025-2026');
+    });
+
+    test('deserializes enrolledCount correctly when provided', () {
+      final json = {
+        'classID': 'class-enrolled',
+        'subjectID': 'sub-1',
+        'className': 'BSIT-2A',
+        'termID': 'term-1',
+        'enrolledCount': 42,
+      };
+
+      final classModel = ClassModel.fromJson(json);
+
+      expect(classModel.enrolledCount, 42);
     });
   });
 
