@@ -6,6 +6,7 @@ import '../injection.dart';
 import '../models/class_models.dart';
 import '../models/grading_models.dart';
 import '../repositories/class_repository.dart';
+import '../repositories/grading_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
@@ -344,11 +345,351 @@ class _GradesViewState extends State<GradesView> {
             grades: state.grades,
             savingRowStudyLoadId: state.savingRowStudyLoadId,
             isSubmittingBatch: state.isSubmittingBatch,
+            auth: widget.auth,
           );
         }
 
         return const SizedBox.shrink();
       },
+    );
+  }
+
+  /// Opens the "Request Correction" dialog for a locked grade field.
+  /// [grade]         — the existing GradeModel for this student row.
+  /// [correctionPeriod] — 1 for Midterms, 2 for Finals.
+  static Future<void> showRequestCorrectionDialog(
+    BuildContext context, {
+    required GradeModel grade,
+    required int correctionPeriod,
+  }) async {
+    final periodLabel = correctionPeriod == 1 ? 'Midterm' : 'Final';
+    final currentGrade = correctionPeriod == 1
+        ? grade.midtermGrade!
+        : grade.finalGrade!;
+
+    final newGradeController = TextEditingController();
+    final reasonController = TextEditingController();
+    String? newGradeError;
+    String? reasonError;
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+            titlePadding:
+                const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            contentPadding:
+                const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            actionsPadding:
+                const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.edit_note_rounded,
+                    color: Color(0xFF92400E),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Request Grade Correction',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      Text(
+                        '$periodLabel Grade${grade.studentName != null ? " — ${grade.studentName}" : ""}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 4),
+                  // Info banner
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border:
+                          Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      'The registrar will review this request. The grade will not change until they approve it.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Current (read-only) grade
+                  _DialogField(
+                    label: 'Current $periodLabel Grade (Read-Only)',
+                    child: Container(
+                      height: 42,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline_rounded,
+                              size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 8),
+                          Text(
+                            currentGrade.toStringAsFixed(2),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // New grade input
+                  _DialogField(
+                    label: 'New $periodLabel Grade *',
+                    child: TextField(
+                      controller: newGradeController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 1.75',
+                        hintStyle: const TextStyle(
+                            fontSize: 13, color: Color(0xFF94A3B8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        filled: true,
+                        fillColor: Colors.white,
+                        errorText: newGradeError,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: newGradeError != null
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: newGradeError != null
+                                ? const Color(0xFFEF4444)
+                                : AppColors.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700),
+                      onChanged: (_) {
+                        setDialogState(() => newGradeError = null);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Reason text field
+                  _DialogField(
+                    label: 'Reason / Justification *',
+                    child: TextField(
+                      controller: reasonController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Briefly explain why the correction is needed…',
+                        hintStyle: const TextStyle(
+                            fontSize: 13, color: Color(0xFF94A3B8)),
+                        contentPadding: const EdgeInsets.all(12),
+                        filled: true,
+                        fillColor: Colors.white,
+                        errorText: reasonError,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: reasonError != null
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: reasonError != null
+                                ? const Color(0xFFEF4444)
+                                : AppColors.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      style:
+                          const TextStyle(fontSize: 13, height: 1.5),
+                      onChanged: (_) {
+                        setDialogState(() => reasonError = null);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed:
+                    isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD97706),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        // Validate
+                        String? ngErr;
+                        String? rErr;
+
+                        final newGradeText =
+                            newGradeController.text.trim();
+                        if (newGradeText.isEmpty) {
+                          ngErr = 'Required';
+                        } else {
+                          final parsed = double.tryParse(newGradeText);
+                          if (parsed == null ||
+                              !isValidGradeValue(parsed)) {
+                            ngErr =
+                                'Must be 1.00, 1.25 … 3.00, or 5.00';
+                          } else if ((parsed - currentGrade).abs() <
+                              0.001) {
+                            ngErr =
+                                'New grade must differ from current grade';
+                          }
+                        }
+
+                        if (reasonController.text.trim().isEmpty) {
+                          rErr = 'Required';
+                        }
+
+                        if (ngErr != null || rErr != null) {
+                          setDialogState(() {
+                            newGradeError = ngErr;
+                            reasonError = rErr;
+                          });
+                          return;
+                        }
+
+                        setDialogState(() => isSubmitting = true);
+
+                        try {
+                          await getIt<GradeCorrectionRepository>()
+                              .requestCorrection(
+                            gradeId: grade.gradeId,
+                            correctionPeriod: correctionPeriod,
+                            oldGrade: currentGrade,
+                            newGrade: double.parse(newGradeText),
+                            reason: reasonController.text.trim(),
+                          );
+
+                          if (dialogContext.mounted) {
+                            Navigator.of(dialogContext).pop();
+                          }
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Correction request submitted for '
+                                  '${grade.studentName ?? 'student'} — $periodLabel grade.',
+                                ),
+                                backgroundColor:
+                                    const Color(0xFF16A34A),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setDialogState(() => isSubmitting = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Failed to submit request: ${e.toString()}'),
+                                backgroundColor:
+                                    const Color(0xFFDC2626),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Submit Request',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -459,6 +800,7 @@ class _GradeSheetTable extends StatefulWidget {
   final Map<String, GradeModel> grades;
   final String? savingRowStudyLoadId;
   final bool isSubmittingBatch;
+  final AuthenticatedState auth;
 
   const _GradeSheetTable({
     required this.classItem,
@@ -466,6 +808,7 @@ class _GradeSheetTable extends StatefulWidget {
     required this.grades,
     this.savingRowStudyLoadId,
     required this.isSubmittingBatch,
+    required this.auth,
   });
 
   @override
@@ -814,7 +1157,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
                           child: Text('REMARKS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.5)),
                         ),
                         SizedBox(
-                          width: 90,
+                          width: 160,
                           child: Text('ACTION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.5)),
                         ),
                       ],
@@ -887,9 +1230,9 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
                                       width: 120,
                                       child: _buildRemarksBadge(effectiveFinal, g?.remarksLabel),
                                     ),
-                                    // Save Button
+                                    // Action column: Save button + Correction icon buttons
                                     SizedBox(
-                                      width: 90,
+                                      width: 160,
                                       child: isSavingThisRow
                                           ? const Center(
                                               child: SizedBox(
@@ -898,17 +1241,78 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
                                                 child: CircularProgressIndicator(strokeWidth: 2),
                                               ),
                                             )
-                                          : OutlinedButton(
-                                              onPressed: (hasChanges && !widget.isSubmittingBatch) ? () => _saveSingleRow(item) : null,
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: AppColors.primary,
-                                                side: BorderSide(
-                                                  color: hasChanges ? AppColors.primary : const Color(0xFFCBD5E1),
+                                          : Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // Save button (only active when there are un-submitted changes)
+                                                OutlinedButton(
+                                                  onPressed: (hasChanges && !widget.isSubmittingBatch) ? () => _saveSingleRow(item) : null,
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor: AppColors.primary,
+                                                    side: BorderSide(
+                                                      color: hasChanges ? AppColors.primary : const Color(0xFFCBD5E1),
+                                                    ),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                                  ),
+                                                  child: const Text('Save', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                                                 ),
-                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                              ),
-                                              child: const Text('Save', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                                // Correction icon buttons (one per locked period)
+                                                if (isMidtermLocked && g != null) ...[  
+                                                  const SizedBox(width: 4),
+                                                  Tooltip(
+                                                    message: 'Request Midterm Correction',
+                                                    child: InkWell(
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      onTap: () => _GradesViewState.showRequestCorrectionDialog(
+                                                        context,
+                                                        grade: g,
+                                                        correctionPeriod: 1,
+                                                      ),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(6),
+                                                        decoration: BoxDecoration(
+                                                          color: const Color(0xFFFEF3C7),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                          border: Border.all(color: const Color(0xFFFDE68A)),
+                                                        ),
+                                                        child: const Icon(
+                                                          Icons.edit_note_rounded,
+                                                          size: 14,
+                                                          color: Color(0xFF92400E),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (isFinalLocked && g != null) ...[  
+                                                  const SizedBox(width: 4),
+                                                  Tooltip(
+                                                    message: 'Request Final Correction',
+                                                    child: InkWell(
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      onTap: () => _GradesViewState.showRequestCorrectionDialog(
+                                                        context,
+                                                        grade: g,
+                                                        correctionPeriod: 2,
+                                                      ),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(6),
+                                                        decoration: BoxDecoration(
+                                                          color: const Color(0xFFFEF3C7),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                          border: Border.all(color: const Color(0xFFFDE68A)),
+                                                        ),
+                                                        child: const Icon(
+                                                          Icons.edit_note_rounded,
+                                                          size: 14,
+                                                          color: Color(0xFF92400E),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                     ),
                                   ],
@@ -1028,5 +1432,33 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
     } else {
       return StatusBadge.danger(label: serverLabel ?? 'Failed');
     }
+  }
+}
+
+/// Small labelled form field used in the correction request dialog.
+class _DialogField extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _DialogField({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
   }
 }

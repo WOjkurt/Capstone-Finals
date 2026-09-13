@@ -176,4 +176,78 @@ void main() {
       expect(validateGradeString('4.00'), isNotNull);
     });
   });
+
+  group('GradeCorrectionModel tests', () {
+    test('deserializes GradeCorrectionModel from JSON', () {
+      final json = {
+        'correctionId': 'corr-101',
+        'gradeId': 'grade-202',
+        'correctionPeriod': 1,
+        'correctionPeriodLabel': 'Midterm',
+        'oldGrade': 2.50,
+        'newGrade': 1.75,
+        'reason': 'Computation error in lab experiment scores.',
+        'requestedByUserID': 'teacher-1',
+        'requesterName': 'Prof. Rizal',
+        'reviewedByUserID': 'reg-1',
+        'reviewerName': 'Registrar Staff',
+        'correctionStatus': 1,
+        'correctionStatusLabel': 'Approved',
+        'dateRequested': '2026-09-13T12:00:00Z',
+        'dateReviewed': '2026-09-13T14:30:00Z',
+        'subjectCode': 'CS 301',
+        'subjectTitle': 'Operating Systems',
+        'studentName': 'Kurt Wojtyle',
+      };
+
+      final model = GradeCorrectionModel.fromJson(json);
+
+      expect(model.correctionId, 'corr-101');
+      expect(model.gradeId, 'grade-202');
+      expect(model.correctionPeriod, 1);
+      expect(model.correctionPeriodLabel, 'Midterm');
+      expect(model.oldGrade, 2.50);
+      expect(model.newGrade, 1.75);
+      expect(model.reason, 'Computation error in lab experiment scores.');
+      expect(model.requestedByUserId, 'teacher-1');
+      expect(model.requesterName, 'Prof. Rizal');
+      expect(model.reviewedByUserId, 'reg-1');
+      expect(model.reviewerName, 'Registrar Staff');
+      expect(model.correctionStatus, 1);
+      expect(model.correctionStatusLabel, 'Approved');
+      expect(model.subjectCode, 'CS 301');
+      expect(model.subjectTitle, 'Operating Systems');
+      expect(model.studentName, 'Kurt Wojtyle');
+      expect(model.dateReviewed, isNotNull);
+    });
+
+    test('handles fallback casing and null reviewer in GradeCorrectionModel', () {
+      final json = {
+        'correctionID': 'corr-102',
+        'gradeID': 'grade-203',
+        'correctionPeriod': 2,
+        'correctionPeriodLabel': 'Final',
+        'oldGrade': 3.00,
+        'newGrade': 2.00,
+        'reason': 'Unrecorded project presentation score.',
+        'requestedByUserId': 'teacher-2',
+        'correctionStatus': 0,
+        'correctionStatusLabel': 'Pending',
+        'dateRequested': '2026-09-13T12:00:00Z',
+      };
+
+      final model = GradeCorrectionModel.fromJson(json);
+
+      expect(model.correctionId, 'corr-102');
+      expect(model.gradeId, 'grade-203');
+      expect(model.correctionPeriod, 2);
+      expect(model.oldGrade, 3.00);
+      expect(model.newGrade, 2.00);
+      expect(model.correctionStatus, 0);
+      expect(model.correctionStatusLabel, 'Pending');
+      expect(model.reviewedByUserId, isNull);
+      expect(model.reviewerName, isNull);
+      expect(model.dateReviewed, isNull);
+    });
+  });
 }

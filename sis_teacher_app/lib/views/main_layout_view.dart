@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
+import 'grade_corrections_view.dart';
 import 'grades_view.dart';
 import 'my_classes_view.dart';
 import 'placeholder_views.dart';
@@ -133,7 +134,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                   auth: widget.auth,
                   initialClassId: _selectedGradesClassId,
                 ),
-                const GradeCorrectionsPlaceholderView(),
+                const GradeCorrectionsView(),
                 if (_isProgramHead) const ProgramOverviewPlaceholderView(),
               ],
             ),
