@@ -3,6 +3,8 @@ namespace Api.DTOs.StudyLoad;
 public class StudyLoadResponseDto
 {
     public Guid StudyLoadId { get; set; }
+    public Guid? StudentUserId { get; set; }
+    public string? StudentName { get; set; }
     public required string SubjectCode { get; set; }
     public required string SubjectTitle { get; set; }
     public required string ClassName { get; set; }

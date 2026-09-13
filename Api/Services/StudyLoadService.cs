@@ -366,16 +366,34 @@ public class StudyLoadService : IStudyLoadService
         var loads = await _studyLoadRepository.GetByClassIdAsync(classId);
         var result = new List<StudyLoadResponseDto>();
 
+        var userIds = loads.Select(sl => sl.UserID).Distinct().ToList();
+        var userDetailsList = await _context.UserDetails
+            .AsNoTracking()
+            .Where(ud => userIds.Contains(ud.UserID))
+            .ToListAsync();
+        var userDetailsMap = userDetailsList.ToDictionary(ud => ud.UserID);
+
         foreach (var sl in loads)
         {
-            result.Add(await MapToDtoAsync(sl));
+            string? studentName = null;
+            if (userDetailsMap.TryGetValue(sl.UserID, out var ud) &&
+                (!string.IsNullOrWhiteSpace(ud.Firstname) || !string.IsNullOrWhiteSpace(ud.Lastname)))
+            {
+                studentName = $"{ud.Firstname} {ud.Lastname}".Trim();
+            }
+            else if (sl.User != null && !string.IsNullOrWhiteSpace(sl.User.Email))
+            {
+                studentName = sl.User.Email;
+            }
+
+            result.Add(await MapToDtoAsync(sl, studentName));
         }
 
         return result;
     }
 
     // ── Helper Methods ─────────────────────────────────────────────────
-    private async Task<StudyLoadResponseDto> MapToDtoAsync(StudyLoad sl)
+    private async Task<StudyLoadResponseDto> MapToDtoAsync(StudyLoad sl, string? studentName = null)
     {
         string? teacherName = null;
         if (sl.Class != null && sl.Class.UserID.HasValue)
@@ -392,6 +410,8 @@ public class StudyLoadService : IStudyLoadService
         return new StudyLoadResponseDto
         {
             StudyLoadId = sl.StudyLoadID,
+            StudentUserId = sl.UserID,
+            StudentName = studentName,
             SubjectCode = sl.Class?.Subject?.SubjectCode ?? "N/A",
             SubjectTitle = sl.Class?.Subject?.SubjectTitle ?? "N/A",
             ClassName = sl.Class?.ClassName ?? "N/A",

@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Enrollment;
 using Api.Domain.Grading;
 using Api.DTOs.Grading;
 using Api.Repositories;
@@ -44,22 +45,111 @@ public class GradeService : IGradeService
             throw new UnauthorizedAccessException("Only the assigned teacher of this class can submit grades.");
         }
 
-        if (!dto.MidtermGrade.HasValue && !dto.FinalGrade.HasValue)
+        return await ProcessGradeItemAsync(dto.StudyLoadId, dto.MidtermGrade, dto.FinalGrade, studyLoad, authenticatedUserId);
+    }
+
+    public async Task<SubmitGradeBatchResponseDto> SubmitGradeBatchAsync(SubmitGradeBatchDto dto, Guid authenticatedUserId)
+    {
+        if (dto.ClassId == Guid.Empty)
+        {
+            throw new ArgumentException("ClassId must be provided.");
+        }
+
+        var targetClass = await _context.Classes
+            .Include(c => c.Subject)
+            .FirstOrDefaultAsync(c => c.ClassID == dto.ClassId);
+
+        if (targetClass == null)
+        {
+            throw new KeyNotFoundException($"Class with ID '{dto.ClassId}' was not found.");
+        }
+
+        if (targetClass.UserID != authenticatedUserId)
+        {
+            throw new UnauthorizedAccessException("Only the assigned teacher of this class can submit grades.");
+        }
+
+        var response = new SubmitGradeBatchResponseDto();
+
+        if (dto.Grades == null || dto.Grades.Count == 0)
+        {
+            return response;
+        }
+
+        var studyLoadIds = dto.Grades.Select(g => g.StudyLoadId).Distinct().ToList();
+
+        var studyLoads = await _context.StudyLoads
+            .AsNoTracking()
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.Subject)
+            .Include(sl => sl.User)
+            .Where(sl => studyLoadIds.Contains(sl.StudyLoadID))
+            .ToListAsync();
+
+        var studyLoadMap = studyLoads.ToDictionary(sl => sl.StudyLoadID);
+
+        // Validate every studyLoadId in the list belongs to classId (via its Class navigation)
+        // Reject the whole request with 400 if any doesn't
+        foreach (var item in dto.Grades)
+        {
+            if (!studyLoadMap.TryGetValue(item.StudyLoadId, out var sl) || sl.Class == null || sl.Class.ClassID != dto.ClassId)
+            {
+                throw new ArgumentException($"StudyLoad with ID '{item.StudyLoadId}' does not belong to Class '{dto.ClassId}'.");
+            }
+        }
+
+        foreach (var item in dto.Grades)
+        {
+            var sl = studyLoadMap[item.StudyLoadId];
+            try
+            {
+                var gradeDto = await ProcessGradeItemAsync(item.StudyLoadId, item.MidtermGrade, item.FinalGrade, sl, authenticatedUserId);
+                response.Succeeded.Add(gradeDto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                response.Failed.Add(new GradeBatchFailedItemDto
+                {
+                    StudyLoadId = item.StudyLoadId,
+                    Reason = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                response.Failed.Add(new GradeBatchFailedItemDto
+                {
+                    StudyLoadId = item.StudyLoadId,
+                    Reason = ex.Message
+                });
+            }
+        }
+
+        return response;
+    }
+
+    private async Task<GradeResponseDto> ProcessGradeItemAsync(
+        Guid studyLoadId,
+        decimal? midtermGrade,
+        decimal? finalGrade,
+        StudyLoad studyLoad,
+        Guid authenticatedUserId)
+    {
+        if (!midtermGrade.HasValue && !finalGrade.HasValue)
         {
             throw new InvalidOperationException("At least one grade field (MidtermGrade or FinalGrade) must be provided for submission.");
         }
 
-        var existingGrade = await _gradeRepository.GetByStudyLoadIdAsync(dto.StudyLoadId);
+        var existingGrade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
 
         if (existingGrade == null)
         {
             var newGrade = new Grade
             {
                 GradeID = Guid.NewGuid(),
-                StudyLoadID = dto.StudyLoadId,
-                MidtermGrade = dto.MidtermGrade,
-                FinalGrade = dto.FinalGrade,
-                Remarks = dto.FinalGrade.HasValue ? (dto.FinalGrade.Value > 3.0m ? 2 : 1) : null,
+                StudyLoadID = studyLoadId,
+                MidtermGrade = midtermGrade,
+                FinalGrade = finalGrade,
+                Remarks = finalGrade.HasValue ? (finalGrade.Value > 3.0m ? 2 : 1) : null,
                 SubmittedByUserID = authenticatedUserId,
                 DateSubmitted = DateTime.UtcNow
             };
@@ -76,8 +166,8 @@ public class GradeService : IGradeService
         }
 
         // Grade row already exists — check per-field immutability
-        bool midtermConflict = dto.MidtermGrade.HasValue && existingGrade.MidtermGrade.HasValue;
-        bool finalConflict = dto.FinalGrade.HasValue && existingGrade.FinalGrade.HasValue;
+        bool midtermConflict = midtermGrade.HasValue && existingGrade.MidtermGrade.HasValue;
+        bool finalConflict = finalGrade.HasValue && existingGrade.FinalGrade.HasValue;
 
         if (midtermConflict && finalConflict)
         {
@@ -92,14 +182,14 @@ public class GradeService : IGradeService
             throw new InvalidOperationException("FinalGrade has already been submitted. Use a GradeCorrection request to change it.");
         }
 
-        if (dto.MidtermGrade.HasValue)
+        if (midtermGrade.HasValue)
         {
-            existingGrade.MidtermGrade = dto.MidtermGrade.Value;
+            existingGrade.MidtermGrade = midtermGrade.Value;
         }
 
-        if (dto.FinalGrade.HasValue)
+        if (finalGrade.HasValue)
         {
-            existingGrade.FinalGrade = dto.FinalGrade.Value;
+            existingGrade.FinalGrade = finalGrade.Value;
         }
 
         existingGrade.Remarks = existingGrade.FinalGrade.HasValue ? (existingGrade.FinalGrade.Value > 3.0m ? 2 : 1) : null;

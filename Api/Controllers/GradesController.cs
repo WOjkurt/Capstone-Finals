@@ -1,3 +1,4 @@
+using Api.Auth;
 using Api.DTOs.Grading;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +36,38 @@ public class GradesController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("submit-batch")]
+    [RequireTeacher]
+    public async Task<IActionResult> SubmitGradeBatch([FromBody] SubmitGradeBatchDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authenticatedUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var result = await _gradeService.SubmitGradeBatchAsync(dto, authenticatedUserId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
