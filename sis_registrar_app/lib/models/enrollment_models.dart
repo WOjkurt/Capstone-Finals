@@ -9,18 +9,55 @@ class EnrollmentFormModel {
   final String civilStatus;
   final String nationality;
   final String mobileNumber;
+  final String? houseStreet;
   final String barangay;
   final String cityMunicipality;
   final String province;
   final String zipCode;
   final String lastSchoolAttended;
   final String schoolAddress;
-  final int shsStrand;
+  final String? programTrackStrand;
   final String yearGraduated;
   final String previousCollege;
   final String previousCourse;
   final int yearLevel;
   final String? previousStudentID;
+
+  // Personal / Demographic
+  final String? gender;
+  final int? age;
+  final String? bloodType;
+  final String? religion;
+  final String? facebookName;
+
+  // Secondary / Provincial Address
+  final String? provHouseStreet;
+  final String? provBarangay;
+  final String? provCityMunicipality;
+  final String? provProvince;
+  final String? provZipCode;
+
+  // Enrollment Metadata
+  final int? studentType;
+  final String? lrn;
+  final String? academicYear;
+  final String? incomingCourse;
+
+  // Family Background
+  final String? birthOrder;
+  final int? numberOfSiblings;
+  final String? familyStatus;
+
+  // Medical / Multi-Select
+  final List<String>? presentMedicalConditions;
+  final List<String>? pastMedicalHistory;
+  final List<String>? immunizationHistory;
+
+  // Family Health History (free text)
+  final String? familyMedicalConditionsNotes;
+  final String? ongoingMedications;
+  final String? developmentalConditions;
+  final String? otherMedicalDiagnosis;
 
   const EnrollmentFormModel({
     required this.firstName,
@@ -33,18 +70,43 @@ class EnrollmentFormModel {
     required this.civilStatus,
     required this.nationality,
     required this.mobileNumber,
+    this.houseStreet,
     required this.barangay,
     required this.cityMunicipality,
     required this.province,
     required this.zipCode,
     required this.lastSchoolAttended,
     required this.schoolAddress,
-    required this.shsStrand,
+    this.programTrackStrand,
     required this.yearGraduated,
     required this.previousCollege,
     required this.previousCourse,
     required this.yearLevel,
     this.previousStudentID,
+    this.gender,
+    this.age,
+    this.bloodType,
+    this.religion,
+    this.facebookName,
+    this.provHouseStreet,
+    this.provBarangay,
+    this.provCityMunicipality,
+    this.provProvince,
+    this.provZipCode,
+    this.studentType,
+    this.lrn,
+    this.academicYear,
+    this.incomingCourse,
+    this.birthOrder,
+    this.numberOfSiblings,
+    this.familyStatus,
+    this.presentMedicalConditions,
+    this.pastMedicalHistory,
+    this.immunizationHistory,
+    this.familyMedicalConditionsNotes,
+    this.ongoingMedications,
+    this.developmentalConditions,
+    this.otherMedicalDiagnosis,
   });
 
   factory EnrollmentFormModel.fromJson(Map<String, dynamic> json) {
@@ -59,6 +121,7 @@ class EnrollmentFormModel {
       civilStatus: json['civilStatus'] as String? ?? '',
       nationality: json['nationality'] as String? ?? '',
       mobileNumber: json['mobileNumber'] as String? ?? '',
+      houseStreet: json['houseStreet'] as String?,
       barangay: json['barangay'] as String? ?? '',
       cityMunicipality: json['cityMunicipality'] as String? ??
           json['cityOfMunicipality'] as String? ??
@@ -67,9 +130,8 @@ class EnrollmentFormModel {
       zipCode: json['zipCode'] as String? ?? '',
       lastSchoolAttended: json['lastSchoolAttended'] as String? ?? '',
       schoolAddress: json['schoolAddress'] as String? ?? '',
-      shsStrand: json['shsStrand'] is int
-          ? json['shsStrand'] as int
-          : (int.tryParse(json['shsStrand']?.toString() ?? '') ?? 0),
+      programTrackStrand: json['programTrackStrand'] as String? ??
+          json['shsStrand']?.toString(),
       yearGraduated: json['yearGraduated'] as String? ?? '',
       previousCollege: json['previousCollege'] as String? ?? '',
       previousCourse: json['previousCourse'] as String? ?? '',
@@ -77,6 +139,46 @@ class EnrollmentFormModel {
           ? (json['yearLevel'] as num).toInt()
           : 1,
       previousStudentID: json['previousStudentID'] as String?,
+      gender: json['gender'] as String?,
+      age: json['age'] is num
+          ? (json['age'] as num).toInt()
+          : int.tryParse(json['age']?.toString() ?? ''),
+      bloodType: json['bloodType'] as String?,
+      religion: json['religion'] as String?,
+      facebookName: json['facebookName'] as String?,
+      provHouseStreet: json['provHouseStreet'] as String?,
+      provBarangay: json['provBarangay'] as String?,
+      provCityMunicipality: json['provCityMunicipality'] as String?,
+      provProvince: json['provProvince'] as String?,
+      provZipCode: json['provZipCode'] as String?,
+      studentType: json['studentType'] is num
+          ? (json['studentType'] as num).toInt()
+          : int.tryParse(json['studentType']?.toString() ?? ''),
+      lrn: json['lrn'] as String?,
+      academicYear: json['academicYear'] as String?,
+      incomingCourse: json['incomingCourse'] as String?,
+      birthOrder: json['birthOrder'] as String?,
+      numberOfSiblings: json['numberOfSiblings'] is num
+          ? (json['numberOfSiblings'] as num).toInt()
+          : int.tryParse(json['numberOfSiblings']?.toString() ?? ''),
+      familyStatus: json['familyStatus'] as String?,
+      presentMedicalConditions: (json['presentMedicalConditions'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          (json['familyMedicalConditionsSelected'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList(),
+      pastMedicalHistory: (json['pastMedicalHistory'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
+      immunizationHistory: (json['immunizationHistory'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
+      familyMedicalConditionsNotes:
+          json['familyMedicalConditionsNotes'] as String?,
+      ongoingMedications: json['ongoingMedications'] as String?,
+      developmentalConditions: json['developmentalConditions'] as String?,
+      otherMedicalDiagnosis: json['otherMedicalDiagnosis'] as String?,
     );
   }
 
@@ -91,18 +193,51 @@ class EnrollmentFormModel {
         'civilStatus': civilStatus,
         'nationality': nationality,
         'mobileNumber': mobileNumber,
+        if (houseStreet != null) 'houseStreet': houseStreet,
         'barangay': barangay,
         'cityMunicipality': cityMunicipality,
         'province': province,
         'zipCode': zipCode,
         'lastSchoolAttended': lastSchoolAttended,
         'schoolAddress': schoolAddress,
-        'shsStrand': shsStrand,
+        if (programTrackStrand != null) 'programTrackStrand': programTrackStrand,
         'yearGraduated': yearGraduated,
         'previousCollege': previousCollege,
         'previousCourse': previousCourse,
         'yearLevel': yearLevel,
         if (previousStudentID != null) 'previousStudentID': previousStudentID,
+        if (gender != null) 'gender': gender,
+        if (age != null) 'age': age,
+        if (bloodType != null) 'bloodType': bloodType,
+        if (religion != null) 'religion': religion,
+        if (facebookName != null) 'facebookName': facebookName,
+        if (provHouseStreet != null) 'provHouseStreet': provHouseStreet,
+        if (provBarangay != null) 'provBarangay': provBarangay,
+        if (provCityMunicipality != null)
+          'provCityMunicipality': provCityMunicipality,
+        if (provProvince != null) 'provProvince': provProvince,
+        if (provZipCode != null) 'provZipCode': provZipCode,
+        if (studentType != null) 'studentType': studentType,
+        if (lrn != null) 'lrn': lrn,
+        if (academicYear != null) 'academicYear': academicYear,
+        if (incomingCourse != null) 'incomingCourse': incomingCourse,
+        if (birthOrder != null) 'birthOrder': birthOrder,
+        if (numberOfSiblings != null) 'numberOfSiblings': numberOfSiblings,
+        if (familyStatus != null) 'familyStatus': familyStatus,
+        if (presentMedicalConditions != null)
+          'presentMedicalConditions': presentMedicalConditions,
+        if (pastMedicalHistory != null)
+          'pastMedicalHistory': pastMedicalHistory,
+        if (immunizationHistory != null)
+          'immunizationHistory': immunizationHistory,
+        if (familyMedicalConditionsNotes != null)
+          'familyMedicalConditionsNotes': familyMedicalConditionsNotes,
+        if (ongoingMedications != null)
+          'ongoingMedications': ongoingMedications,
+        if (developmentalConditions != null)
+          'developmentalConditions': developmentalConditions,
+        if (otherMedicalDiagnosis != null)
+          'otherMedicalDiagnosis': otherMedicalDiagnosis,
       };
 
   String get fullName =>
@@ -110,22 +245,10 @@ class EnrollmentFormModel {
           .replaceAll(RegExp(r'  +'), ' ')
           .trim();
 
-  String get strandName {
-    switch (shsStrand) {
-      case 1:
-        return 'STEM';
-      case 2:
-        return 'HUMSS';
-      case 3:
-        return 'ABM';
-      case 4:
-        return 'GAS';
-      case 5:
-        return 'TVL';
-      default:
-        return shsStrand > 0 ? 'Strand $shsStrand' : '—';
-    }
-  }
+  String get strandName =>
+      (programTrackStrand != null && programTrackStrand!.isNotEmpty)
+          ? programTrackStrand!
+          : '—';
 }
 
 class ContactModel {
@@ -134,6 +257,12 @@ class ContactModel {
   final int relationType;
   final String occupation;
   final String contactNo;
+  final String? email;
+  final String? dateOfBirth;
+  final String? workplace;
+  final String? facebookAccount;
+  final bool? livingWithGuardian;
+  final String? guardianRelationshipDescription;
 
   const ContactModel({
     required this.firstName,
@@ -141,6 +270,12 @@ class ContactModel {
     required this.relationType,
     required this.occupation,
     required this.contactNo,
+    this.email,
+    this.dateOfBirth,
+    this.workplace,
+    this.facebookAccount,
+    this.livingWithGuardian,
+    this.guardianRelationshipDescription,
   });
 
   factory ContactModel.fromJson(Map<String, dynamic> json) {
@@ -152,6 +287,13 @@ class ContactModel {
           : (int.tryParse(json['relationType']?.toString() ?? '') ?? 1),
       occupation: json['occupation'] as String? ?? '',
       contactNo: json['contactNo'] as String? ?? '',
+      email: json['email'] as String?,
+      dateOfBirth: json['dateOfBirth'] as String?,
+      workplace: json['workplace'] as String?,
+      facebookAccount: json['facebookAccount'] as String?,
+      livingWithGuardian: json['livingWithGuardian'] as bool?,
+      guardianRelationshipDescription:
+          json['guardianRelationshipDescription'] as String?,
     );
   }
 
@@ -161,6 +303,14 @@ class ContactModel {
         'relationType': relationType,
         'occupation': occupation,
         'contactNo': contactNo,
+        if (email != null) 'email': email,
+        if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+        if (workplace != null) 'workplace': workplace,
+        if (facebookAccount != null) 'facebookAccount': facebookAccount,
+        if (livingWithGuardian != null)
+          'livingWithGuardian': livingWithGuardian,
+        if (guardianRelationshipDescription != null)
+          'guardianRelationshipDescription': guardianRelationshipDescription,
       };
 
   String get relationName {
@@ -182,6 +332,8 @@ class ContactModel {
     }
   }
 }
+
+
 
 class EnrollmentResponseDataModel {
   final EnrollmentFormModel? form;

@@ -353,26 +353,12 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                       return DataRow(
                         cells: [
                           DataCell(
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                if (app.form?.mobileNumber.isNotEmpty == true)
-                                  Text(
-                                    app.form!.mobileNumber,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                              ],
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
                             ),
                           ),
                           DataCell(Text(prog,

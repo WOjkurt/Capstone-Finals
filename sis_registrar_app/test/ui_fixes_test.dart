@@ -16,7 +16,12 @@ import 'package:sis_registrar_app/models/grading_models.dart';
 import 'package:sis_registrar_app/blocs/auth_bloc.dart';
 
 class TestResponsesBloc extends Bloc<ResponsesEvent, ResponsesState> implements ResponsesBloc {
-  TestResponsesBloc(super.initialState);
+  final List<ResponsesEvent> recordedEvents = [];
+  TestResponsesBloc(super.initialState) {
+    on<ResponsesEvent>((event, emit) {
+      recordedEvents.add(event);
+    });
+  }
 }
 
 class TestClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> implements ClearanceBloc {
@@ -153,31 +158,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      // Verify SHS Strand dropdown
-      final strandDropdown = find.byWidgetPredicate(
-        (w) => w is DropdownButtonFormField<int> && w.decoration.labelText == 'SHS Strand *',
+      // Verify Year Level dropdown
+      final yearDropdown = find.byWidgetPredicate(
+        (w) => w is DropdownButtonFormField<int> && w.decoration.labelText == 'Year Level *',
       );
-      expect(strandDropdown, findsOneWidget);
-      await tester.ensureVisible(strandDropdown);
+      expect(yearDropdown, findsOneWidget);
+      await tester.ensureVisible(yearDropdown);
       await tester.pumpAndSettle();
-      await tester.tap(strandDropdown);
+      await tester.tap(yearDropdown);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('HUMSS').last);
+      await tester.tap(find.text('Year 2').last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      // Verify Relation dropdown
-      final relationDropdown = find.byWidgetPredicate(
-        (w) => w is DropdownButtonFormField<int> && w.decoration.labelText == 'Relation *',
+      // Verify Student Type dropdown
+      final studentTypeDropdown = find.byWidgetPredicate(
+        (w) => w is DropdownButtonFormField<int> && w.decoration.labelText == 'Student Type',
       );
-      expect(relationDropdown, findsOneWidget);
-      await tester.ensureVisible(relationDropdown);
+      expect(studentTypeDropdown, findsOneWidget);
+      await tester.ensureVisible(studentTypeDropdown);
       await tester.pumpAndSettle();
-      await tester.tap(relationDropdown);
+      await tester.tap(studentTypeDropdown);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Guardian').last);
+      await tester.tap(find.text('Transferee').last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
@@ -364,7 +369,7 @@ void main() {
           zipCode: '6000',
           lastSchoolAttended: 'Don Bosco',
           schoolAddress: 'Cebu',
-          shsStrand: 1,
+          programTrackStrand: 'STEM',
           yearGraduated: '2023-05-30',
           previousCollege: '',
           previousCourse: '',
@@ -535,7 +540,7 @@ void main() {
           zipCode: '6000',
           lastSchoolAttended: 'Don Bosco',
           schoolAddress: 'Cebu',
-          shsStrand: 1,
+          programTrackStrand: 'STEM',
           yearGraduated: '2023-05-30',
           previousCollege: '',
           previousCourse: '',
@@ -738,6 +743,147 @@ void main() {
 
       // Exactly one LogoutRequested was dispatched
       expect(authBloc.recordedEvents.whereType<LogoutRequested>().length, 1);
+    });
+
+    testWidgets('6. Process application dialog - Birth Order, Family Status, and conditional Father occupation', (tester) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final programs = [
+        const AcademicProgramModel(
+          programId: 1,
+          programCode: 'BSIT',
+          programName: 'Bachelor of Science in Information Technology',
+        ),
+      ];
+
+      final terms = [
+        const AcademicTermModel(
+          termId: '2026-1S',
+          schoolYear: '2026-2027',
+          semester: 1,
+        ),
+      ];
+
+      final responses = [
+        EnrollmentResponseModel(
+          responseId: 'resp-test-fields',
+          timestamp: DateTime(2026, 9, 1),
+          emailAddress: 'test.student@example.com',
+          isProcessed: false,
+          data: const EnrollmentResponseDataModel(
+            form: EnrollmentFormModel(
+              firstName: 'Juan',
+              middleName: '',
+              lastName: 'Dela Cruz',
+              suffix: '',
+              dateOfBirth: '2005-01-01',
+              placeOfBirth: 'Cebu City',
+              sex: 'Male',
+              civilStatus: 'Single',
+              nationality: 'Filipino',
+              mobileNumber: '09123456789',
+              barangay: 'Lahug',
+              cityMunicipality: 'Cebu City',
+              province: 'Cebu',
+              zipCode: '6000',
+              lastSchoolAttended: 'Test School',
+              schoolAddress: 'Cebu City',
+              yearGraduated: '2023',
+              previousCollege: '',
+              previousCourse: '',
+              yearLevel: 1,
+              birthOrder: 'First Child',
+              familyStatus: 'Both parents are present / living together',
+            ),
+          ),
+        ),
+      ];
+
+      final bloc = TestResponsesBloc(ResponsesLoaded(
+        responses: responses,
+        programs: programs,
+        terms: terms,
+      ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<ResponsesBloc>.value(
+            value: bloc,
+            child: const ResponsesView(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final processButton = find.text('Process into application');
+      expect(processButton, findsOneWidget);
+      await tester.tap(processButton);
+      await tester.pumpAndSettle();
+
+      // Ensure modal is open
+      expect(find.text('Process Enrollment Response'), findsOneWidget);
+
+      // 1. Switch to Family & Medical tab (Tab index 4)
+      final familyTab = find.text('Family & Medical');
+      expect(familyTab, findsOneWidget);
+      await tester.ensureVisible(familyTab);
+      await tester.pumpAndSettle();
+      await tester.tap(familyTab);
+      await tester.pumpAndSettle();
+
+      // Verify Birth Order and Family Status dropdowns display the exact initial values
+      expect(find.text('First Child'), findsOneWidget);
+      expect(find.text('Both parents are present / living together'), findsOneWidget);
+
+      // 2. Switch to Father / Mother / Guardian tab (Tab index 5)
+      final contactsTab = find.text('Father / Mother / Guardian');
+      expect(contactsTab, findsOneWidget);
+      await tester.ensureVisible(contactsTab);
+      await tester.pumpAndSettle();
+      await tester.tap(contactsTab);
+      await tester.pumpAndSettle();
+
+      // Verify Father details card exists
+      expect(find.text('Father Details (RelationType = 1)'), findsOneWidget);
+      expect(find.text('Occupation'), findsNWidgets(3)); // Father, Mother, Guardian
+
+      // Find submit button
+      final submitButton = find.text('Create Application');
+      expect(submitButton, findsOneWidget);
+
+      // Enter father first name
+      final fatherFirstNameField = find.widgetWithText(TextFormField, 'First Name').first;
+      await tester.enterText(fatherFirstNameField, 'Carlos');
+      await tester.pumpAndSettle();
+
+      // Tapping submit triggers conditional validation error for Father Occupation
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Occupation is required if father details are provided'), findsOneWidget);
+
+      // Now fill Father occupation (first Occupation field)
+      final fatherOccupationField = find.widgetWithText(TextFormField, 'Occupation').first;
+      await tester.enterText(fatherOccupationField, 'Engineer');
+      await tester.pumpAndSettle();
+
+      // Trigger validation again — error should be resolved and form submitted
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Occupation is required if father details are provided'), findsNothing);
+
+      // Verify the submitted event has our exact Birth Order, Family Status, and Father contact
+      final submittedEvents = bloc.recordedEvents.whereType<ProcessResponseSubmitted>();
+      expect(submittedEvents, hasLength(1));
+      final submitted = submittedEvents.first;
+      expect(submitted.form.birthOrder, 'First Child');
+      expect(submitted.form.familyStatus, 'Both parents are present / living together');
+      expect(submitted.contacts, hasLength(1));
+      expect(submitted.contacts.first.relationType, 1);
+      expect(submitted.contacts.first.firstName, 'Carlos');
+      expect(submitted.contacts.first.occupation, 'Engineer');
     });
   });
 }
