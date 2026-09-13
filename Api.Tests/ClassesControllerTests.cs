@@ -270,4 +270,112 @@ public class ClassesControllerTests
         Assert.IsType<OkObjectResult>(result);
         _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
     }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningInOwnProgram_Succeeds()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        var existingClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 1, SubjectCode = "IT101", SubjectTitle = "Intro to IT" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(existingClass);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class"))
+            .Returns(Task.CompletedTask);
+
+        var updatedClassDto = new ClassDto
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = existingClass.SubjectID,
+            UserID = teacherId,
+            TeacherName = "Prof. Test"
+        };
+        _classServiceMock.Setup(s => s.AssignTeacherAsync(classId, teacherId))
+            .ReturnsAsync(updatedClassDto);
+
+        var dto = new AssignTeacherDto { UserID = teacherId };
+
+        // Act
+        var result = await _controller.AssignTeacher(classId, dto);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returnedDto = Assert.IsType<ClassDto>(okResult.Value);
+        Assert.Equal(teacherId, returnedDto.UserID);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(classId, teacherId), Times.Once);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningInOtherProgram_Returns403Forbidden()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        var existingClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSBA 2A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 2, SubjectCode = "BA201", SubjectTitle = "Finance" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(existingClass);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 2, "class"))
+            .ThrowsAsync(new UnauthorizedAccessException("Access denied."));
+
+        var dto = new AssignTeacherDto { UserID = teacherId };
+
+        // Act
+        var result = await _controller.AssignTeacher(classId, dto);
+
+        // Assert
+        var statusResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, statusResult.StatusCode);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_AdminAssigningAcrossPrograms_IsAllowed()
+    {
+        // Arrange
+        var adminId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Admin, adminId);
+
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        var updatedClassDto = new ClassDto
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            UserID = teacherId
+        };
+
+        _classServiceMock.Setup(s => s.AssignTeacherAsync(classId, teacherId))
+            .ReturnsAsync(updatedClassDto);
+
+        var dto = new AssignTeacherDto { UserID = teacherId };
+
+        // Act
+        var result = await _controller.AssignTeacher(classId, dto);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returnedDto = Assert.IsType<ClassDto>(okResult.Value);
+        Assert.Equal(teacherId, returnedDto.UserID);
+        _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
+    }
 }

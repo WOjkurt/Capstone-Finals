@@ -150,6 +150,44 @@ public class ClassesController : ControllerBase
         }
     }
 
+    [HttpPatch("{id:guid}/teacher")]
+    [RequireProgramHeadOrAdmin]
+    public async Task<IActionResult> AssignTeacher(Guid id, [FromBody] AssignTeacherDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        if (HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role && role == RoleUtils.ProgramHead)
+        {
+            var existingClass = await _classRepository.GetByIdAsync(id);
+            if (existingClass == null)
+            {
+                return NotFound(new { message = $"Class with ID '{id}' was not found." });
+            }
+
+            try
+            {
+                await _scopingService.EnsureProgramHeadAccessAsync(authUserId, existingClass.Subject?.ProgramID, "class");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+        }
+
+        try
+        {
+            var classDto = await _classService.AssignTeacherAsync(id, dto.UserID);
+            return Ok(classDto);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     [HttpDelete("{id:guid}")]
     [RequireProgramHeadOrAdmin]
     public async Task<IActionResult> Delete(Guid id)

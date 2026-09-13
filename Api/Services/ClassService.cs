@@ -177,6 +177,36 @@ public class ClassService : IClassService
         return MapToDto(entity, schedules, teacherName, enrolledCount);
     }
 
+    public async Task<ClassDto> AssignTeacherAsync(Guid classId, Guid? userId)
+    {
+        var entity = await _classRepository.GetByIdAsync(classId);
+        if (entity == null)
+        {
+            throw new KeyNotFoundException($"Class with ID '{classId}' was not found.");
+        }
+
+        entity.UserID = userId;
+
+        await _classRepository.UpdateAsync(entity);
+
+        var schedules = await _scheduleRepository.GetByClassIdAsync(classId);
+        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId);
+
+        string? teacherName = null;
+        if (entity.UserID.HasValue)
+        {
+            var ud = await _context.UserDetails
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserID == entity.UserID.Value);
+            if (ud != null)
+            {
+                teacherName = $"{ud.Firstname} {ud.Lastname}";
+            }
+        }
+
+        return MapToDto(entity, schedules, teacherName, enrolledCount);
+    }
+
     public async Task DeleteAsync(Guid classId)
     {
         var entity = await _classRepository.GetByIdAsync(classId);
