@@ -69,7 +69,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       final role = userInfo['role'] as int? ?? 0;
       final roleName = userInfo['roleName'] as String? ?? 'User';
-      final userId = userInfo['userId'] as String? ?? '';
+      final userId = (userInfo['userId'] ?? userInfo['userID']) as String? ?? '';
       final email = userInfo['email'] as String? ?? '';
 
       // Role check: 3 = Teacher, 4 = Program Head
@@ -105,7 +105,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       final role = userInfo['role'] as int? ?? 0;
       final roleName = userInfo['roleName'] as String? ?? 'User';
-      final userId = userInfo['userId'] as String? ?? '';
+      final userId = (userInfo['userId'] ?? userInfo['userID']) as String? ?? '';
       final email = userInfo['email'] as String? ?? event.email;
 
       // Role check: 3 = Teacher, 4 = Program Head

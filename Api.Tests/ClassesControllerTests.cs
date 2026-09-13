@@ -98,6 +98,27 @@ public class ClassesControllerTests
     }
 
     [Fact]
+    public async Task GetAll_ProgramHeadCallingWithOwnTeacherId_BypassesProgramScoping()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        _classServiceMock.Setup(s => s.GetAllAsync(null, null, programHeadId, null))
+            .ReturnsAsync(new List<ClassDto>());
+
+        // Act
+        var result = await _controller.GetAll(null, null, programHeadId);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+        // Scoping service should NEVER be called since program scope is bypassed for own classes
+        _scopingServiceMock.Verify(s => s.GetProgramIdAsync(It.IsAny<Guid>()), Times.Never);
+        // GetAllAsync should be called with teacherUserId = programHeadId and programScope = null
+        _classServiceMock.Verify(s => s.GetAllAsync(null, null, programHeadId, null), Times.Once);
+    }
+
+    [Fact]
     public async Task Create_ProgramHeadCreatingClassForSubjectInOwnProgram_ReturnsCreated()
     {
         // Arrange
