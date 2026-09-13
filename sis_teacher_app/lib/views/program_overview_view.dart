@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/program_overview_bloc.dart';
 import '../injection.dart';
 import '../models/class_models.dart';
+import '../models/grading_models.dart';
 import '../repositories/class_repository.dart';
+import '../repositories/grading_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
@@ -21,6 +25,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   final TextEditingController _searchController = TextEditingController();
   _OverviewViewMode _viewMode = _OverviewViewMode.byFaculty;
   String _searchQuery = '';
+  // Cache for the last successfully loaded class list — kept in view state so it
+  // stays visible during the transient ProgramOverviewAssigning state.
+  List<ClassModel> _lastKnownClasses = [];
 
   @override
   void initState() {
@@ -66,8 +73,56 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           ),
         ),
         Expanded(
-          child: BlocBuilder<ProgramOverviewBloc, ProgramOverviewState>(
+          child: BlocConsumer<ProgramOverviewBloc, ProgramOverviewState>(
+            listener: (context, state) {
+              // Cache the class list whenever we receive a fresh load.
+              if (state is ProgramOverviewLoaded) {
+                _lastKnownClasses = state.classes;
+              } else if (state is ProgramOverviewAssignError) {
+                _lastKnownClasses = state.previousClasses;
+              }
+              // Show a snackbar on assignment error and restore previous data.
+              if (state is ProgramOverviewAssignError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: Text(
+                          'Failed to assign teacher: ${state.message}',
+                          style: const TextStyle(fontSize: 13),
+                        )),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFFDC2626),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 5),
+                  ),
+                );
+              }
+            },
             builder: (context, state) {
+              // Resolve the class list from whichever state carries it.
+              List<ClassModel> classes;
+              bool isAssigning = false;
+              String? assigningClassId;
+
+              if (state is ProgramOverviewLoaded) {
+                classes = state.classes;
+              } else if (state is ProgramOverviewAssigning) {
+                // Keep the last known list visible while saving.
+                isAssigning = true;
+                assigningClassId = state.classId;
+                classes = _lastKnownClasses;
+              } else if (state is ProgramOverviewAssignError) {
+                classes = state.previousClasses;
+              } else {
+                classes = _lastKnownClasses;
+              }
+
               if (state is ProgramOverviewLoading) {
                 return const Center(
                   child: Column(
@@ -142,11 +197,19 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 );
               }
 
-              if (state is ProgramOverviewLoaded) {
-                final all = state.classes;
-                final totalClasses = state.totalClasses;
-                final activeFaculty = state.activeFacultyCount;
-                final unassignedCount = state.unassignedCount;
+              if (state is ProgramOverviewLoaded ||
+                  state is ProgramOverviewAssigning ||
+                  state is ProgramOverviewAssignError) {
+                final all = classes;
+                final totalClasses = all.length;
+                final activeFaculty = all
+                    .where((c) =>
+                        c.userId != null &&
+                        (c.teacherName?.trim().isNotEmpty ?? false))
+                    .map((c) => c.teacherName!.trim().toLowerCase())
+                    .toSet()
+                    .length;
+                final unassignedCount = all.where((c) => c.userId == null).length;
 
                 final filtered = all.where((c) {
                   if (_searchQuery.isEmpty) return true;
@@ -157,32 +220,60 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                       (c.teacherName?.toLowerCase().contains(q) ?? false);
                 }).toList();
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // ── Metric summary chips ──
-                      _buildSummaryCards(
-                        totalClasses: totalClasses,
-                        activeFaculty: activeFaculty,
-                        unassignedCount: unassignedCount,
+                return Stack(
+                  children: [
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 28, vertical: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildSummaryCards(
+                            totalClasses: totalClasses,
+                            activeFaculty: activeFaculty,
+                            unassignedCount: unassignedCount,
+                          ),
+                          const SizedBox(height: 20),
+                          _buildControlBar(
+                              filteredCount: filtered.length,
+                              totalCount: totalClasses),
+                          const SizedBox(height: 20),
+                          if (filtered.isEmpty)
+                            _buildEmptyResults()
+                          else if (_viewMode == _OverviewViewMode.byFaculty)
+                            _buildByFacultyView(filtered,
+                                assigningClassId: assigningClassId)
+                          else
+                            _buildByClassView(filtered,
+                                assigningClassId: assigningClassId),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-
-                      // ── Search bar + View Toggle ──
-                      _buildControlBar(filteredCount: filtered.length, totalCount: totalClasses),
-                      const SizedBox(height: 20),
-
-                      // ── Content View ──
-                      if (filtered.isEmpty)
-                        _buildEmptyResults()
-                      else if (_viewMode == _OverviewViewMode.byFaculty)
-                        _buildByFacultyView(filtered)
-                      else
-                        _buildByClassView(filtered),
-                    ],
-                  ),
+                    ),
+                    // Dimmed overlay while assignment is saving.
+                    if (isAssigning)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(height: 14),
+                                Text(
+                                  'Saving assignment...',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 );
               }
 
@@ -347,8 +438,27 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
+  void _openAssignDialog(BuildContext context, ClassModel classItem) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _AssignTeacherDialog(
+        classItem: classItem,
+        onAssign: (teacherUserId) {
+          context.read<ProgramOverviewBloc>().add(
+                AssignTeacherEvent(
+                  classId: classItem.classId,
+                  teacherUserId: teacherUserId,
+                ),
+              );
+        },
+      ),
+    );
+  }
+
   // ── By Faculty View ──
-  Widget _buildByFacultyView(List<ClassModel> classes) {
+  Widget _buildByFacultyView(List<ClassModel> classes,
+      {String? assigningClassId}) {
     // Separate unassigned and assigned
     final unassigned = classes.where((c) => c.userId == null).toList();
 
@@ -369,7 +479,7 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
       children: [
         // Unassigned Offerings at the top for immediate executive attention
         if (unassigned.isNotEmpty) ...[
-          _buildUnassignedBanner(unassigned),
+          _buildUnassignedBanner(unassigned, assigningClassId: assigningClassId),
           const SizedBox(height: 24),
         ],
 
@@ -378,7 +488,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           const Center(child: Text('No classes available.'))
         else ...[
           for (final facultyName in sortedFaculty) ...[
-            _buildFacultyCard(facultyName, facultyMap[facultyName]!),
+            _buildFacultyCard(facultyName, facultyMap[facultyName]!,
+                assigningClassId: assigningClassId),
             const SizedBox(height: 16),
           ],
         ],
@@ -386,7 +497,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
-  Widget _buildUnassignedBanner(List<ClassModel> unassigned) {
+  Widget _buildUnassignedBanner(List<ClassModel> unassigned,
+      {String? assigningClassId}) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBEB),
@@ -463,14 +575,19 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: unassigned.map((c) => _buildCompactClassItem(c, isWarning: true)).toList(),
+            children: unassigned
+                .map((c) => _buildCompactClassItem(c,
+                    isWarning: true,
+                    isSaving: assigningClassId == c.classId))
+                .toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFacultyCard(String facultyName, List<ClassModel> classes) {
+  Widget _buildFacultyCard(String facultyName, List<ClassModel> classes,
+      {String? assigningClassId}) {
     final totalStudents = classes.fold<int>(0, (sum, c) => sum + c.enrolledCount);
 
     return Container(
@@ -558,17 +675,21 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: classes.map((c) => _buildCompactClassItem(c)).toList(),
+            children: classes
+                .map((c) => _buildCompactClassItem(c,
+                    isSaving: assigningClassId == c.classId))
+                .toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCompactClassItem(ClassModel c, {bool isWarning = false}) {
+  Widget _buildCompactClassItem(ClassModel c,
+      {bool isWarning = false, bool isSaving = false}) {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
-      onTap: () => _openClassDetail(context, c),
+      onTap: isSaving ? null : () => _openClassDetail(context, c),
       child: Container(
         constraints: const BoxConstraints(minWidth: 280, maxWidth: 360),
         padding: const EdgeInsets.all(14),
@@ -658,7 +779,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.people_outline, size: 12, color: Color(0xFF475569)),
+                      const Icon(Icons.people_outline,
+                          size: 12, color: Color(0xFF475569)),
                       const SizedBox(width: 4),
                       Text(
                         '${c.enrolledCount} Enrolled',
@@ -671,25 +793,76 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                     ],
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'View Roster',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isWarning ? const Color(0xFFB45309) : AppColors.primary,
+                if (isSaving)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Assign / Change button
+                      GestureDetector(
+                        onTap: () => _openAssignDialog(context, c),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isWarning
+                                ? const Color(0xFF92400E)
+                                : AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isWarning
+                                    ? Icons.person_add_rounded
+                                    : Icons.swap_horiz_rounded,
+                                size: 11,
+                                color: isWarning
+                                    ? Colors.white
+                                    : AppColors.primary,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                isWarning ? 'Assign' : 'Change',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: isWarning
+                                      ? Colors.white
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 2),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 14,
-                      color: isWarning ? const Color(0xFFB45309) : AppColors.primary,
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'View Roster',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isWarning
+                              ? const Color(0xFFB45309)
+                              : AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: isWarning
+                            ? const Color(0xFFB45309)
+                            : AppColors.primary,
+                      ),
+                    ],
+                  ),
               ],
             ),
           ],
@@ -699,7 +872,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   }
 
   // ── By Class View (Flat Grid) ──
-  Widget _buildByClassView(List<ClassModel> classes) {
+  Widget _buildByClassView(List<ClassModel> classes,
+      {String? assigningClassId}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount = 3;
@@ -717,13 +891,15 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            mainAxisExtent: 270,
+            mainAxisExtent: 290,
           ),
           itemBuilder: (context, index) {
             final classItem = classes[index];
             return _ProgramClassCard(
               classItem: classItem,
+              isSaving: assigningClassId == classItem.classId,
               onTap: () => _openClassDetail(context, classItem),
+              onAssign: () => _openAssignDialog(context, classItem),
             );
           },
         );
@@ -882,8 +1058,15 @@ class _ViewToggleButton extends StatelessWidget {
 class _ProgramClassCard extends StatefulWidget {
   final ClassModel classItem;
   final VoidCallback onTap;
+  final VoidCallback onAssign;
+  final bool isSaving;
 
-  const _ProgramClassCard({required this.classItem, required this.onTap});
+  const _ProgramClassCard({
+    required this.classItem,
+    required this.onTap,
+    required this.onAssign,
+    this.isSaving = false,
+  });
 
   @override
   State<_ProgramClassCard> createState() => _ProgramClassCardState();
@@ -1022,41 +1205,130 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   ),
                 )
               else
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.person_outline_rounded,
-                          size: 13, color: Color(0xFF475569)),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          c.teacherName ?? 'Faculty Assigned',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF334155),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.person_outline_rounded,
+                              size: 13, color: Color(0xFF475569)),
+                          const SizedBox(width: 4),
+                          ConstrainedBox(
+                            constraints:
+                                const BoxConstraints(maxWidth: 130),
+                            child: Text(
+                              c.teacherName ?? 'Faculty Assigned',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Change teacher affordance
+                    if (!widget.isSaving)
+                      GestureDetector(
+                        onTap: widget.onAssign,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.25)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.swap_horiz_rounded,
+                                  size: 12, color: AppColors.primary),
+                              SizedBox(width: 3),
+                              Text(
+                                'Change',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               const Spacer(),
               const Divider(height: 1, color: AppColors.border),
               const SizedBox(height: 8),
+              // Unassigned: show assign button
+              if (isUnassigned && !widget.isSaving) ...[
+                GestureDetector(
+                  onTap: widget.onAssign,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF92400E),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.person_add_rounded,
+                            size: 13, color: Colors.white),
+                        SizedBox(width: 5),
+                        Text(
+                          'Assign Teacher',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (isUnassigned && widget.isSaving) ...[
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 8),
+                    Text('Saving...',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
               // Schedule summary
               Row(
                 children: [
-                  const Icon(Icons.schedule, size: 12, color: AppColors.textSecondary),
+                  const Icon(Icons.schedule,
+                      size: 12, color: AppColors.textSecondary),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -1596,11 +1868,509 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                       ],
                     ),
                   ),
-                  StatusBadge.success(label: item.loadStatus),
+          StatusBadge.success(label: item.loadStatus),
                 ],
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+// ── Assign Teacher Dialog ──────────────────────────────────────────────────────
+class _AssignTeacherDialog extends StatefulWidget {
+  final ClassModel classItem;
+
+  /// Called with the selected [teacherUserId] (never null from this dialog;
+  /// unassignment is not offered here — use Change → clear if desired later).
+  final void Function(String? teacherUserId) onAssign;
+
+  const _AssignTeacherDialog({
+    required this.classItem,
+    required this.onAssign,
+  });
+
+  @override
+  State<_AssignTeacherDialog> createState() => _AssignTeacherDialogState();
+}
+
+class _AssignTeacherDialogState extends State<_AssignTeacherDialog> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  Timer? _debounce;
+
+  List<UserSearchResultModel> _results = [];
+  bool _isSearching = false;
+  String? _searchError;
+  UserSearchResultModel? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load the full teacher list on open (no query = all teachers, role 3).
+    _runSearch('');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(value.trim()));
+  }
+
+  Future<void> _runSearch(String query) async {
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+    });
+    try {
+      final repo = getIt<UserSearchRepository>();
+      final results = await repo.search(query: query.isEmpty ? null : query, role: 3);
+      if (mounted) {
+        setState(() {
+          _results = results;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searchError = e.toString();
+          _isSearching = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.classItem;
+    final isReassigning = c.userId != null;
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 56),
+      child: Container(
+        width: 560,
+        constraints: const BoxConstraints(maxHeight: 680),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Header ──
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    isReassigning
+                        ? Icons.swap_horiz_rounded
+                        : Icons.person_add_rounded,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isReassigning ? 'Reassign Teacher' : 'Assign Teacher',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${c.subjectCode ?? ''} · ${c.subjectTitle ?? ''} · ${c.className}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  tooltip: 'Cancel',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Current teacher note (reassign context)
+            if (isReassigning && c.teacherName != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline_rounded,
+                        size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Currently assigned: ',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      c.teacherName!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 16),
+
+            // ── Search Bar ──
+            SizedBox(
+              height: 42,
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                onChanged: _onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Search teacher by name or email...',
+                  hintStyle:
+                      const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  prefixIcon: const Icon(Icons.search,
+                      size: 18, color: AppColors.textSecondary),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _runSearch('');
+                          },
+                        )
+                      : null,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                  filled: true,
+                  fillColor: const Color(0xFFF9FAFB),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ── Results List ──
+            Flexible(
+              child: _buildResultsList(),
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 12),
+
+            // ── Actions ──
+            Row(
+              children: [
+                // Selected teacher preview
+                if (_selected != null)
+                  Expanded(
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_rounded,
+                              size: 14, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _selected!.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(
+                    child: Text(
+                      'Select a teacher to assign',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _selected == null
+                      ? null
+                      : () {
+                          Navigator.of(context).pop();
+                          widget.onAssign(_selected!.userId);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFE2E8F0),
+                    disabledForegroundColor: AppColors.textSecondary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  ),
+                  icon: const Icon(Icons.person_add_rounded, size: 16),
+                  label: Text(isReassigning ? 'Reassign' : 'Assign'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultsList() {
+    if (_isSearching) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(strokeWidth: 2),
+              SizedBox(height: 10),
+              Text('Searching teachers...',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_searchError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded,
+                  color: Color(0xFFDC2626), size: 32),
+              const SizedBox(height: 8),
+              Text(
+                'Failed to search: $_searchError',
+                style:
+                    const TextStyle(fontSize: 12, color: Color(0xFFDC2626)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => _runSearch(_searchCtrl.text.trim()),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_results.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.person_search_rounded, size: 36, color: Color(0xFFCBD5E1)),
+              SizedBox(height: 8),
+              Text(
+                'No teachers found',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: _results.length,
+          separatorBuilder: (_, _) =>
+              const Divider(height: 1, color: AppColors.border),
+          itemBuilder: (ctx, index) {
+            final teacher = _results[index];
+            final isSelected = _selected?.userId == teacher.userId;
+            final isCurrentlyAssigned = widget.classItem.userId == teacher.userId;
+
+            return InkWell(
+              onTap: () => setState(() =>
+                  _selected = isSelected ? null : teacher),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                color: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.07)
+                    : Colors.white,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: isSelected
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : const Color(0xFFF1F5F9),
+                      foregroundColor: isSelected
+                          ? AppColors.primary
+                          : const Color(0xFF64748B),
+                      child: Text(
+                        teacher.fullName.isNotEmpty
+                            ? teacher.fullName[0].toUpperCase()
+                            : 'T',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  teacher.fullName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSelected
+                                        ? AppColors.primary
+                                        : AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isCurrentlyAssigned) ...[
+                                const SizedBox(width: 6),
+                                const _CurrentBadge(),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            teacher.email,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isSelected)
+                      const Icon(Icons.check_circle_rounded,
+                          size: 18, color: AppColors.primary)
+                    else
+                      const SizedBox(width: 18),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _CurrentBadge extends StatelessWidget {
+  const _CurrentBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD1FAE5),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFF6EE7B7)),
+      ),
+      child: const Text(
+        'Current',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF065F46),
         ),
       ),
     );

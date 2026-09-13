@@ -75,6 +75,25 @@ class ClassRepository {
         .toList();
   }
 
+  /// Assigns (or unassigns when [teacherUserId] is null) a teacher to a class.
+  /// Calls PATCH /api/classes/{classId}/teacher — updates only UserID.
+  Future<void> assignTeacher(String classId, String? teacherUserId) async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/classes/$classId/teacher');
+    final res = await http.patch(
+      uri,
+      headers: {...headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({'userID': teacherUserId}),
+    );
+
+    if (res.statusCode != 200 && res.statusCode != 204) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+  }
+
   Future<List<ClassRosterItemModel>> getClassRoster(String classId) async {
     final headers = await _auth.getAuthHeaders();
     final uri = Uri.parse('$baseUrl/api/studyloads/class/$classId');

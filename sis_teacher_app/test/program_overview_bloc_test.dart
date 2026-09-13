@@ -6,7 +6,9 @@ import 'package:sis_teacher_app/repositories/class_repository.dart';
 class FakeClassRepository implements ClassRepository {
   List<ClassModel> mockClasses = [];
   bool shouldThrow = false;
+  bool shouldThrowOnAssign = false;
   String errorMessage = 'Failed to fetch classes';
+  String assignError = 'Permission denied';
 
   @override
   Future<List<ClassModel>> getProgramClasses({
@@ -31,7 +33,33 @@ class FakeClassRepository implements ClassRepository {
   Future<List<ClassRosterItemModel>> getClassRoster(String classId) async {
     return [];
   }
+
+  @override
+  Future<void> assignTeacher(String classId, String? teacherUserId) async {
+    if (shouldThrowOnAssign) {
+      throw Exception(assignError);
+    }
+    // Simulate updating the in-memory list so the follow-up load reflects it.
+    mockClasses = mockClasses.map((c) {
+      if (c.classId == classId) {
+        return ClassModel(
+          classId: c.classId,
+          subjectId: c.subjectId,
+          subjectCode: c.subjectCode,
+          subjectTitle: c.subjectTitle,
+          userId: teacherUserId,
+          teacherName:
+              teacherUserId != null ? 'New Teacher' : null,
+          termId: c.termId,
+          className: c.className,
+          enrolledCount: c.enrolledCount,
+        );
+      }
+      return c;
+    }).toList();
+  }
 }
+
 
 void main() {
   late FakeClassRepository fakeRepo;
@@ -157,6 +185,57 @@ void main() {
       expectLater(bloc.stream, emitsInOrder(expectedStates));
 
       bloc.add(LoadProgramClassesEvent());
+    });
+
+    test('emits [Assigning, Loaded] on successful AssignTeacherEvent', () async {
+      fakeRepo.mockClasses = [
+        const ClassModel(
+          classId: 'c-1',
+          subjectId: 's-1',
+          subjectCode: 'IT 111',
+          subjectTitle: 'Intro to IT',
+          userId: null,
+          teacherName: null,
+          termId: 't-1',
+          className: 'BSIT-1A',
+          enrolledCount: 20,
+        ),
+      ];
+
+      final expectedStates = [
+        isA<ProgramOverviewAssigning>(),
+        isA<ProgramOverviewLoaded>(),
+      ];
+
+      expectLater(bloc.stream, emitsInOrder(expectedStates));
+
+      bloc.add(AssignTeacherEvent(classId: 'c-1', teacherUserId: 'teacher-99'));
+    });
+
+    test('emits [Assigning, AssignError] when assignTeacher throws', () async {
+      fakeRepo.mockClasses = [
+        const ClassModel(
+          classId: 'c-1',
+          subjectId: 's-1',
+          subjectCode: 'IT 111',
+          subjectTitle: 'Intro to IT',
+          userId: null,
+          teacherName: null,
+          termId: 't-1',
+          className: 'BSIT-1A',
+          enrolledCount: 20,
+        ),
+      ];
+      fakeRepo.shouldThrowOnAssign = true;
+
+      final expectedStates = [
+        isA<ProgramOverviewAssigning>(),
+        isA<ProgramOverviewAssignError>(),
+      ];
+
+      expectLater(bloc.stream, emitsInOrder(expectedStates));
+
+      bloc.add(AssignTeacherEvent(classId: 'c-1', teacherUserId: 'teacher-99'));
     });
   });
 }
