@@ -24,7 +24,6 @@ public class MeController : ControllerBase
 
         return Ok(new
         {
-            userId = userId,
             userID = userId,
             email = email,
             role = role,
