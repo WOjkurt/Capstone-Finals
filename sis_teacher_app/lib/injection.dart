@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'blocs/classes_bloc.dart';
 import 'blocs/grade_corrections_bloc.dart';
 import 'blocs/grades_bloc.dart';
+import 'blocs/program_overview_bloc.dart';
 import 'repositories/class_repository.dart';
 import 'repositories/grades_repository.dart';
 import 'repositories/grading_repository.dart';
@@ -30,4 +31,6 @@ void setupLocator() {
       () => GradesBloc(getIt<ClassRepository>(), getIt<GradesRepository>()));
   getIt.registerFactory<GradeCorrectionsBloc>(
       () => GradeCorrectionsBloc(getIt<GradeCorrectionRepository>()));
+  getIt.registerFactory<ProgramOverviewBloc>(
+      () => ProgramOverviewBloc(getIt<ClassRepository>()));
 }

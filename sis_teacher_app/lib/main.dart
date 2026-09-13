@@ -5,6 +5,7 @@ import 'blocs/auth_bloc.dart';
 import 'blocs/classes_bloc.dart';
 import 'blocs/grade_corrections_bloc.dart';
 import 'blocs/grades_bloc.dart';
+import 'blocs/program_overview_bloc.dart';
 import 'firebase_options.dart';
 import 'injection.dart';
 import 'services/auth_service.dart';
@@ -42,6 +43,9 @@ class SisTeacherApp extends StatelessWidget {
         ),
         BlocProvider<GradeCorrectionsBloc>(
           create: (_) => getIt<GradeCorrectionsBloc>(),
+        ),
+        BlocProvider<ProgramOverviewBloc>(
+          create: (_) => getIt<ProgramOverviewBloc>(),
         ),
       ],
       child: MaterialApp(

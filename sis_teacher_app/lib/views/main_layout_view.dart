@@ -5,7 +5,7 @@ import '../theme/app_theme.dart';
 import 'grade_corrections_view.dart';
 import 'grades_view.dart';
 import 'my_classes_view.dart';
-import 'placeholder_views.dart';
+import 'program_overview_view.dart';
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -135,7 +135,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                   initialClassId: _selectedGradesClassId,
                 ),
                 const GradeCorrectionsView(),
-                if (_isProgramHead) const ProgramOverviewPlaceholderView(),
+                if (_isProgramHead) const ProgramOverviewView(),
               ],
             ),
           ),
