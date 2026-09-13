@@ -9,8 +9,9 @@ import 'widgets/status_badge.dart';
 
 class MyClassesView extends StatefulWidget {
   final AuthenticatedState auth;
+  final ValueChanged<String>? onOpenGrades;
 
-  const MyClassesView({super.key, required this.auth});
+  const MyClassesView({super.key, required this.auth, this.onOpenGrades});
 
   @override
   State<MyClassesView> createState() => _MyClassesViewState();
@@ -35,7 +36,15 @@ class _MyClassesViewState extends State<MyClassesView> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _ClassDetailDialog(classItem: classItem),
+      builder: (ctx) => _ClassDetailDialog(
+        classItem: classItem,
+        onEnterGrades: widget.onOpenGrades != null
+            ? () {
+                Navigator.of(ctx).pop();
+                widget.onOpenGrades!(classItem.classId);
+              }
+            : null,
+      ),
     ).then((_) {
       bloc.add(ClearSelectedClassEvent());
     });
@@ -437,8 +446,9 @@ class _ClassCardState extends State<_ClassCard> {
 
 class _ClassDetailDialog extends StatefulWidget {
   final ClassModel classItem;
+  final VoidCallback? onEnterGrades;
 
-  const _ClassDetailDialog({required this.classItem});
+  const _ClassDetailDialog({required this.classItem, this.onEnterGrades});
 
   @override
   State<_ClassDetailDialog> createState() => _ClassDetailDialogState();
@@ -943,8 +953,22 @@ class _ClassDetailDialogState extends State<_ClassDetailDialog> {
             ),
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                if (widget.onEnterGrades != null)
+                  ElevatedButton.icon(
+                    onPressed: widget.onEnterGrades,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.grade_rounded, size: 18),
+                    label: const Text('Enter Grades', style: TextStyle(fontWeight: FontWeight.w700)),
+                  )
+                else
+                  const SizedBox.shrink(),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(

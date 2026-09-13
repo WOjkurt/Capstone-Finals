@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
+import 'grades_view.dart';
 import 'my_classes_view.dart';
 import 'placeholder_views.dart';
 
@@ -50,6 +51,7 @@ class MainLayoutView extends StatefulWidget {
 
 class _MainLayoutViewState extends State<MainLayoutView> {
   int _selectedIndex = 0;
+  String? _selectedGradesClassId;
 
   bool get _isProgramHead =>
       widget.auth.role == 4 || widget.auth.roleName.toLowerCase() == 'program head';
@@ -62,6 +64,13 @@ class _MainLayoutViewState extends State<MainLayoutView> {
   void _onSelectTab(int index) {
     setState(() {
       _selectedIndex = index;
+    });
+  }
+
+  void _navigateToGradesForClass(String classId) {
+    setState(() {
+      _selectedGradesClassId = classId;
+      _selectedIndex = 1;
     });
   }
 
@@ -116,8 +125,14 @@ class _MainLayoutViewState extends State<MainLayoutView> {
             child: IndexedStack(
               index: currentIndex,
               children: [
-                MyClassesView(auth: widget.auth),
-                const GradesPlaceholderView(),
+                MyClassesView(
+                  auth: widget.auth,
+                  onOpenGrades: _navigateToGradesForClass,
+                ),
+                GradesView(
+                  auth: widget.auth,
+                  initialClassId: _selectedGradesClassId,
+                ),
                 const GradeCorrectionsPlaceholderView(),
                 if (_isProgramHead) const ProgramOverviewPlaceholderView(),
               ],

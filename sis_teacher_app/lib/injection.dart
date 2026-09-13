@@ -1,6 +1,8 @@
 import 'package:get_it/get_it.dart';
 import 'blocs/classes_bloc.dart';
+import 'blocs/grades_bloc.dart';
 import 'repositories/class_repository.dart';
+import 'repositories/grades_repository.dart';
 import 'repositories/grading_repository.dart';
 import 'services/auth_service.dart';
 
@@ -13,6 +15,8 @@ void setupLocator() {
   // Repositories
   getIt.registerLazySingleton<ClassRepository>(
       () => ClassRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<GradesRepository>(
+      () => GradesRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<GradeCorrectionRepository>(
       () => GradeCorrectionRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<UserSearchRepository>(
@@ -21,4 +25,6 @@ void setupLocator() {
   // Blocs
   getIt.registerFactory<ClassesBloc>(
       () => ClassesBloc(getIt<ClassRepository>()));
+  getIt.registerFactory<GradesBloc>(
+      () => GradesBloc(getIt<ClassRepository>(), getIt<GradesRepository>()));
 }
