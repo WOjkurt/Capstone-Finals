@@ -254,6 +254,169 @@ public class StaffService : IStaffService
         return await BuildStaffResponseDto(user.UserID, firebaseSyncWarning: firebaseWarning);
     }
 
+    public async Task<StaffResponseDto> UpdateStaffAsync(Guid userId, UpdateStaffDto dto, Guid adminUserId)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Staff user with ID '{userId}' was not found.");
+        }
+
+        var userDetails = await _context.UserDetails
+            .Include(ud => ud.Position)
+            .Include(ud => ud.Program)
+            .FirstOrDefaultAsync(ud => ud.UserID == userId);
+        if (userDetails == null)
+        {
+            throw new KeyNotFoundException($"Staff details for user ID '{userId}' were not found.");
+        }
+
+        // Self and Admin protections:
+        if (user.UserID == adminUserId && dto.Role.HasValue && dto.Role.Value != user.Role)
+        {
+            throw new InvalidOperationException("You cannot change your own admin account role.");
+        }
+
+        if (user.Role == RoleUtils.Admin)
+        {
+            throw new InvalidOperationException("Admin accounts cannot be modified through staff management.");
+        }
+
+        // Role validation if provided
+        int effectiveRole = user.Role;
+        if (dto.Role.HasValue)
+        {
+            if (dto.Role.Value is RoleUtils.Admin or RoleUtils.Student || !RoleUtils.IsValidRole(dto.Role.Value))
+            {
+                throw new InvalidOperationException("Invalid role. Only Registrar (2), Teacher (3), or Program Head (4) roles can be assigned.");
+            }
+            effectiveRole = dto.Role.Value;
+        }
+
+        // Position validation if provided
+        if (dto.PositionID.HasValue)
+        {
+            if (dto.PositionID.Value == Guid.Empty)
+            {
+                userDetails.PositionID = null;
+            }
+            else
+            {
+                var pos = await _positionRepository.GetByIdAsync(dto.PositionID.Value);
+                if (pos == null)
+                {
+                    throw new KeyNotFoundException($"Position with ID '{dto.PositionID.Value}' was not found.");
+                }
+                userDetails.PositionID = dto.PositionID.Value;
+            }
+        }
+
+        // Program validation and role-specific program scoping rules
+        if (dto.ProgramID.HasValue && dto.ProgramID.Value > 0)
+        {
+            var prog = await _academicProgramRepository.GetByIdAsync(dto.ProgramID.Value);
+            if (prog == null)
+            {
+                throw new KeyNotFoundException($"AcademicProgram with ID '{dto.ProgramID.Value}' was not found.");
+            }
+        }
+
+        if (effectiveRole == RoleUtils.ProgramHead)
+        {
+            // Program Head requires ProgramID
+            var targetProgramId = dto.ProgramID.HasValue
+                ? (dto.ProgramID.Value > 0 ? dto.ProgramID.Value : (int?)null)
+                : userDetails.ProgramID;
+            if (!targetProgramId.HasValue || targetProgramId.Value <= 0)
+            {
+                throw new InvalidOperationException("Academic program is required for Program Head accounts.");
+            }
+            userDetails.ProgramID = targetProgramId.Value;
+        }
+        else if (effectiveRole == RoleUtils.Registrar)
+        {
+            // Registrar forces ProgramID to null
+            userDetails.ProgramID = null;
+        }
+        else if (effectiveRole == RoleUtils.Teacher)
+        {
+            // Teacher / Program Head -> Teacher preserves existing ProgramID unless explicitly changed
+            if (dto.ProgramID.HasValue)
+            {
+                if (dto.ProgramID.Value <= 0)
+                {
+                    userDetails.ProgramID = null;
+                }
+                else
+                {
+                    userDetails.ProgramID = dto.ProgramID.Value;
+                }
+            }
+        }
+
+        if (dto.EmployeeID.HasValue)
+        {
+            userDetails.EmployeeID = dto.EmployeeID.Value <= 0 ? null : dto.EmployeeID.Value;
+        }
+
+        if (dto.IsRegular.HasValue)
+        {
+            userDetails.IsRegular = dto.IsRegular.Value;
+        }
+
+        // Firstname and Lastname updates + Firebase DisplayName sync
+        bool nameChanged = false;
+        if (dto.Firstname != null && !string.IsNullOrWhiteSpace(dto.Firstname) && dto.Firstname.Trim() != userDetails.Firstname)
+        {
+            userDetails.Firstname = dto.Firstname.Trim();
+            nameChanged = true;
+        }
+        if (dto.Lastname != null && !string.IsNullOrWhiteSpace(dto.Lastname) && dto.Lastname.Trim() != userDetails.Lastname)
+        {
+            userDetails.Lastname = dto.Lastname.Trim();
+            nameChanged = true;
+        }
+
+        string? firebaseWarning = null;
+        if (nameChanged)
+        {
+            try
+            {
+                await FirebaseAuth.DefaultInstance.UpdateUserAsync(new UserRecordArgs
+                {
+                    Uid = user.FirebaseUID,
+                    DisplayName = $"{userDetails.Firstname} {userDetails.Lastname}"
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[STAFF WARNING] Firebase display name update failed for '{user.FirebaseUID}': {ex.Message}");
+                firebaseWarning = "Database updated, but Firebase sync failed \u2014 this may need manual attention";
+            }
+        }
+
+        // Active-classes advisory warning (not a block) when moving away from a teaching role
+        bool wasTeachingRole = user.Role is RoleUtils.Teacher or RoleUtils.ProgramHead;
+        bool isMovingAwayFromTeaching = wasTeachingRole && effectiveRole == RoleUtils.Registrar;
+        if (isMovingAwayFromTeaching)
+        {
+            var assignedClassCount = await _context.Classes.CountAsync(c => c.UserID == user.UserID);
+            if (assignedClassCount > 0)
+            {
+                var classWarning = $"Note: This staff member is still assigned as instructor to {assignedClassCount} class(es). Reassign active offerings in Class Management.";
+                firebaseWarning = string.IsNullOrEmpty(firebaseWarning)
+                    ? classWarning
+                    : $"{firebaseWarning}; {classWarning}";
+            }
+        }
+
+        user.Role = effectiveRole;
+        await _userRepository.UpdateAsync(user);
+        await _userDetailsRepository.UpdateAsync(userDetails);
+
+        return await BuildStaffResponseDto(user.UserID, firebaseSyncWarning: firebaseWarning);
+    }
+
     private async Task<StaffResponseDto> BuildStaffResponseDto(
         Guid userId,
         string? passwordResetLink = null,

@@ -8,4 +8,5 @@ public interface IStaffService
     Task<List<StaffResponseDto>> GetAllStaffAsync();
     Task<StaffResponseDto> DisableStaffAsync(Guid userId, Guid adminUserId);
     Task<StaffResponseDto> ReactivateStaffAsync(Guid userId, Guid adminUserId);
+    Task<StaffResponseDto> UpdateStaffAsync(Guid userId, UpdateStaffDto dto, Guid adminUserId);
 }
