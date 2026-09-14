@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../blocs/staff_bloc.dart';
+import '../injection.dart';
+import '../models/setup_models.dart';
 import '../models/staff_model.dart';
+import '../repositories/enrollment_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
@@ -17,6 +20,7 @@ class StaffManagementView extends StatefulWidget {
 
 class _StaffManagementViewState extends State<StaffManagementView> {
   final TextEditingController _searchController = TextEditingController();
+  List<AcademicProgramModel> _programs = [];
 
   @override
   void initState() {
@@ -25,6 +29,16 @@ class _StaffManagementViewState extends State<StaffManagementView> {
     if (bloc.state.staffList.isEmpty && !bloc.state.isLoading) {
       bloc.add(LoadStaffList());
     }
+    _loadPrograms();
+  }
+
+  Future<void> _loadPrograms() async {
+    try {
+      final list = await getIt<AcademicSetupRepository>().getPrograms();
+      if (mounted) {
+        setState(() => _programs = list);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -153,12 +167,16 @@ class _StaffManagementViewState extends State<StaffManagementView> {
   }
 
   void _openAddStaffDialog(BuildContext context) {
+    if (_programs.isEmpty) {
+      _loadPrograms();
+    }
     final formKey = GlobalKey<FormState>();
     final emailCtrl = TextEditingController();
     final firstCtrl = TextEditingController();
     final lastCtrl = TextEditingController();
     final empIdCtrl = TextEditingController();
     int selectedRole = 2; // Default to Registrar (2)
+    int? selectedProgramId;
 
     showDialog(
       context: context,
@@ -257,10 +275,58 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                               ],
                               onChanged: (val) {
                                 if (val != null) {
-                                  setDialogState(() => selectedRole = val);
+                                  setDialogState(() {
+                                    selectedRole = val;
+                                    if (selectedRole != 3 && selectedRole != 4) {
+                                      selectedProgramId = null;
+                                    }
+                                  });
                                 }
                               },
                             ),
+                            if (selectedRole == 3 || selectedRole == 4) ...[
+                              const SizedBox(height: 14),
+                              DropdownButtonFormField<int?>(
+                                key: ValueKey('program_dropdown_$selectedRole'),
+                                initialValue: selectedProgramId,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: selectedRole == 4
+                                      ? 'Academic Program *'
+                                      : 'Academic Program (Optional)',
+                                  helperText: selectedRole == 4
+                                      ? 'Program Head access is strictly scoped to this program.'
+                                      : 'Assign to department or leave empty for General Education.',
+                                  border: const OutlineInputBorder(),
+                                  prefixIcon: const Icon(Icons.school_outlined),
+                                ),
+                                items: [
+                                  if (selectedRole == 3)
+                                    const DropdownMenuItem<int?>(
+                                      value: null,
+                                      child: Text(
+                                        'None / General Education',
+                                        style: TextStyle(color: Color(0xFF64748B)),
+                                      ),
+                                    ),
+                                  ..._programs.map(
+                                    (p) => DropdownMenuItem<int?>(
+                                      value: p.programId,
+                                      child: Text('${p.programCode} - ${p.programName}'),
+                                    ),
+                                  ),
+                                ],
+                                validator: (val) {
+                                  if (selectedRole == 4 && (val == null || val == 0)) {
+                                    return 'Academic program is required for Program Head';
+                                  }
+                                  return null;
+                                },
+                                onChanged: (val) {
+                                  setDialogState(() => selectedProgramId = val);
+                                },
+                              ),
+                            ],
                             const SizedBox(height: 14),
                             TextFormField(
                               controller: empIdCtrl,
@@ -302,6 +368,9 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                   lastname: lastCtrl.text.trim(),
                                   role: selectedRole,
                                   employeeId: empIdText.isNotEmpty ? int.tryParse(empIdText) : null,
+                                  programId: (selectedRole == 3 || selectedRole == 4)
+                                      ? selectedProgramId
+                                      : null,
                                 );
                                 context.read<StaffBloc>().add(CreateStaffEvent(req));
                               }
@@ -399,7 +468,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
     );
   }
 
-  Widget _buildRoleBadge(String roleName) {
+  Widget _buildRoleBadge(String roleName, [String? programCode]) {
     Color bg;
     Color fg;
     switch (roleName.toLowerCase()) {
@@ -423,6 +492,9 @@ class _StaffManagementViewState extends State<StaffManagementView> {
         bg = const Color(0xFFF1F5F9);
         fg = const Color(0xFF475569);
     }
+    final label = (programCode != null && programCode.isNotEmpty)
+        ? '$roleName ($programCode)'
+        : roleName;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -431,7 +503,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
         border: Border.all(color: fg.withValues(alpha: 0.2)),
       ),
       child: Text(
-        roleName,
+        label,
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -671,7 +743,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                                     ],
                                                   ),
                                                 ),
-                                                DataCell(_buildRoleBadge(s.roleName)),
+                                                DataCell(_buildRoleBadge(s.roleName, s.programCode)),
                                                 DataCell(
                                                   Text(
                                                     s.employeeId != null ? '${s.employeeId}' : '—',

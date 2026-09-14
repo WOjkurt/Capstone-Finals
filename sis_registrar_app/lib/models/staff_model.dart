@@ -92,6 +92,7 @@ class CreateStaffRequest {
   final String lastname;
   final int role;
   final int? employeeId;
+  final int? programId;
   final bool isRegular;
 
   CreateStaffRequest({
@@ -100,6 +101,7 @@ class CreateStaffRequest {
     required this.lastname,
     required this.role,
     this.employeeId,
+    this.programId,
     this.isRegular = true,
   });
 
@@ -110,6 +112,7 @@ class CreateStaffRequest {
       'lastname': lastname.trim(),
       'role': role,
       if (employeeId != null) 'employeeID': employeeId,
+      if (programId != null) 'programID': programId,
       'isRegular': isRegular,
     };
   }

@@ -30,6 +30,7 @@ class MockStaffRepository implements StaffRepository {
       firstname: request.firstname,
       lastname: request.lastname,
       employeeId: request.employeeId,
+      programId: request.programId,
       isRegular: request.isRegular,
       isActive: true,
       createdAt: DateTime.now(),
@@ -128,7 +129,7 @@ void main() {
       expect(model.passwordResetLink, 'https://example.com/reset');
     });
 
-    test('CreateStaffRequest serializes to json without PositionID', () {
+    test('CreateStaffRequest serializes to json without PositionID and omits ProgramID when null', () {
       final req = CreateStaffRequest(
         email: 'teacher@dbtc-cebu.edu.ph',
         firstname: 'John',
@@ -144,6 +145,26 @@ void main() {
       expect(json['role'], 3);
       expect(json['employeeID'], 2002);
       expect(json.containsKey('positionID'), false);
+      expect(json.containsKey('programID'), false);
+    });
+
+    test('CreateStaffRequest serializes to json with ProgramID when provided', () {
+      final req = CreateStaffRequest(
+        email: 'head@dbtc-cebu.edu.ph',
+        firstname: 'Jane',
+        lastname: 'Smith',
+        role: 4,
+        employeeId: 3003,
+        programId: 1,
+      );
+
+      final json = req.toJson();
+      expect(json['email'], 'head@dbtc-cebu.edu.ph');
+      expect(json['firstname'], 'Jane');
+      expect(json['lastname'], 'Smith');
+      expect(json['role'], 4);
+      expect(json['employeeID'], 3003);
+      expect(json['programID'], 1);
     });
   });
 
