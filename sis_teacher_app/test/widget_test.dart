@@ -34,14 +34,15 @@ void main() {
     ]);
   });
 
-  test('MainLayoutView nav items for Program Head role (4) contains 4 items including Program Overview', () {
+  test('MainLayoutView nav items for Program Head role (4) contains 5 items including Program Overview and Faculty', () {
     final items = MainLayoutView.buildNavItems(role: 4, roleName: 'Program Head');
-    expect(items.length, 4);
+    expect(items.length, 5);
     expect(items.map((i) => i['title']).toList(), [
       'My Classes',
       'Grades',
       'Grade Corrections',
       'Program Overview',
+      'Faculty',
     ]);
   });
 }

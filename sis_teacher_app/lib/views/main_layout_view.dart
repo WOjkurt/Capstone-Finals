@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
+import 'faculty_view.dart';
 import 'grade_corrections_view.dart';
 import 'grades_view.dart';
 import 'my_classes_view.dart';
@@ -40,6 +41,11 @@ class MainLayoutView extends StatefulWidget {
         'title': 'Program Overview',
         'icon': Icons.account_tree_outlined,
         'activeIcon': Icons.account_tree_rounded,
+      });
+      items.add({
+        'title': 'Faculty',
+        'icon': Icons.people_outline_rounded,
+        'activeIcon': Icons.people_rounded,
       });
     }
 
@@ -135,7 +141,10 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                   initialClassId: _selectedGradesClassId,
                 ),
                 const GradeCorrectionsView(),
-                if (_isProgramHead) const ProgramOverviewView(),
+                if (_isProgramHead) ...[
+                  const ProgramOverviewView(),
+                  const FacultyView(),
+                ],
               ],
             ),
           ),
