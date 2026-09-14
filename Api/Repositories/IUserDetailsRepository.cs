@@ -8,7 +8,7 @@ public interface IUserDetailsRepository
     Task<UserDetails?> GetByUserIdAsync(Guid userId);
     Task<UserDetails?> GetByLrnAsync(string lrn);
     Task<List<UserDetails>> GetAllAsync();
-    Task<List<UserDetails>> SearchAsync(string? search, int? role, int limit = 50);
+    Task<List<UserDetails>> SearchAsync(string? search, int? role, int? programId = null, int? limit = 50);
     Task AddAsync(UserDetails userDetails);
     Task UpdateAsync(UserDetails userDetails);
     Task DeleteAsync(Guid userDetailId);

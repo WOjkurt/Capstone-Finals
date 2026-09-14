@@ -48,7 +48,7 @@ public class UserDetailsRepository : IUserDetailsRepository
             .ToListAsync();
     }
 
-    public async Task<List<UserDetails>> SearchAsync(string? search, int? role, int limit = 50)
+    public async Task<List<UserDetails>> SearchAsync(string? search, int? role, int? programId = null, int? limit = 50)
     {
         var query = _context.UserDetails
             .AsNoTracking()
@@ -61,6 +61,11 @@ public class UserDetailsRepository : IUserDetailsRepository
             query = query.Where(ud => ud.User != null && ud.User.Role == role.Value);
         }
 
+        if (programId.HasValue)
+        {
+            query = query.Where(ud => ud.ProgramID == programId.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -71,11 +76,16 @@ public class UserDetailsRepository : IUserDetailsRepository
             );
         }
 
-        return await query
+        query = query
             .OrderBy(ud => ud.Lastname)
-            .ThenBy(ud => ud.Firstname)
-            .Take(limit)
-            .ToListAsync();
+            .ThenBy(ud => ud.Firstname);
+
+        if (limit.HasValue)
+        {
+            query = query.Take(limit.Value);
+        }
+
+        return await query.ToListAsync();
     }
 
     public async Task AddAsync(UserDetails userDetails)

@@ -3,6 +3,7 @@ using Api.Controllers;
 using Api.Domain.IdentityAccess;
 using Api.DTOs.Enrollment;
 using Api.Repositories;
+using Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -13,12 +14,16 @@ namespace Api.Tests;
 public class UserDetailsControllerTests
 {
     private readonly Mock<IUserDetailsRepository> _userDetailsRepoMock;
+    private readonly Mock<IProgramScopingService> _scopingServiceMock;
     private readonly UserDetailsController _controller;
 
     public UserDetailsControllerTests()
     {
         _userDetailsRepoMock = new Mock<IUserDetailsRepository>();
-        _controller = new UserDetailsController(_userDetailsRepoMock.Object);
+        _scopingServiceMock = new Mock<IProgramScopingService>();
+        _controller = new UserDetailsController(
+            _userDetailsRepoMock.Object,
+            _scopingServiceMock.Object);
     }
 
     private void SetHttpContext(int? role, Guid? userId = null)
@@ -42,8 +47,14 @@ public class UserDetailsControllerTests
     public async Task Search_ProgramHeadSearchingTeachers_ReturnsOk()
     {
         // Arrange
-        SetHttpContext(RoleUtils.ProgramHead, Guid.NewGuid());
-        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, RoleUtils.Teacher))
+        var programHeadId = Guid.NewGuid();
+        int programId = 1;
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        _scopingServiceMock.Setup(s => s.GetProgramIdAsync(programHeadId))
+            .ReturnsAsync(programId);
+
+        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, RoleUtils.Teacher, programId, null))
             .ReturnsAsync(new List<UserDetails>
             {
                 new()
@@ -51,6 +62,7 @@ public class UserDetailsControllerTests
                     UserID = Guid.NewGuid(),
                     Firstname = "John",
                     Lastname = "Teacher",
+                    ProgramID = programId,
                     User = new User
                     {
                         FirebaseUID = "firebase_teacher_1",
@@ -67,6 +79,74 @@ public class UserDetailsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         var dtos = Assert.IsAssignableFrom<IEnumerable<UserSearchResultDto>>(okResult.Value);
         Assert.Single(dtos);
+    }
+
+    [Fact]
+    public async Task Search_ProgramHeadSearchingTeachers_OnlyReturnsTeachersFromOwnProgram()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        int myProgramId = 1;
+        int otherProgramId = 2;
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        _scopingServiceMock.Setup(s => s.GetProgramIdAsync(programHeadId))
+            .ReturnsAsync(myProgramId);
+
+        var ownProgramTeacher = new UserDetails
+        {
+            UserID = Guid.NewGuid(),
+            Firstname = "Alice",
+            Lastname = "Teacher",
+            ProgramID = myProgramId,
+            User = new User
+            {
+                FirebaseUID = "firebase_t1",
+                Email = "alice@dbtc-cebu.edu.ph",
+                Role = RoleUtils.Teacher
+            }
+        };
+
+        // Repository returns only the scoped teacher when queried with myProgramId and null limit
+        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, RoleUtils.Teacher, myProgramId, null))
+            .ReturnsAsync(new List<UserDetails> { ownProgramTeacher });
+
+        // Act
+        var result = await _controller.Search(null, RoleUtils.Teacher);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<UserSearchResultDto>>(okResult.Value).ToList();
+
+        Assert.Single(dtos);
+        Assert.Equal(ownProgramTeacher.UserID, dtos[0].UserID);
+        Assert.Equal(myProgramId, dtos[0].ProgramID);
+
+        // Verify that SearchAsync was called with the Program Head's own program ID and no limit (null)
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(null, RoleUtils.Teacher, myProgramId, null), Times.Once);
+        // Verify that other program or unscoped queries were never made
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(It.IsAny<string?>(), It.IsAny<int?>(), otherProgramId, It.IsAny<int?>()), Times.Never);
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(It.IsAny<string?>(), It.IsAny<int?>(), null, It.IsAny<int?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Search_ProgramHeadWithoutAssignedProgram_ReturnsEmptyList()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        _scopingServiceMock.Setup(s => s.GetProgramIdAsync(programHeadId))
+            .ReturnsAsync((int?)null);
+
+        // Act
+        var result = await _controller.Search(null, RoleUtils.Teacher);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<UserSearchResultDto>>(okResult.Value);
+        Assert.Empty(dtos);
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>()), Times.Never);
     }
 
     [Theory]
@@ -116,6 +196,8 @@ public class UserDetailsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         var dtos = Assert.IsAssignableFrom<IEnumerable<UserSearchResultDto>>(okResult.Value);
         Assert.Single(dtos);
+        _scopingServiceMock.Verify(s => s.GetProgramIdAsync(It.IsAny<Guid>()), Times.Never);
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(null, RoleUtils.Student, null, 50), Times.Once);
     }
 
     [Fact]
@@ -123,7 +205,7 @@ public class UserDetailsControllerTests
     {
         // Arrange
         SetHttpContext(RoleUtils.Registrar, Guid.NewGuid());
-        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, null))
+        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, null, null, 50))
             .ReturnsAsync(new List<UserDetails>());
 
         // Act - Registrar can search without role restriction
@@ -131,6 +213,8 @@ public class UserDetailsControllerTests
 
         // Assert
         Assert.IsType<OkObjectResult>(result);
+        _scopingServiceMock.Verify(s => s.GetProgramIdAsync(It.IsAny<Guid>()), Times.Never);
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(null, null, null, 50), Times.Once);
     }
 
     [Fact]

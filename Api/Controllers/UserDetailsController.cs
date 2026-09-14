@@ -1,6 +1,7 @@
 using Api.Auth;
 using Api.DTOs.Enrollment;
 using Api.Repositories;
+using Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
@@ -10,10 +11,14 @@ namespace Api.Controllers;
 public class UserDetailsController : ControllerBase
 {
     private readonly IUserDetailsRepository _userDetailsRepository;
+    private readonly IProgramScopingService _scopingService;
 
-    public UserDetailsController(IUserDetailsRepository userDetailsRepository)
+    public UserDetailsController(
+        IUserDetailsRepository userDetailsRepository,
+        IProgramScopingService scopingService)
     {
         _userDetailsRepository = userDetailsRepository;
+        _scopingService = scopingService;
     }
 
     [HttpGet]
@@ -31,7 +36,29 @@ public class UserDetailsController : ControllerBase
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. Registrar or Admin privileges required." });
         }
-        var list = await _userDetailsRepository.SearchAsync(search, role);
+
+        int? programScope = null;
+        int? limit = 50;
+
+        if (authRole == RoleUtils.ProgramHead)
+        {
+            if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
+            {
+                return Unauthorized(new { message = "Authentication required." });
+            }
+
+            programScope = await _scopingService.GetProgramIdAsync(authUserId);
+            if (!programScope.HasValue)
+            {
+                // Program Head without an assigned program gets an empty list
+                return Ok(new List<UserSearchResultDto>());
+            }
+
+            // Remove the 50 limit for Program Head viewing their department's faculty roster
+            limit = null;
+        }
+
+        var list = await _userDetailsRepository.SearchAsync(search, role, programScope, limit);
         var dtos = list.Select(ud => new UserSearchResultDto
         {
             UserID = ud.UserID,
