@@ -267,5 +267,31 @@ void main() {
         teacherUserId: 'teacher-2',
       ));
     });
+
+    test('emits [FacultyAssigning, FacultyLoaded] on successful unassign (teacherUserId: null)',
+        () async {
+      userSearchRepo.mockTeachers = [teacher1, teacher2];
+      classRepo.mockClasses = [class1, class2, unassignedClass];
+
+      // First load initial data
+      bloc.add(LoadFacultyEvent());
+      await bloc.stream.firstWhere((s) => s is FacultyLoaded);
+
+      // Now unassign class-1 (which was assigned to teacher-1)
+      final expectedStates = [
+        isA<FacultyAssigning>()
+            .having((s) => s.teacherUserId, 'teacherUserId', isNull)
+            .having((s) => s.classId, 'classId', 'class-1'),
+        isA<FacultyLoaded>()
+            .having((s) => s.teachersWithClassesCount, 'teachersWithClassesCount', 1)
+            .having((s) => s.unassignedClasses.length, 'unassignedClasses count', 2),
+      ];
+
+      expectLater(bloc.stream, emitsInOrder(expectedStates));
+      bloc.add(AssignFacultyToClassEvent(
+        classId: 'class-1',
+        teacherUserId: null,
+      ));
+    });
   });
 }

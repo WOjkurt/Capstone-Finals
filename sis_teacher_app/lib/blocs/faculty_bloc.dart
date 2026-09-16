@@ -37,11 +37,11 @@ class LoadFacultyEvent extends FacultyEvent {}
 
 class AssignFacultyToClassEvent extends FacultyEvent {
   final String classId;
-  final String teacherUserId;
+  final String? teacherUserId;
 
   AssignFacultyToClassEvent({
     required this.classId,
-    required this.teacherUserId,
+    this.teacherUserId,
   });
 }
 
@@ -75,11 +75,11 @@ class FacultyError extends FacultyState {
 }
 
 class FacultyAssigning extends FacultyState {
-  final String teacherUserId;
+  final String? teacherUserId;
   final String classId;
 
   FacultyAssigning({
-    required this.teacherUserId,
+    this.teacherUserId,
     required this.classId,
   });
 }

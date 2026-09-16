@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/faculty_bloc.dart';
-import '../injection.dart';
+import '../blocs/program_overview_bloc.dart';
 import '../models/class_models.dart';
 import '../theme/app_theme.dart';
+import 'widgets/assign_teacher_dialog.dart';
 
 enum _FacultyFilterMode { all, withClasses, zeroClasses }
 
@@ -12,10 +13,7 @@ class FacultyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<FacultyBloc>(
-      create: (_) => getIt<FacultyBloc>()..add(LoadFacultyEvent()),
-      child: const _FacultyViewContent(),
-    );
+    return const _FacultyViewContent();
   }
 }
 
@@ -34,11 +32,41 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
 
   List<FacultyMember> _lastKnownFaculty = [];
   List<ClassModel> _lastKnownUnassigned = [];
+  bool _wasAssigning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final bloc = context.read<FacultyBloc>();
+    if (bloc.state is FacultyInitial) {
+      bloc.add(LoadFacultyEvent());
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _openAssignDialog(BuildContext context, ClassModel classItem,
+      {FacultyMember? member}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AssignTeacherDialog(
+        classItem: classItem,
+        currentTeacherName: member?.fullName,
+        onAssign: (teacherUserId) {
+          context.read<FacultyBloc>().add(
+                AssignFacultyToClassEvent(
+                  classId: classItem.classId,
+                  teacherUserId: teacherUserId,
+                ),
+              );
+        },
+      ),
+    );
   }
 
   void _toggleExpanded(String userId) {
@@ -66,10 +94,17 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
           Expanded(
             child: BlocConsumer<FacultyBloc, FacultyState>(
               listener: (context, state) {
-                if (state is FacultyLoaded) {
+                if (state is FacultyAssigning) {
+                  _wasAssigning = true;
+                } else if (state is FacultyLoaded) {
                   _lastKnownFaculty = state.faculty;
                   _lastKnownUnassigned = state.unassignedClasses;
+                  if (_wasAssigning) {
+                    _wasAssigning = false;
+                    context.read<ProgramOverviewBloc>().add(LoadProgramClassesEvent());
+                  }
                 } else if (state is FacultyAssignError) {
+                  _wasAssigning = false;
                   _lastKnownFaculty = state.previousFaculty;
                   _lastKnownUnassigned = state.previousUnassignedClasses;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -740,7 +775,8 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
             Padding(
               padding: const EdgeInsets.all(20),
               child: hasClasses
-                  ? _buildAssignedClassesSection(member.assignedClasses)
+                  ? _buildAssignedClassesSection(context, member.assignedClasses,
+                      member: member)
                   : _buildZeroClassesSection(
                       context: context,
                       member: member,
@@ -754,7 +790,9 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
     );
   }
 
-  Widget _buildAssignedClassesSection(List<ClassModel> classes) {
+  Widget _buildAssignedClassesSection(
+      BuildContext context, List<ClassModel> classes,
+      {FacultyMember? member}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -777,13 +815,16 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
         Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: classes.map((c) => _buildClassCard(c)).toList(),
+          children: classes
+              .map((c) => _buildClassCard(context, c, member: member))
+              .toList(),
         ),
       ],
     );
   }
 
-  Widget _buildClassCard(ClassModel c) {
+  Widget _buildClassCard(BuildContext context, ClassModel c,
+      {FacultyMember? member}) {
     final scheduleSummary =
         c.schedules.isNotEmpty ? c.schedules.first.summary : 'No schedule set';
 
@@ -866,18 +907,55 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.people_alt_outlined,
-                  size: 12, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                '${c.enrolledCount} enrolled students',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.people_alt_outlined,
+                      size: 12, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${c.enrolledCount} enrolled students',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              // Change affordance
+              InkWell(
+                onTap: () => _openAssignDialog(context, c, member: member),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.25)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swap_horiz_rounded,
+                          size: 12, color: AppColors.primary),
+                      SizedBox(width: 3),
+                      Text(
+                        'Change',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
