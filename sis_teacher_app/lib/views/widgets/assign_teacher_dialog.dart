@@ -79,6 +79,104 @@ class _AssignTeacherDialogState extends State<AssignTeacherDialog> {
     }
   }
 
+  Future<void> _handleRemove(BuildContext context) async {
+    final c = widget.classItem;
+    final currentTeacher = (c.teacherName != null && c.teacherName!.trim().isNotEmpty)
+        ? c.teacherName!.trim()
+        : (widget.currentTeacherName?.trim() ?? 'assigned teacher');
+    final classIdentifier = (c.subjectCode != null && c.subjectCode!.trim().isNotEmpty)
+        ? '${c.subjectCode!.trim()} — ${c.className}'
+        : c.className;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove Assignment?'),
+        content: Text(
+          'Remove $currentTeacher from $classIdentifier? This class will become unassigned.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF991B1B),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      Navigator.of(context).pop();
+      widget.onAssign(null);
+    }
+  }
+
+  Future<void> _handleAssign(BuildContext context) async {
+    if (_selected == null) return;
+
+    final c = widget.classItem;
+    final hasAssignedTeacher = c.userId != null && c.userId!.trim().isNotEmpty;
+
+    if (hasAssignedTeacher) {
+      final currentTeacher = (c.teacherName != null && c.teacherName!.trim().isNotEmpty)
+          ? c.teacherName!.trim()
+          : (widget.currentTeacherName?.trim() ?? 'Current Teacher');
+      final classIdentifier = (c.subjectCode != null && c.subjectCode!.trim().isNotEmpty)
+          ? '${c.subjectCode!.trim()} — ${c.className}'
+          : c.className;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Reassign Class?'),
+          content: Text(
+            'Reassign $classIdentifier from $currentTeacher to ${_selected!.fullName}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              child: const Text('Reassign'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true && context.mounted) {
+        Navigator.of(context).pop();
+        widget.onAssign(_selected!.userId);
+      }
+    } else {
+      // Lower-risk action with nothing to lose — assign immediately on selection.
+      Navigator.of(context).pop();
+      widget.onAssign(_selected!.userId);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.classItem;
@@ -299,10 +397,7 @@ class _AssignTeacherDialogState extends State<AssignTeacherDialog> {
                 if (hasAssignedTeacher)
                   OutlinedButton.icon(
                     key: const ValueKey('remove_assignment_button'),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      widget.onAssign(null);
-                    },
+                    onPressed: () => _handleRemove(context),
                     icon: const Icon(Icons.person_remove_rounded,
                         size: 15, color: Color(0xFFDC2626)),
                     label: const Text(
@@ -341,10 +436,7 @@ class _AssignTeacherDialogState extends State<AssignTeacherDialog> {
                     ElevatedButton.icon(
                       onPressed: _selected == null
                           ? null
-                          : () {
-                              Navigator.of(context).pop();
-                              widget.onAssign(_selected!.userId);
-                            },
+                          : () => _handleAssign(context),
                       style: ElevatedButton.styleFrom(
                         visualDensity: VisualDensity.compact,
                         backgroundColor: AppColors.primary,
