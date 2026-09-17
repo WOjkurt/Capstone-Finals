@@ -23,7 +23,15 @@ class ReactivateStaffEvent extends StaffEvent {
   ReactivateStaffEvent(this.id);
 }
 
+class UpdateStaffEvent extends StaffEvent {
+  final String id;
+  final UpdateStaffRequest request;
+  UpdateStaffEvent(this.id, this.request);
+}
+
 class ClearStaffCreatedEvent extends StaffEvent {}
+
+class ClearStaffUpdatedEvent extends StaffEvent {}
 
 class ClearStaffMessagesEvent extends StaffEvent {}
 
@@ -34,8 +42,10 @@ class StaffState {
   final String? processingId;
   final List<StaffModel> staffList;
   final StaffModel? createdStaff;
+  final StaffModel? updatedStaff;
   final String? errorMessage;
   final String? successMessage;
+  final String? warningMessage;
 
   StaffState({
     this.isLoading = false,
@@ -43,8 +53,10 @@ class StaffState {
     this.processingId,
     this.staffList = const [],
     this.createdStaff,
+    this.updatedStaff,
     this.errorMessage,
     this.successMessage,
+    this.warningMessage,
   });
 
   StaffState copyWith({
@@ -55,8 +67,11 @@ class StaffState {
     List<StaffModel>? staffList,
     StaffModel? createdStaff,
     bool clearCreatedStaff = false,
+    StaffModel? updatedStaff,
+    bool clearUpdatedStaff = false,
     String? errorMessage,
     String? successMessage,
+    String? warningMessage,
     bool clearMessages = false,
   }) {
     return StaffState(
@@ -69,9 +84,14 @@ class StaffState {
       createdStaff: clearCreatedStaff
           ? null
           : (createdStaff ?? this.createdStaff),
+      updatedStaff: clearUpdatedStaff
+          ? null
+          : (updatedStaff ?? this.updatedStaff),
       errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
       successMessage:
           clearMessages ? null : (successMessage ?? this.successMessage),
+      warningMessage:
+          clearMessages ? null : (warningMessage ?? this.warningMessage),
     );
   }
 }
@@ -83,10 +103,14 @@ class StaffBloc extends Bloc<StaffEvent, StaffState> {
   StaffBloc(this._staffRepository) : super(StaffState()) {
     on<LoadStaffList>(_onLoadStaffList);
     on<CreateStaffEvent>(_onCreateStaff);
+    on<UpdateStaffEvent>(_onUpdateStaff);
     on<DisableStaffEvent>(_onDisableStaff);
     on<ReactivateStaffEvent>(_onReactivateStaff);
     on<ClearStaffCreatedEvent>((event, emit) {
       emit(state.copyWith(clearCreatedStaff: true));
+    });
+    on<ClearStaffUpdatedEvent>((event, emit) {
+      emit(state.copyWith(clearUpdatedStaff: true));
     });
     on<ClearStaffMessagesEvent>((event, emit) {
       emit(state.copyWith(clearMessages: true));
@@ -122,6 +146,33 @@ class StaffBloc extends Bloc<StaffEvent, StaffState> {
         staffList: updatedList,
         createdStaff: created,
         successMessage: 'Staff account created successfully for ${created.fullName}!',
+      ));
+    } catch (e, st) {
+      emit(state.copyWith(
+        isSubmitting: false,
+        errorMessage: getFriendlyErrorMessage(e, st),
+      ));
+    }
+  }
+
+  Future<void> _onUpdateStaff(
+      UpdateStaffEvent event, Emitter<StaffState> emit) async {
+    emit(state.copyWith(
+      isSubmitting: true,
+      clearMessages: true,
+      clearUpdatedStaff: true,
+    ));
+    try {
+      final updated = await _staffRepository.updateStaff(event.id, event.request);
+      final list = state.staffList.map((s) {
+        return s.userId == event.id ? updated : s;
+      }).toList();
+      emit(state.copyWith(
+        isSubmitting: false,
+        staffList: list,
+        updatedStaff: updated,
+        warningMessage: updated.firebaseSyncWarning,
+        successMessage: 'Staff account for ${updated.fullName} updated successfully.',
       ));
     } catch (e, st) {
       emit(state.copyWith(

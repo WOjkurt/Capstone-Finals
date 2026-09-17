@@ -94,4 +94,24 @@ class StaffRepository {
 
     return StaffModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
+
+  Future<StaffModel> updateStaff(String id, UpdateStaffRequest request) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/admin/staff/$id'),
+      headers: headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+
+    return StaffModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
 }

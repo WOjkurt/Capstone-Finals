@@ -54,6 +54,11 @@ class DeleteTermEvent extends SetupEvent {
   DeleteTermEvent(this.id);
 }
 
+class ActivateTermEvent extends SetupEvent {
+  final String id;
+  ActivateTermEvent(this.id);
+}
+
 // Subject Events
 class CreateSubjectEvent extends SetupEvent {
   final Map<String, dynamic> dto;
@@ -161,6 +166,7 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
     on<CreateTermEvent>(_onCreateTerm);
     on<UpdateTermEvent>(_onUpdateTerm);
     on<DeleteTermEvent>(_onDeleteTerm);
+    on<ActivateTermEvent>(_onActivateTerm);
     on<CreateSubjectEvent>(_onCreateSubject);
     on<UpdateSubjectEvent>(_onUpdateSubject);
     on<DeleteSubjectEvent>(_onDeleteSubject);
@@ -305,6 +311,25 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         isSubmitting: false,
         terms: updated,
         successMessage: 'Academic Term deleted successfully!',
+      ));
+    } catch (e, st) {
+      emit(state.copyWith(
+        isSubmitting: false,
+        errorMessage: getFriendlyErrorMessage(e, st),
+      ));
+    }
+  }
+
+  Future<void> _onActivateTerm(
+      ActivateTermEvent event, Emitter<SetupState> emit) async {
+    emit(state.copyWith(isSubmitting: true, clearMessages: true));
+    try {
+      final activated = await _setupRepo.activateTerm(event.id);
+      final updated = await _setupRepo.getTerms();
+      emit(state.copyWith(
+        isSubmitting: false,
+        terms: updated,
+        successMessage: 'Academic Term "${activated.label}" is now active!',
       ));
     } catch (e, st) {
       emit(state.copyWith(

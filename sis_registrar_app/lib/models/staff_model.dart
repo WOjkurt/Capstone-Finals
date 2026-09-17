@@ -117,3 +117,36 @@ class CreateStaffRequest {
     };
   }
 }
+
+class UpdateStaffRequest {
+  final String? firstname;
+  final String? lastname;
+  final int? role;
+  final int? employeeId;
+  final String? positionId;
+  final int? programId;
+  final bool? isRegular;
+
+  UpdateStaffRequest({
+    this.firstname,
+    this.lastname,
+    this.role,
+    this.employeeId,
+    this.positionId,
+    this.programId,
+    this.isRegular,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (firstname != null) 'firstname': firstname!.trim(),
+      if (lastname != null) 'lastname': lastname!.trim(),
+      if (role != null) 'role': role,
+      if (employeeId != null) 'employeeID': employeeId,
+      if (positionId != null) 'positionID': positionId,
+      if (programId != null) 'programID': programId,
+      if (isRegular != null) 'isRegular': isRegular,
+    };
+  }
+}
+

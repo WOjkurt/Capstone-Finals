@@ -92,6 +92,39 @@ class MockStaffRepository implements StaffRepository {
     staff[index] = updated;
     return updated;
   }
+
+  @override
+  Future<StaffModel> updateStaff(String id, UpdateStaffRequest request) async {
+    if (shouldThrow) throw Exception('Failed to update staff');
+    final index = staff.indexWhere((s) => s.userId == id);
+    final current = staff[index];
+    final updated = StaffModel(
+      userId: current.userId,
+      firebaseUid: current.firebaseUid,
+      email: current.email,
+      role: request.role ?? current.role,
+      roleName: (request.role ?? current.role) == 2
+          ? 'Registrar'
+          : (request.role ?? current.role) == 3
+              ? 'Teacher'
+              : 'Program Head',
+      firstname: request.firstname ?? current.firstname,
+      lastname: request.lastname ?? current.lastname,
+      employeeId: request.employeeId ?? current.employeeId,
+      positionId: request.positionId ?? current.positionId,
+      positionName: current.positionName,
+      programId: request.programId ?? current.programId,
+      programCode: current.programCode,
+      isRegular: request.isRegular ?? current.isRegular,
+      isActive: current.isActive,
+      createdAt: current.createdAt,
+      firebaseSyncWarning: request.role == 2 && current.role == 3
+          ? 'Note: This staff member is still assigned as instructor to 1 class(es).'
+          : null,
+    );
+    staff[index] = updated;
+    return updated;
+  }
 }
 
 void main() {
@@ -165,6 +198,41 @@ void main() {
       expect(json['role'], 4);
       expect(json['employeeID'], 3003);
       expect(json['programID'], 1);
+    });
+
+    test('UpdateStaffRequest serializes to json without email and omits null fields', () {
+      final req = UpdateStaffRequest(
+        firstname: 'Alex',
+        role: 2,
+      );
+
+      final json = req.toJson();
+      expect(json['firstname'], 'Alex');
+      expect(json['role'], 2);
+      expect(json.containsKey('email'), false);
+      expect(json.containsKey('lastname'), false);
+      expect(json.containsKey('employeeID'), false);
+      expect(json.containsKey('programID'), false);
+    });
+
+    test('UpdateStaffRequest serializes all provided fields', () {
+      final req = UpdateStaffRequest(
+        firstname: 'Alex',
+        lastname: 'Reyes',
+        role: 3,
+        employeeId: 5005,
+        programId: 2,
+        isRegular: false,
+      );
+
+      final json = req.toJson();
+      expect(json['firstname'], 'Alex');
+      expect(json['lastname'], 'Reyes');
+      expect(json['role'], 3);
+      expect(json['employeeID'], 5005);
+      expect(json['programID'], 2);
+      expect(json['isRegular'], false);
+      expect(json.containsKey('email'), false);
     });
   });
 
@@ -255,6 +323,62 @@ void main() {
       staffBloc.add(ReactivateStaffEvent('u1'));
       await Future.delayed(const Duration(milliseconds: 50));
       expect(staffBloc.state.staffList.first.isActive, true);
+    });
+
+    test('UpdateStaffEvent updates staff in state and sets warningMessage when present', () async {
+      final initialStaff = StaffModel(
+        userId: 'u1',
+        firebaseUid: 'fb1',
+        email: 'teacher@dbtc-cebu.edu.ph',
+        role: 3,
+        roleName: 'Teacher',
+        firstname: 'OldFirst',
+        lastname: 'OldLast',
+        isRegular: true,
+        isActive: true,
+        createdAt: DateTime.now(),
+      );
+      mockRepo.staff = [initialStaff];
+      staffBloc.add(LoadStaffList());
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      final updateReq = UpdateStaffRequest(
+        firstname: 'NewFirst',
+        lastname: 'NewLast',
+        role: 2,
+      );
+      staffBloc.add(UpdateStaffEvent('u1', updateReq));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      final updated = staffBloc.state.staffList.first;
+      expect(updated.firstname, 'NewFirst');
+      expect(updated.lastname, 'NewLast');
+      expect(updated.role, 2);
+      expect(staffBloc.state.updatedStaff?.firstname, 'NewFirst');
+      expect(staffBloc.state.warningMessage, contains('assigned as instructor to 1 class(es)'));
+    });
+
+    test('UpdateStaffEvent sets errorMessage on failure', () async {
+      final initialStaff = StaffModel(
+        userId: 'u1',
+        firebaseUid: 'fb1',
+        email: 'teacher@dbtc-cebu.edu.ph',
+        role: 3,
+        roleName: 'Teacher',
+        firstname: 'OldFirst',
+        lastname: 'OldLast',
+        isRegular: true,
+        isActive: true,
+        createdAt: DateTime.now(),
+      );
+      mockRepo.staff = [initialStaff];
+      mockRepo.shouldThrow = true;
+
+      staffBloc.add(UpdateStaffEvent('u1', UpdateStaffRequest(firstname: 'Fail')));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(staffBloc.state.errorMessage, isNotNull);
+      expect(staffBloc.state.isSubmitting, false);
     });
   });
 

@@ -27,11 +27,13 @@ class AcademicTermModel {
   final String termId;
   final String schoolYear;
   final int semester;
+  final bool isActive;
 
   const AcademicTermModel({
     required this.termId,
     required this.schoolYear,
     required this.semester,
+    this.isActive = false,
   });
 
   factory AcademicTermModel.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,7 @@ class AcademicTermModel {
       termId: json['termID'] as String? ?? json['termId'] as String? ?? '',
       schoolYear: json['schoolYear'] as String? ?? '',
       semester: (json['semester'] as num?)?.toInt() ?? 1,
+      isActive: json['isActive'] as bool? ?? false,
     );
   }
 

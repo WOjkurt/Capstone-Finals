@@ -198,6 +198,16 @@ class AcademicSetupRepository {
     if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
+  Future<AcademicTermModel> activateTerm(String id) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(
+        Uri.parse('$baseUrl/api/AcademicTerms/$id/activate'),
+        headers: headers);
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    return AcademicTermModel.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   // Subjects
   Future<List<SubjectModel>> getSubjects({int? programId, int? yearLevel}) async {
     final headers = await _auth.getAuthHeaders();

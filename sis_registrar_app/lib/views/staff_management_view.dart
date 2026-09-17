@@ -402,6 +402,297 @@ class _StaffManagementViewState extends State<StaffManagementView> {
     );
   }
 
+  void _openEditStaffDialog(BuildContext context, StaffModel staff) {
+    if (_programs.isEmpty) {
+      _loadPrograms();
+    }
+    final formKey = GlobalKey<FormState>();
+    final firstCtrl = TextEditingController(text: staff.firstname);
+    final lastCtrl = TextEditingController(text: staff.lastname);
+    final empIdCtrl = TextEditingController(
+        text: staff.employeeId != null ? staff.employeeId.toString() : '');
+    final initialRole = staff.role;
+    int selectedRole = staff.role;
+    int? selectedProgramId = staff.programId ?? 0;
+    bool isRegular = staff.isRegular;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final wasTeaching = initialRole == 3 || initialRole == 4;
+          final isDemotingToRegistrar = wasTeaching && selectedRole == 2;
+
+          return BlocProvider.value(
+            value: context.read<StaffBloc>(),
+            child: BlocConsumer<StaffBloc, StaffState>(
+              listener: (consumerCtx, state) {
+                if (!state.isSubmitting && state.updatedStaff != null) {
+                  Navigator.of(dialogCtx).pop();
+                }
+              },
+              builder: (consumerCtx, state) {
+                return AlertDialog(
+                  title: const Text(
+                    'Edit Staff Member',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                  content: SizedBox(
+                    width: 480,
+                    child: Form(
+                      key: formKey,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TextFormField(
+                              initialValue: staff.email,
+                              enabled: false,
+                              decoration: const InputDecoration(
+                                labelText: 'Institutional Email',
+                                helperText: 'Institutional email cannot be edited.',
+                                helperStyle: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.lock_outline),
+                                fillColor: Color(0xFFF1F5F9),
+                                filled: true,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: firstCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'First Name *',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    textCapitalization: TextCapitalization.words,
+                                    validator: (val) => (val == null || val.trim().isEmpty)
+                                        ? 'First name is required'
+                                        : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: lastCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Last Name *',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    textCapitalization: TextCapitalization.words,
+                                    validator: (val) => (val == null || val.trim().isEmpty)
+                                        ? 'Last name is required'
+                                        : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            DropdownButtonFormField<int>(
+                              key: ValueKey('edit_role_${staff.userId}'),
+                              initialValue: selectedRole,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Role *',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.badge_outlined),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 2, child: Text('Registrar')),
+                                DropdownMenuItem(value: 3, child: Text('Teacher')),
+                                DropdownMenuItem(value: 4, child: Text('Program Head')),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setDialogState(() {
+                                    selectedRole = val;
+                                    if (selectedRole != 3 && selectedRole != 4) {
+                                      selectedProgramId = null;
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                            if (isDemotingToRegistrar) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFF59E0B)),
+                                ),
+                                child: const Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('⚠️ ', style: TextStyle(fontSize: 16)),
+                                    Expanded(
+                                      child: Text(
+                                        'If this staff member has active classes assigned, they will lose grading and teaching access. You\'ll be notified after saving if any classes need reassignment.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF92400E),
+                                          fontWeight: FontWeight.w500,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            if (selectedRole == 3 || selectedRole == 4) ...[
+                              const SizedBox(height: 14),
+                              DropdownButtonFormField<int?>(
+                                key: ValueKey('edit_program_${staff.userId}_$selectedRole'),
+                                initialValue: selectedProgramId,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: selectedRole == 4
+                                      ? 'Academic Program *'
+                                      : 'Academic Program (Optional)',
+                                  helperText: selectedRole == 4
+                                      ? 'Program Head access is strictly scoped to this program.'
+                                      : 'Assign to department or leave empty for General Education.',
+                                  border: const OutlineInputBorder(),
+                                  prefixIcon: const Icon(Icons.school_outlined),
+                                ),
+                                items: [
+                                  if (selectedRole == 3)
+                                    const DropdownMenuItem<int?>(
+                                      value: 0,
+                                      child: Text(
+                                        'None / General Education',
+                                        style: TextStyle(color: Color(0xFF64748B)),
+                                      ),
+                                    ),
+                                  ..._programs.map(
+                                    (p) => DropdownMenuItem<int?>(
+                                      value: p.programId,
+                                      child: Text('${p.programCode} - ${p.programName}'),
+                                    ),
+                                  ),
+                                ],
+                                validator: (val) {
+                                  if (selectedRole == 4 && (val == null || val == 0)) {
+                                    return 'Academic program is required for Program Head';
+                                  }
+                                  return null;
+                                },
+                                onChanged: (val) {
+                                  setDialogState(() => selectedProgramId = val);
+                                },
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: empIdCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Employee ID (Optional)',
+                                hintText: 'e.g. 1024',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.numbers_outlined),
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (val) {
+                                if (val != null && val.trim().isNotEmpty) {
+                                  if (int.tryParse(val.trim()) == null) {
+                                    return 'Please enter a valid integer';
+                                  }
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              initialValue: staff.positionName ?? '—',
+                              enabled: false,
+                              decoration: const InputDecoration(
+                                labelText: 'Position',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.work_outline),
+                                fillColor: Color(0xFFF1F5F9),
+                                filled: true,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            SwitchListTile(
+                              title: const Text(
+                                'Regular Employee',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: const Text(
+                                'Permanent / regular faculty or staff status',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                              ),
+                              value: isRegular,
+                              activeThumbColor: AppColors.primary,
+                              contentPadding: EdgeInsets.zero,
+                              onChanged: (val) {
+                                setDialogState(() => isRegular = val);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: state.isSubmitting ? null : () => Navigator.of(dialogCtx).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: state.isSubmitting
+                          ? null
+                          : () {
+                              if (formKey.currentState?.validate() ?? false) {
+                                final empIdText = empIdCtrl.text.trim();
+                                final req = UpdateStaffRequest(
+                                  firstname: firstCtrl.text.trim(),
+                                  lastname: lastCtrl.text.trim(),
+                                  role: selectedRole,
+                                  employeeId: empIdText.isNotEmpty ? int.tryParse(empIdText) : 0,
+                                  programId: (selectedRole == 3 || selectedRole == 4)
+                                      ? selectedProgramId
+                                      : null,
+                                  isRegular: isRegular,
+                                );
+                                context.read<StaffBloc>().add(UpdateStaffEvent(staff.userId, req));
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: state.isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Save Changes'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _openDisableDialog(BuildContext context, StaffModel staff) {
     showDialog(
       context: context,
@@ -521,7 +812,23 @@ class _StaffManagementViewState extends State<StaffManagementView> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: BlocConsumer<StaffBloc, StaffState>(
         listener: (context, state) {
-          if (state.successMessage != null) {
+          if (state.warningMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(state.warningMessage!)),
+                  ],
+                ),
+                backgroundColor: const Color(0xFFD97706),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 6),
+              ),
+            );
+            context.read<StaffBloc>().add(ClearStaffMessagesEvent());
+          } else if (state.successMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.successMessage!),
@@ -777,48 +1084,74 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                                             color: AppColors.primary,
                                                           ),
                                                         )
-                                                      : s.isActive
-                                                          ? OutlinedButton.icon(
-                                                              onPressed: () =>
-                                                                  _openDisableDialog(context, s),
-                                                              style: OutlinedButton.styleFrom(
-                                                                foregroundColor:
-                                                                    const Color(0xFFDC2626),
-                                                                side: const BorderSide(
-                                                                    color: Color(0xFFFCA5A5)),
-                                                                padding: const EdgeInsets.symmetric(
-                                                                    horizontal: 10, vertical: 6),
-                                                                minimumSize: const Size(80, 30),
-                                                                shape: RoundedRectangleBorder(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(6),
+                                                      : Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            if (s.role != 1 && s.roleName.toLowerCase() != 'admin') ...[
+                                                              OutlinedButton.icon(
+                                                                onPressed: () => _openEditStaffDialog(context, s),
+                                                                style: OutlinedButton.styleFrom(
+                                                                  foregroundColor: AppColors.primary,
+                                                                  side: BorderSide(
+                                                                      color: AppColors.primary.withValues(alpha: 0.3)),
+                                                                  padding: const EdgeInsets.symmetric(
+                                                                      horizontal: 10, vertical: 6),
+                                                                  minimumSize: const Size(70, 30),
+                                                                  shape: RoundedRectangleBorder(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(6),
+                                                                  ),
                                                                 ),
+                                                                icon: const Icon(Icons.edit_outlined, size: 14),
+                                                                label: const Text('Edit',
+                                                                    style: TextStyle(fontSize: 12)),
                                                               ),
-                                                              icon: const Icon(Icons.block, size: 14),
-                                                              label: const Text('Disable',
-                                                                  style: TextStyle(fontSize: 12)),
-                                                            )
-                                                          : OutlinedButton.icon(
-                                                              onPressed: () =>
-                                                                  _openReactivateDialog(context, s),
-                                                              style: OutlinedButton.styleFrom(
-                                                                foregroundColor:
-                                                                    const Color(0xFF059669),
-                                                                side: const BorderSide(
-                                                                    color: Color(0xFF6EE7B7)),
-                                                                padding: const EdgeInsets.symmetric(
-                                                                    horizontal: 10, vertical: 6),
-                                                                minimumSize: const Size(80, 30),
-                                                                shape: RoundedRectangleBorder(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(6),
-                                                                ),
-                                                              ),
-                                                              icon: const Icon(Icons.check_circle_outline,
-                                                                  size: 14),
-                                                              label: const Text('Reactivate',
-                                                                  style: TextStyle(fontSize: 12)),
-                                                            ),
+                                                              const SizedBox(width: 8),
+                                                            ],
+                                                            s.isActive
+                                                                ? OutlinedButton.icon(
+                                                                    onPressed: () =>
+                                                                        _openDisableDialog(context, s),
+                                                                    style: OutlinedButton.styleFrom(
+                                                                      foregroundColor:
+                                                                          const Color(0xFFDC2626),
+                                                                      side: const BorderSide(
+                                                                          color: Color(0xFFFCA5A5)),
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                          horizontal: 10, vertical: 6),
+                                                                      minimumSize: const Size(80, 30),
+                                                                      shape: RoundedRectangleBorder(
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(6),
+                                                                      ),
+                                                                    ),
+                                                                    icon: const Icon(Icons.block, size: 14),
+                                                                    label: const Text('Disable',
+                                                                        style: TextStyle(fontSize: 12)),
+                                                                  )
+                                                                : OutlinedButton.icon(
+                                                                    onPressed: () =>
+                                                                        _openReactivateDialog(context, s),
+                                                                    style: OutlinedButton.styleFrom(
+                                                                      foregroundColor:
+                                                                          const Color(0xFF059669),
+                                                                      side: const BorderSide(
+                                                                          color: Color(0xFF6EE7B7)),
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                          horizontal: 10, vertical: 6),
+                                                                      minimumSize: const Size(80, 30),
+                                                                      shape: RoundedRectangleBorder(
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(6),
+                                                                      ),
+                                                                    ),
+                                                                    icon: const Icon(Icons.check_circle_outline,
+                                                                        size: 14),
+                                                                    label: const Text('Reactivate',
+                                                                        style: TextStyle(fontSize: 12)),
+                                                                  ),
+                                                          ],
+                                                        ),
                                                 ),
                                               ],
                                             );

@@ -444,6 +444,10 @@ class _TermsTab extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           DataColumn(
+                            label: Text('Status',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          DataColumn(
                             label: Text('Actions',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
@@ -469,14 +473,90 @@ class _TermsTab extends StatelessWidget {
                                 ),
                               ),
                               DataCell(
+                                t.isActive
+                                    ? Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFDCFCE7),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                              color: const Color(0xFF86EFAC)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.check_circle_rounded,
+                                                size: 14,
+                                                color: Color(0xFF16A34A)),
+                                            SizedBox(width: 5),
+                                            Text(
+                                              'Active Term',
+                                              style: TextStyle(
+                                                color: Color(0xFF15803D),
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                              color: const Color(0xFFE2E8F0)),
+                                        ),
+                                        child: const Text(
+                                          'Inactive',
+                                          style: TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                              DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    if (!t.isActive) ...[
+                                      OutlinedButton.icon(
+                                        icon: const Icon(
+                                            Icons.check_circle_outline,
+                                            size: 14),
+                                        label: const Text('Set Active'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor:
+                                              const Color(0xFF16A34A),
+                                          side: const BorderSide(
+                                              color: Color(0xFF86EFAC)),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 6),
+                                          visualDensity:
+                                              VisualDensity.compact,
+                                          textStyle: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12),
+                                        ),
+                                        onPressed: () =>
+                                            _confirmActivateTerm(context, t),
+                                      ),
+                                      const SizedBox(width: 8),
+                                    ],
                                     IconButton(
                                       icon: const Icon(Icons.edit_outlined,
-                                          size: 18, color: AppColors.primaryHover),
+                                          size: 18,
+                                          color: AppColors.primaryHover),
                                       tooltip: 'Edit Term',
-                                      onPressed: () => _openTermModal(context, t),
+                                      onPressed: () =>
+                                          _openTermModal(context, t),
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.delete_outline,
@@ -506,6 +586,98 @@ class _TermsTab extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _confirmActivateTerm(
+      BuildContext context, AcademicTermModel targetTerm) {
+    final currentActive =
+        state.terms.where((term) => term.isActive).firstOrNull;
+
+    final String transitionText;
+    if (currentActive != null) {
+      transitionText =
+          'This will deactivate ${currentActive.label} and activate ${targetTerm.label} as the current academic term.';
+    } else {
+      transitionText =
+          'This will activate ${targetTerm.label} as the current academic term.';
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => BlocProvider.value(
+        value: context.read<SetupBloc>(),
+        child: AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.published_with_changes_rounded,
+                  color: Color(0xFF16A34A), size: 24),
+              SizedBox(width: 10),
+              Text('Set Active Academic Term'),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  transitionText,
+                  style: const TextStyle(
+                      fontSize: 14, color: Color(0xFF1E293B), height: 1.5),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFCD34D)),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 18, color: Color(0xFFB45309)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This immediately affects the default academic term across the Student, Faculty, and Registrar portals.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF92400E),
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF16A34A),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                context
+                    .read<SetupBloc>()
+                    .add(ActivateTermEvent(targetTerm.termId));
+              },
+              child: const Text('Set as Active'),
+            ),
+          ],
+        ),
       ),
     );
   }
