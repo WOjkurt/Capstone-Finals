@@ -17,9 +17,31 @@ public class AcademicTermRepository : IAcademicTermRepository
         return await _context.AcademicTerms.FindAsync(termId);
     }
 
+    public async Task<AcademicTerm?> GetActiveAsync()
+    {
+        return await _context.AcademicTerms.FirstOrDefaultAsync(t => t.IsActive);
+    }
+
     public async Task<List<AcademicTerm>> GetAllAsync()
     {
         return await _context.AcademicTerms.ToListAsync();
+    }
+
+    public async Task SetActiveAsync(Guid termId)
+    {
+        var terms = await _context.AcademicTerms.ToListAsync();
+        var target = terms.FirstOrDefault(t => t.TermID == termId);
+        if (target == null)
+        {
+            throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+        }
+
+        foreach (var term in terms)
+        {
+            term.IsActive = (term.TermID == termId);
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     public async Task AddAsync(AcademicTerm term)

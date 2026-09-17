@@ -41,6 +41,18 @@ public class AppDbContext : DbContext
                 .UseIdentityByDefaultColumn();
         });
 
+        // ── AcademicTerm ─────────────────────────────────────────────
+        modelBuilder.Entity<AcademicTerm>(entity =>
+        {
+            entity.Property(t => t.IsActive)
+                .HasDefaultValue(false);
+
+            entity.HasIndex(t => t.IsActive)
+                .IsUnique()
+                .HasFilter("\"IsActive\" = TRUE")
+                .HasDatabaseName("idx_academic_terms_single_active");
+        });
+
         // ── User ─────────────────────────────────────────────────────
         modelBuilder.Entity<User>(entity =>
         {
@@ -198,7 +210,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ClassSchedule>(entity =>
         {
             entity.HasOne(cs => cs.Class)
-                .WithMany()
+                .WithMany(c => c.ClassSchedules)
                 .HasForeignKey(cs => cs.ClassID)
                 .OnDelete(DeleteBehavior.Cascade);
         });

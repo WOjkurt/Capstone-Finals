@@ -8,4 +8,5 @@ public class AcademicTerm
     public Guid TermID { get; set; }
     public required string SchoolYear { get; set; }
     public int Semester { get; set; }
+    public bool IsActive { get; set; } = false;
 }

@@ -20,6 +20,8 @@ public class StudyLoadRepository : IStudyLoadRepository
                 .ThenInclude(c => c!.Subject)
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.Term)
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.ClassSchedules)
             .FirstOrDefaultAsync(sl => sl.StudyLoadID == studyLoadId);
     }
 
@@ -31,6 +33,8 @@ public class StudyLoadRepository : IStudyLoadRepository
                 .ThenInclude(c => c!.Subject)
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.Term)
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.ClassSchedules)
             .Where(sl => sl.UserID == userId)
             .ToListAsync();
     }
@@ -40,6 +44,7 @@ public class StudyLoadRepository : IStudyLoadRepository
         return await _context.StudyLoads
             .Include(sl => sl.User)
             .Include(sl => sl.Class)
+                .ThenInclude(c => c!.ClassSchedules)
             .Where(sl => sl.ClassID == classId)
             .ToListAsync();
     }
@@ -52,6 +57,8 @@ public class StudyLoadRepository : IStudyLoadRepository
                 .ThenInclude(c => c!.Subject)
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.Term)
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.ClassSchedules)
             .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.TermID == termId)
             .ToListAsync();
     }
@@ -64,6 +71,8 @@ public class StudyLoadRepository : IStudyLoadRepository
                 .ThenInclude(c => c!.Subject)
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.Term)
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.ClassSchedules)
             .Where(sl => sl.UserID == userId && sl.LoadStatus == 1 && sl.Class != null && sl.Class.TermID == termId)
             .ToListAsync();
     }
@@ -73,6 +82,7 @@ public class StudyLoadRepository : IStudyLoadRepository
         return await _context.StudyLoads
             .Include(sl => sl.User)
             .Include(sl => sl.Class)
+                .ThenInclude(c => c!.ClassSchedules)
             .FirstOrDefaultAsync(sl => sl.UserID == userId && sl.ClassID == classId);
     }
 

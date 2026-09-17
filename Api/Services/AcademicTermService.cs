@@ -31,7 +31,8 @@ public class AcademicTermService : IAcademicTermService
         {
             TermID = term.TermID,
             SchoolYear = term.SchoolYear,
-            Semester = term.Semester
+            Semester = term.Semester,
+            IsActive = term.IsActive
         };
     }
 
@@ -42,7 +43,8 @@ public class AcademicTermService : IAcademicTermService
         {
             TermID = t.TermID,
             SchoolYear = t.SchoolYear,
-            Semester = t.Semester
+            Semester = t.Semester,
+            IsActive = t.IsActive
         }).ToList();
     }
 
@@ -58,7 +60,25 @@ public class AcademicTermService : IAcademicTermService
         {
             TermID = term.TermID,
             SchoolYear = term.SchoolYear,
-            Semester = term.Semester
+            Semester = term.Semester,
+            IsActive = term.IsActive
+        };
+    }
+
+    public async Task<AcademicTermDto?> GetActiveAsync()
+    {
+        var term = await _termRepository.GetActiveAsync();
+        if (term == null)
+        {
+            return null;
+        }
+
+        return new AcademicTermDto
+        {
+            TermID = term.TermID,
+            SchoolYear = term.SchoolYear,
+            Semester = term.Semester,
+            IsActive = term.IsActive
         };
     }
 
@@ -79,7 +99,27 @@ public class AcademicTermService : IAcademicTermService
         {
             TermID = term.TermID,
             SchoolYear = term.SchoolYear,
-            Semester = term.Semester
+            Semester = term.Semester,
+            IsActive = term.IsActive
+        };
+    }
+
+    public async Task<AcademicTermDto> ActivateAsync(Guid termId)
+    {
+        var term = await _termRepository.GetByIdAsync(termId);
+        if (term == null)
+        {
+            throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+        }
+
+        await _termRepository.SetActiveAsync(termId);
+
+        return new AcademicTermDto
+        {
+            TermID = term.TermID,
+            SchoolYear = term.SchoolYear,
+            Semester = term.Semester,
+            IsActive = true
         };
     }
 

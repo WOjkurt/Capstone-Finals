@@ -23,4 +23,6 @@ public class Class
 
     public Guid? CreatedByUserID { get; set; }
     public User? CreatedByUser { get; set; }
+
+    public ICollection<ClassSchedule> ClassSchedules { get; set; } = new List<ClassSchedule>();
 }

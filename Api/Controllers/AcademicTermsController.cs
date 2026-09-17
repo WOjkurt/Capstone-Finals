@@ -28,6 +28,23 @@ public class AcademicTermsController : ControllerBase
         return Ok(terms);
     }
 
+    [HttpGet("active")]
+    public async Task<IActionResult> GetActive()
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        var term = await _termService.GetActiveAsync();
+        if (term == null)
+        {
+            return NotFound(new { message = "No active academic term found." });
+        }
+
+        return Ok(term);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
@@ -60,6 +77,21 @@ public class AcademicTermsController : ControllerBase
         try
         {
             var term = await _termService.UpdateAsync(id, dto);
+            return Ok(term);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPatch("{id:guid}/activate")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Activate(Guid id)
+    {
+        try
+        {
+            var term = await _termService.ActivateAsync(id);
             return Ok(term);
         }
         catch (KeyNotFoundException ex)

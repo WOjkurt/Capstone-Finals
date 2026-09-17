@@ -49,6 +49,11 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("SchoolYear")
                         .IsRequired()
                         .HasColumnType("text");
@@ -57,6 +62,11 @@ namespace Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("TermID");
+
+                    b.HasIndex("IsActive")
+                        .IsUnique()
+                        .HasDatabaseName("idx_academic_terms_single_active")
+                        .HasFilter("\"IsActive\" = TRUE");
 
                     b.ToTable("AcademicTerms");
                 });
@@ -778,7 +788,7 @@ namespace Api.Migrations
             modelBuilder.Entity("Api.Domain.Enrollment.ClassSchedule", b =>
                 {
                     b.HasOne("Api.Domain.Enrollment.Class", "Class")
-                        .WithMany()
+                        .WithMany("ClassSchedules")
                         .HasForeignKey("ClassID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1006,6 +1016,11 @@ namespace Api.Migrations
                     b.Navigation("Program");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.Class", b =>
+                {
+                    b.Navigation("ClassSchedules");
                 });
 #pragma warning restore 612, 618
         }

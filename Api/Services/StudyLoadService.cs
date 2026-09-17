@@ -407,17 +407,38 @@ public class StudyLoadService : IStudyLoadService
             termLabel = $"{sl.Class.Term.SchoolYear} (Sem {sl.Class.Term.Semester})";
         }
 
+        decimal units = 0;
+        if (sl.Class?.Subject != null)
+        {
+            units = sl.Class.Subject.LecUnits + sl.Class.Subject.LabUnits;
+        }
+
+        var schedules = sl.Class?.ClassSchedules?
+            .Select(s => new ClassScheduleItemDto
+            {
+                ScheduleId = s.ScheduleID,
+                ClassId = s.ClassID,
+                DaysOfWeek = s.DaysOfWeek,
+                StartTime = s.StartTime,
+                EndTime = s.EndTime,
+                Room = s.Room
+            })
+            .ToList() ?? new List<ClassScheduleItemDto>();
+
         return new StudyLoadResponseDto
         {
             StudyLoadId = sl.StudyLoadID,
+            ClassId = sl.ClassID,
             StudentUserId = sl.UserID,
             StudentName = studentName,
             SubjectCode = sl.Class?.Subject?.SubjectCode ?? "N/A",
             SubjectTitle = sl.Class?.Subject?.SubjectTitle ?? "N/A",
+            Units = units,
             ClassName = sl.Class?.ClassName ?? "N/A",
             TeacherName = teacherName,
             LoadStatus = FormatLoadStatus(sl.LoadStatus),
-            TermLabel = termLabel
+            TermLabel = termLabel,
+            Schedules = schedules
         };
     }
 
