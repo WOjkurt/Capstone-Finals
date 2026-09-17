@@ -174,3 +174,75 @@ class ClassRosterItemModel {
           ? studentName!.trim()
           : 'Unknown Student';
 }
+
+class StudentScheduleItemModel {
+  final String studyLoadId;
+  final String classId;
+  final String? studentUserId;
+  final String? studentName;
+  final String subjectCode;
+  final String subjectTitle;
+  final double units;
+  final String className;
+  final String? teacherName;
+  final String loadStatus;
+  final String termLabel;
+  final List<ClassScheduleModel> schedules;
+
+  const StudentScheduleItemModel({
+    required this.studyLoadId,
+    required this.classId,
+    this.studentUserId,
+    this.studentName,
+    required this.subjectCode,
+    required this.subjectTitle,
+    required this.units,
+    required this.className,
+    this.teacherName,
+    required this.loadStatus,
+    required this.termLabel,
+    this.schedules = const [],
+  });
+
+  factory StudentScheduleItemModel.fromJson(Map<String, dynamic> json) {
+    return StudentScheduleItemModel(
+      studyLoadId: json['studyLoadId'] as String? ??
+          json['studyLoadID'] as String? ??
+          '',
+      classId: json['classId'] as String? ??
+          json['classID'] as String? ??
+          '',
+      studentUserId: json['studentUserId'] as String? ??
+          json['studentUserID'] as String?,
+      studentName: json['studentName'] as String?,
+      subjectCode: json['subjectCode'] as String? ?? '',
+      subjectTitle: json['subjectTitle'] as String? ?? '',
+      units: (json['units'] as num?)?.toDouble() ?? 0.0,
+      className: json['className'] as String? ?? '',
+      teacherName: json['teacherName'] as String?,
+      loadStatus: json['loadStatus'] as String? ?? '',
+      termLabel: json['termLabel'] as String? ?? '',
+      schedules: (json['schedules'] as List<dynamic>?)
+              ?.map((e) =>
+                  ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+    );
+  }
+
+  String get scheduleSummary {
+    if (schedules.isEmpty) return 'No schedule assigned';
+    return schedules.map((s) => s.summary).join(' | ');
+  }
+
+  String get teacherDisplayName =>
+      (teacherName != null && teacherName!.trim().isNotEmpty)
+          ? teacherName!.trim()
+          : 'Instructor TBA';
+
+  String get unitsLabel {
+    final isWhole = units.truncateToDouble() == units;
+    final valStr = isWhole ? units.toInt().toString() : units.toStringAsFixed(1);
+    return '$valStr ${units == 1 ? 'Unit' : 'Units'}';
+  }
+}

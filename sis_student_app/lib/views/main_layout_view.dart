@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
+import '../blocs/schedule_bloc.dart';
+import '../injection.dart';
 import '../theme/app_theme.dart';
 import 'placeholder_views.dart';
+import 'schedule_view.dart';
 
 /// Width breakpoint that separates mobile (bottom nav) from
 /// tablet/desktop (left sidebar) layouts.
@@ -102,11 +105,14 @@ class _MainLayoutViewState extends State<MainLayoutView> {
   Widget _buildContentStack(int currentIndex) {
     return IndexedStack(
       index: currentIndex,
-      children: const [
-        MySchedulePlaceholderView(),
-        MyGradesPlaceholderView(),
-        ClearanceStatusPlaceholderView(),
-        ProfilePlaceholderView(),
+      children: [
+        BlocProvider<ScheduleBloc>(
+          create: (_) => getIt<ScheduleBloc>(),
+          child: ScheduleView(userId: widget.auth.userId),
+        ),
+        const MyGradesPlaceholderView(),
+        const ClearanceStatusPlaceholderView(),
+        const ProfilePlaceholderView(),
       ],
     );
   }
