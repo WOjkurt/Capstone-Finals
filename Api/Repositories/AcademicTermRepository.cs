@@ -1,5 +1,6 @@
 using Api.Domain.Enrollment;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Api.Repositories;
 
@@ -36,12 +37,44 @@ public class AcademicTermRepository : IAcademicTermRepository
             throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
         }
 
-        foreach (var term in terms)
+        IDbContextTransaction? transaction = null;
+        if (_context.Database.IsRelational())
         {
-            term.IsActive = (term.TermID == termId);
+            transaction = await _context.Database.BeginTransactionAsync();
         }
 
-        await _context.SaveChangesAsync();
+        try
+        {
+            // Step 1: Deactivate any currently active term(s) first
+            var currentlyActive = terms.Where(t => t.IsActive && t.TermID != termId).ToList();
+            if (currentlyActive.Count > 0)
+            {
+                foreach (var term in currentlyActive)
+                {
+                    term.IsActive = false;
+                }
+                await _context.SaveChangesAsync();
+            }
+
+            // Step 2: Activate the target term
+            if (!target.IsActive)
+            {
+                target.IsActive = true;
+                await _context.SaveChangesAsync();
+            }
+
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
+        }
+        finally
+        {
+            if (transaction != null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
     }
 
     public async Task AddAsync(AcademicTerm term)
