@@ -33,5 +33,12 @@ void main() {
       'Clearance Status',
       'Profile',
     ]);
+    // Short labels used by the mobile NavigationBar
+    expect(items.map((i) => i['label']).toList(), [
+      'Schedule',
+      'Grades',
+      'Clearance',
+      'Profile',
+    ]);
   });
 }

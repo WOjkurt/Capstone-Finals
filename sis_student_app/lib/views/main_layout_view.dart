@@ -4,6 +4,10 @@ import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
 import 'placeholder_views.dart';
 
+/// Width breakpoint that separates mobile (bottom nav) from
+/// tablet/desktop (left sidebar) layouts.
+const double _kSidebarBreakpoint = 700.0;
+
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
 
@@ -16,21 +20,25 @@ class MainLayoutView extends StatefulWidget {
     return [
       {
         'title': 'My Schedule',
+        'label': 'Schedule', // short label for BottomNavigationBar
         'icon': Icons.calendar_today_outlined,
         'activeIcon': Icons.calendar_today_rounded,
       },
       {
         'title': 'My Grades',
+        'label': 'Grades',
         'icon': Icons.grade_outlined,
         'activeIcon': Icons.grade_rounded,
       },
       {
         'title': 'Clearance Status',
+        'label': 'Clearance',
         'icon': Icons.verified_user_outlined,
         'activeIcon': Icons.verified_user_rounded,
       },
       {
         'title': 'Profile',
+        'label': 'Profile',
         'icon': Icons.person_outline_rounded,
         'activeIcon': Icons.person_rounded,
       },
@@ -90,29 +98,52 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     }
   }
 
+  /// The shared content area — same for both layouts.
+  Widget _buildContentStack(int currentIndex) {
+    return IndexedStack(
+      index: currentIndex,
+      children: const [
+        MySchedulePlaceholderView(),
+        MyGradesPlaceholderView(),
+        ClearanceStatusPlaceholderView(),
+        ProfilePlaceholderView(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final navItems = _navItems;
     final currentIndex = _selectedIndex < navItems.length ? _selectedIndex : 0;
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= _kSidebarBreakpoint;
+
+        if (isWide) {
+          return _buildWideLayout(context, navItems, currentIndex);
+        } else {
+          return _buildNarrowLayout(context, navItems, currentIndex);
+        }
+      },
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Wide layout: left sidebar (≥ 700 px)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildWideLayout(
+    BuildContext context,
+    List<Map<String, dynamic>> navItems,
+    int currentIndex,
+  ) {
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Left Sidebar
           _buildSidebar(context, navItems, currentIndex),
-          // Content Area
-          Expanded(
-            child: IndexedStack(
-              index: currentIndex,
-              children: const [
-                MySchedulePlaceholderView(),
-                MyGradesPlaceholderView(),
-                ClearanceStatusPlaceholderView(),
-                ProfilePlaceholderView(),
-              ],
-            ),
-          ),
+          Expanded(child: _buildContentStack(currentIndex)),
         ],
       ),
     );
@@ -253,8 +284,9 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                       child: Text(
                         widget.auth.email.isNotEmpty
                             ? widget.auth.email[0].toUpperCase()
-                            : 'F',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                            : 'S',
+                        style:
+                            const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -306,13 +338,116 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                     ),
                   ),
                   icon: const Icon(Icons.logout_rounded, size: 16),
-                  label: const Text('Sign Out', style: TextStyle(fontSize: 12)),
+                  label:
+                      const Text('Sign Out', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Narrow layout: top AppBar + bottom NavigationBar (< 700 px)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildNarrowLayout(
+    BuildContext context,
+    List<Map<String, dynamic>> navItems,
+    int currentIndex,
+  ) {
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
+      appBar: _buildTopAppBar(context),
+      body: _buildContentStack(currentIndex),
+      bottomNavigationBar: _buildBottomNav(navItems, currentIndex),
+    );
+  }
+
+  PreferredSizeWidget _buildTopAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: AppColors.sidebarBg,
+      elevation: 0,
+      titleSpacing: 16,
+      title: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Image.asset(
+              'assets/images/dbtc_logo.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'DBTC-CEBU',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                'Student Portal',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.sidebarTextMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          tooltip: 'Sign out',
+          icon: const Icon(Icons.logout_rounded,
+              color: Color(0xFFF87171), size: 22),
+          onPressed: () => _confirmLogout(context),
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+  Widget _buildBottomNav(
+    List<Map<String, dynamic>> navItems,
+    int currentIndex,
+  ) {
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: _onSelectTab,
+      // Match the sidebar's navy theme on mobile too
+      backgroundColor: AppColors.sidebarBg,
+      indicatorColor: AppColors.primary.withValues(alpha: 0.25),
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      destinations: navItems.map((item) {
+        return NavigationDestination(
+          icon: Icon(
+            item['icon'] as IconData,
+            color: AppColors.sidebarTextMuted,
+          ),
+          selectedIcon: Icon(
+            item['activeIcon'] as IconData,
+            color: AppColors.primary,
+          ),
+          label: item['label'] as String,
+        );
+      }).toList(),
     );
   }
 }
