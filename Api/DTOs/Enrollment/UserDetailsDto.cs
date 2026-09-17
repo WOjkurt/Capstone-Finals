@@ -8,6 +8,8 @@ public class UserDetailsDto
     public string Lastname { get; set; } = string.Empty;
     public string? LRN { get; set; }
     public int? ProgramID { get; set; }
+    public string? ProgramCode { get; set; }
+    public string? ProgramName { get; set; }
     public int? StudentType { get; set; }
     public int? StudentStatus { get; set; }
     public int? YearLevel { get; set; }

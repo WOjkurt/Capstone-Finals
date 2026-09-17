@@ -5,6 +5,7 @@ import 'package:sis_student_app/blocs/schedule_bloc.dart';
 import 'package:sis_student_app/models/class_models.dart';
 import 'package:sis_student_app/models/grading_models.dart';
 import 'package:sis_student_app/models/setup_models.dart';
+import 'package:sis_student_app/models/student_models.dart';
 import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/services/auth_service.dart';
 import 'package:sis_student_app/theme/app_theme.dart';
@@ -49,6 +50,10 @@ class FakeStudentRepository implements StudentRepository {
 
   @override
   Future<List<GradeModel>> getGrades(String userId, String termId) async => [];
+
+  @override
+  Future<StudentProfileModel> getMyProfile() async =>
+      throw UnimplementedError();
 }
 
 void main() {

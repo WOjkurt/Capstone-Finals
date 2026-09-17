@@ -1,5 +1,7 @@
 import 'package:get_it/get_it.dart';
+import 'blocs/clearance_bloc.dart';
 import 'blocs/grades_bloc.dart';
+import 'blocs/profile_bloc.dart';
 import 'blocs/schedule_bloc.dart';
 import 'repositories/student_repository.dart';
 import 'services/auth_service.dart';
@@ -22,4 +24,11 @@ void setupLocator() {
   getIt.registerFactory<GradesBloc>(
     () => GradesBloc(getIt<StudentRepository>()),
   );
+  getIt.registerFactory<ClearanceBloc>(
+    () => ClearanceBloc(getIt<StudentRepository>()),
+  );
+  getIt.registerFactory<ProfileBloc>(
+    () => ProfileBloc(getIt<StudentRepository>()),
+  );
 }
+

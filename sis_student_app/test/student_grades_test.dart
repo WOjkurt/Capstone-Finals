@@ -5,6 +5,7 @@ import 'package:sis_student_app/blocs/grades_bloc.dart';
 import 'package:sis_student_app/models/class_models.dart';
 import 'package:sis_student_app/models/grading_models.dart';
 import 'package:sis_student_app/models/setup_models.dart';
+import 'package:sis_student_app/models/student_models.dart';
 import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/views/grades_view.dart';
 
@@ -46,6 +47,10 @@ class MockStudentRepository implements StudentRepository {
       String userId, String termId) async {
     return [];
   }
+
+  @override
+  Future<StudentProfileModel> getMyProfile() async =>
+      throw UnimplementedError();
 }
 
 void main() {

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
+import '../blocs/clearance_bloc.dart';
 import '../blocs/grades_bloc.dart';
+import '../blocs/profile_bloc.dart';
 import '../blocs/schedule_bloc.dart';
 import '../injection.dart';
 import '../theme/app_theme.dart';
+import 'clearance_status_view.dart';
 import 'grades_view.dart';
-import 'placeholder_views.dart';
+import 'profile_view.dart';
 import 'schedule_view.dart';
 
 /// Width breakpoint that separates mobile (bottom nav) from
@@ -116,8 +119,14 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           create: (_) => getIt<GradesBloc>(),
           child: GradesView(userId: widget.auth.userId),
         ),
-        const ClearanceStatusPlaceholderView(),
-        const ProfilePlaceholderView(),
+        BlocProvider<ClearanceBloc>(
+          create: (_) => getIt<ClearanceBloc>(),
+          child: ClearanceStatusView(userId: widget.auth.userId),
+        ),
+        BlocProvider<ProfileBloc>(
+          create: (_) => getIt<ProfileBloc>(),
+          child: ProfileView(email: widget.auth.email),
+        ),
       ],
     );
   }

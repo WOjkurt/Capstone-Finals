@@ -98,6 +98,8 @@ public class UserDetailsController : ControllerBase
             Lastname = userDetails.Lastname,
             LRN = userDetails.LRN,
             ProgramID = userDetails.ProgramID,
+            ProgramCode = userDetails.Program?.ProgramCode,
+            ProgramName = userDetails.Program?.ProgramName,
             StudentType = userDetails.StudentType,
             StudentStatus = userDetails.StudentStatus,
             YearLevel = userDetails.YearLevel,
