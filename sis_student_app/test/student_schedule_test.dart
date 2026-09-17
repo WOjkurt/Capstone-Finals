@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sis_student_app/blocs/schedule_bloc.dart';
 import 'package:sis_student_app/models/class_models.dart';
+import 'package:sis_student_app/models/grading_models.dart';
 import 'package:sis_student_app/models/setup_models.dart';
 import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/services/auth_service.dart';
@@ -38,6 +39,16 @@ class FakeStudentRepository implements StudentRepository {
     lastTermIdPassed = termId;
     return scheduleItems;
   }
+
+  @override
+  Future<List<AcademicTermModel>> getAllTerms() async =>
+      activeTerm != null ? [activeTerm!] : [];
+
+  @override
+  Future<List<GradeClearanceModel>> getGradeClearances(String userId) async => [];
+
+  @override
+  Future<List<GradeModel>> getGrades(String userId, String termId) async => [];
 }
 
 void main() {

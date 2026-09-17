@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
+import '../blocs/grades_bloc.dart';
 import '../blocs/schedule_bloc.dart';
 import '../injection.dart';
 import '../theme/app_theme.dart';
+import 'grades_view.dart';
 import 'placeholder_views.dart';
 import 'schedule_view.dart';
 
@@ -110,7 +112,10 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           create: (_) => getIt<ScheduleBloc>(),
           child: ScheduleView(userId: widget.auth.userId),
         ),
-        const MyGradesPlaceholderView(),
+        BlocProvider<GradesBloc>(
+          create: (_) => getIt<GradesBloc>(),
+          child: GradesView(userId: widget.auth.userId),
+        ),
         const ClearanceStatusPlaceholderView(),
         const ProfilePlaceholderView(),
       ],
