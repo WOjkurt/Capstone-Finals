@@ -78,19 +78,28 @@ public class GradesController : ControllerBase
     [HttpGet("studyload/{studyLoadId:guid}")]
     public async Task<IActionResult> GetByStudyLoad(Guid studyLoadId)
     {
-        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authenticatedUserId || authenticatedUserId == Guid.Empty ||
+            !HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int authenticatedUserRole)
         {
             return Unauthorized(new { message = "Authentication required." });
         }
 
-        var grade = await _gradeService.GetByStudyLoadIdAsync(studyLoadId);
-        if (grade == null)
+        try
         {
-            return NotFound(new { message = $"Grade for StudyLoad ID '{studyLoadId}' was not found." });
-        }
+            var grade = await _gradeService.GetByStudyLoadIdAsync(studyLoadId, authenticatedUserId, authenticatedUserRole);
+            if (grade == null)
+            {
+                return NotFound(new { message = $"Grade for StudyLoad ID '{studyLoadId}' was not found." });
+            }
 
-        return Ok(grade);
+            return Ok(grade);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
     }
+
 
     [HttpGet("class/{classId:guid}")]
     public async Task<IActionResult> GetByClass(Guid classId)

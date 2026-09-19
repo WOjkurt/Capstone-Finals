@@ -207,17 +207,100 @@ public class GradeService : IGradeService
         return await MapToDtoAsync(updatedGrade);
     }
 
-    public async Task<GradeResponseDto?> GetByStudyLoadIdAsync(Guid studyLoadId)
+    public async Task<GradeResponseDto?> GetByStudyLoadIdAsync(Guid studyLoadId, Guid authenticatedUserId, int authenticatedUserRole)
     {
-        var grade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
-        if (grade == null)
+        // Load the study load with all navigation properties needed for authorization.
+        var studyLoad = await _context.StudyLoads
+            .AsNoTracking()
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.Subject)
+            .Include(sl => sl.User)
+            .FirstOrDefaultAsync(sl => sl.StudyLoadID == studyLoadId);
+
+        if (studyLoad == null)
         {
+            // Return null — caller maps this to 404. Don't reveal existence to unauthorized callers;
+            // the 403 below happens only when the record IS found but the caller lacks permission.
             return null;
         }
 
-        var fullGrade = await _gradeRepository.GetByIdAsync(grade.GradeID);
-        return await MapToDtoAsync(fullGrade ?? grade);
+        // ── Determine caller's relationship to this record ──────────────────────────────────────
+        bool isStudent = authenticatedUserRole == RoleUtils.Student;
+        bool isStudentOwner = studyLoad.UserID == authenticatedUserId;
+        bool isAssignedTeacher = studyLoad.Class?.UserID.HasValue == true &&
+                                 studyLoad.Class.UserID!.Value == authenticatedUserId;
+        bool isRegistrarOrAdmin = authenticatedUserRole == RoleUtils.Registrar ||
+                                  authenticatedUserRole == RoleUtils.Admin;
+        bool isProgramHead = authenticatedUserRole == RoleUtils.ProgramHead;
+
+        // ── Case (c) — Staff (Registrar / Admin): pass through ──────────────────────────────────
+        if (isRegistrarOrAdmin)
+        {
+            var grade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
+            if (grade == null) return null;
+            var fullGrade = await _gradeRepository.GetByIdAsync(grade.GradeID);
+            return await MapToDtoAsync(fullGrade ?? grade);
+        }
+
+        // ── Case (c) — Program Head: must belong to the class's program ─────────────────────────
+        if (isProgramHead)
+        {
+            if (!isAssignedTeacher)
+            {
+                // Scope-check: the class's subject program must match the PH's program
+                await _scopingService.EnsureProgramHeadAccessAsync(
+                    authenticatedUserId,
+                    studyLoad.Class?.Subject?.ProgramID,
+                    "class");
+            }
+
+            var grade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
+            if (grade == null) return null;
+            var fullGrade = await _gradeRepository.GetByIdAsync(grade.GradeID);
+            return await MapToDtoAsync(fullGrade ?? grade);
+        }
+
+        // ── Case (b) — Teacher: must be assigned to this class ──────────────────────────────────
+        if (!isStudent)
+        {
+            // Non-student, non-staff, non-PH: must be the assigned teacher
+            if (!isAssignedTeacher)
+            {
+                throw new UnauthorizedAccessException(
+                    "Access denied. You are not the assigned teacher for this class.");
+            }
+
+            var grade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
+            if (grade == null) return null;
+            var fullGrade = await _gradeRepository.GetByIdAsync(grade.GradeID);
+            return await MapToDtoAsync(fullGrade ?? grade);
+        }
+
+        // ── Case (a) — Student: must own the study load AND have clearance ──────────────────────
+        if (!isStudentOwner)
+        {
+            throw new UnauthorizedAccessException(
+                "Access denied. You can only view your own grades.");
+        }
+
+        // Apply the same clearance-masking logic used in GetByStudentIdAsync.
+        // If the student's term has not been cleared, return 403 instead of the grade.
+        if (studyLoad.Class != null)
+        {
+            bool cleared = await _clearanceService.IsClearedAsync(authenticatedUserId, studyLoad.Class.TermID);
+            if (!cleared)
+            {
+                throw new UnauthorizedAccessException(
+                    "Your grades for this term are withheld pending clearance. Please contact the Registrar.");
+            }
+        }
+
+        var studentGrade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
+        if (studentGrade == null) return null;
+        var fullStudentGrade = await _gradeRepository.GetByIdAsync(studentGrade.GradeID);
+        return await MapToDtoAsync(fullStudentGrade ?? studentGrade);
     }
+
 
     public async Task<List<GradeResponseDto>> GetByClassIdAsync(Guid classId, Guid authenticatedUserId, int authenticatedUserRole)
     {
