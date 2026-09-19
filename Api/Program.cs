@@ -1,9 +1,12 @@
+using System.Threading.RateLimiting;
 using Api.Auth;
 using Api.Repositories;
 using Api.Services;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -92,6 +95,79 @@ if (!string.IsNullOrEmpty(firebaseProjectId) && FirebaseApp.DefaultInstance == n
 
 
 
+// Rate Limiting Configuration (configurable in appsettings for testing and scaling)
+var globalPermitLimit = builder.Configuration.GetValue("RateLimiting:GlobalPermitLimit", 100);
+var webhookPermitLimit = builder.Configuration.GetValue("RateLimiting:WebhookPermitLimit", 10);
+var searchPermitLimit = builder.Configuration.GetValue("RateLimiting:SearchPermitLimit", 30);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+            context.HttpContext.Response.Headers.RetryAfter = seconds > 0 ? seconds.ToString() : "60";
+        }
+        else
+        {
+            context.HttpContext.Response.Headers.RetryAfter = "60";
+        }
+
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            message = "Too many requests. Try again later."
+        }, cancellationToken);
+    };
+
+    // Global limiter: partition by client IP, 100 requests/minute (configurable)
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var limit = config.GetValue("RateLimiting:GlobalPermitLimit", 100);
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = limit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+
+    // Policy "webhook": 60 requests/minute per IP (POST /api/EnrollmentResponses) (configurable)
+    options.AddPolicy("webhook", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var limit = config.GetValue("RateLimiting:WebhookPermitLimit", 60);
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = limit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+
+    // Policy "search": 30 requests/minute per IP (configurable).
+    // Partitioned by IP only — never reads an unverified token.
+    options.AddPolicy("search", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var limit = config.GetValue("RateLimiting:SearchPermitLimit", 30);
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = limit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -102,6 +178,7 @@ var port = Environment.GetEnvironmentVariable("PORT") ?? "5054";
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{port}");
 
+// 1. Exception Handler
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -134,14 +211,36 @@ else
     });
 }
 
+// 2. Forwarded Headers (MUST be before RateLimiter so the real client IP is used behind Render's reverse proxy)
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
+// 3. HTTPS Redirection
 app.UseHttpsRedirection();
+
+// 4. Routing
 app.UseRouting();
 
+// 5. CORS (before rate limiter so preflight OPTIONS passes without consuming quota)
 app.UseCors("Frontend");
 
+// 6. Rate Limiter
+app.UseRateLimiter();
+
+// 7. Auth Middleware
 app.UseMiddleware<FirebaseAuthMiddleware>();
 
+// 8. Authorization
 app.UseAuthorization();
+
+// 9. Controllers
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

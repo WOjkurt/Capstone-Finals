@@ -2,6 +2,7 @@ using Api.Auth;
 using Api.DTOs.Enrollment;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers;
 
@@ -19,6 +20,7 @@ public class EnrollmentResponsesController : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting("webhook")]
     public async Task<IActionResult> CreateResponse([FromBody] CreateEnrollmentResponseDto dto)
     {
         string? secretHeader = Request.Headers["X-Webhook-Secret"].FirstOrDefault();
