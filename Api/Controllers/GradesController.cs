@@ -17,6 +17,7 @@ public class GradesController : ControllerBase
     }
 
     [HttpPost("submit")]
+    [RequireTeacher]
     public async Task<IActionResult> SubmitGrade([FromBody] SubmitGradeDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authenticatedUserId)

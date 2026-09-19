@@ -260,4 +260,132 @@ public class GradesControllerTests
         // Assert
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Role-gate: [RequireTeacher] attribute decoration tests
+    // ══════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void SubmitGrade_HasRequireTeacherAttribute()
+    {
+        // Act
+        var method = typeof(GradesController).GetMethod(nameof(GradesController.SubmitGrade));
+        var attribute = method?.GetCustomAttributes(typeof(RequireTeacherAttribute), inherit: false);
+
+        // Assert
+        Assert.NotNull(attribute);
+        Assert.NotEmpty(attribute);
+    }
+
+    [Fact]
+    public void SubmitGradeBatch_HasRequireTeacherAttribute()
+    {
+        // Act
+        var method = typeof(GradesController).GetMethod(nameof(GradesController.SubmitGradeBatch));
+        var attribute = method?.GetCustomAttributes(typeof(RequireTeacherAttribute), inherit: false);
+
+        // Assert
+        Assert.NotNull(attribute);
+        Assert.NotEmpty(attribute);
+    }
+
+    [Theory]
+    [InlineData(RoleUtils.Student)]
+    [InlineData(RoleUtils.Registrar)]
+    [InlineData(RoleUtils.Admin)]
+    public async Task RequireTeacherAttribute_NonTeacherUser_Returns403Forbidden(int role)
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var userRepoMock = new Mock<Api.Repositories.IUserRepository>();
+        userRepoMock.Setup(r => r.GetByIdAsync(userId))
+            .ReturnsAsync(new Api.Domain.IdentityAccess.User
+            {
+                UserID = userId,
+                Role = role,
+                FirebaseUID = "test-uid",
+                Email = "test@example.com"
+            });
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(Api.Repositories.IUserRepository)))
+            .Returns(userRepoMock.Object);
+
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = serviceProviderMock.Object
+        };
+        httpContext.Items["user_id"] = userId;
+
+        var actionContext = new ActionContext(httpContext, new Microsoft.AspNetCore.Routing.RouteData(), new Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor());
+        var filterContext = new Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext(
+            actionContext,
+            new List<Microsoft.AspNetCore.Mvc.Filters.IFilterMetadata>(),
+            new Dictionary<string, object?>(),
+            controller: null!
+        );
+
+        bool nextCalled = false;
+        var filter = new RequireTeacherAttribute();
+
+        // Act
+        await filter.OnActionExecutionAsync(filterContext, () =>
+        {
+            nextCalled = true;
+            return Task.FromResult<Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext>(null!);
+        });
+
+        // Assert
+        Assert.False(nextCalled);
+        var objectResult = Assert.IsType<ObjectResult>(filterContext.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task RequireTeacherAttribute_TeacherUser_ProceedsToNext()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var userRepoMock = new Mock<Api.Repositories.IUserRepository>();
+        userRepoMock.Setup(r => r.GetByIdAsync(userId))
+            .ReturnsAsync(new Api.Domain.IdentityAccess.User
+            {
+                UserID = userId,
+                Role = RoleUtils.Teacher,
+                FirebaseUID = "teacher-uid",
+                Email = "teacher@example.com"
+            });
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(Api.Repositories.IUserRepository)))
+            .Returns(userRepoMock.Object);
+
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = serviceProviderMock.Object
+        };
+        httpContext.Items["user_id"] = userId;
+
+        var actionContext = new ActionContext(httpContext, new Microsoft.AspNetCore.Routing.RouteData(), new Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor());
+        var filterContext = new Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext(
+            actionContext,
+            new List<Microsoft.AspNetCore.Mvc.Filters.IFilterMetadata>(),
+            new Dictionary<string, object?>(),
+            controller: null!
+        );
+
+        bool nextCalled = false;
+        var filter = new RequireTeacherAttribute();
+
+        // Act
+        await filter.OnActionExecutionAsync(filterContext, () =>
+        {
+            nextCalled = true;
+            return Task.FromResult<Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext>(null!);
+        });
+
+        // Assert
+        Assert.True(nextCalled);
+        Assert.Null(filterContext.Result);
+    }
 }
