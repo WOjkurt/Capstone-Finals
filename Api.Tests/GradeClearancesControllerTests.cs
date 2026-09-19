@@ -120,4 +120,61 @@ public class GradeClearancesControllerTests
         Assert.IsType<OkObjectResult>(result);
         _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
     }
+
+    [Fact]
+    public async Task SetClearance_KeyNotFoundException_Returns404NotFound()
+    {
+        // Arrange
+        var registrarId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Registrar, registrarId);
+
+        _clearanceServiceMock.Setup(s => s.SetClearanceAsync(studentId, termId, true, registrarId))
+            .ThrowsAsync(new KeyNotFoundException("User not found."));
+
+        // Act
+        var result = await _controller.SetClearance(studentId, termId, new SetGradeClearanceDto { IsCleared = true });
+
+        // Assert
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, notFoundResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetClearance_InvalidOperationException_ReturnsBadRequest()
+    {
+        // Arrange
+        var registrarId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Registrar, registrarId);
+
+        _clearanceServiceMock.Setup(s => s.SetClearanceAsync(studentId, termId, true, registrarId))
+            .ThrowsAsync(new InvalidOperationException("Clearance cannot be modified for closed term."));
+
+        // Act
+        var result = await _controller.SetClearance(studentId, termId, new SetGradeClearanceDto { IsCleared = true });
+
+        // Assert
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequestResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetClearance_UnexpectedException_BubblesUpToGlobalHandler()
+    {
+        // Arrange — an unexpected DB or network exception that should NOT be swallowed as BadRequest(ex.Message)
+        var registrarId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Registrar, registrarId);
+
+        _clearanceServiceMock.Setup(s => s.SetClearanceAsync(studentId, termId, true, registrarId))
+            .ThrowsAsync(new Exception("Database connection failed: Sensitive connection string details"));
+
+        // Act & Assert — Must bubble up so the global exception handler catches and sanitizes it
+        await Assert.ThrowsAsync<Exception>(() =>
+            _controller.SetClearance(studentId, termId, new SetGradeClearanceDto { IsCleared = true }));
+    }
 }

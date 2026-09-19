@@ -3,7 +3,7 @@ using Api.Repositories;
 using Api.Services;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
-
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -104,8 +104,34 @@ app.Urls.Add($"http://0.0.0.0:{port}");
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.MapOpenApi();
     app.MapScalarApiReference();
+}
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+
+            var exceptionFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+            if (exceptionFeature?.Error != null)
+            {
+                var logger = context.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("GlobalExceptionHandler");
+                logger.LogError(
+                    exceptionFeature.Error,
+                    "Unhandled exception occurred processing request to {Path}",
+                    exceptionFeature.Path ?? context.Request.Path.Value);
+            }
+
+            await context.Response.WriteAsJsonAsync(new { message = "An unexpected error occurred." });
+        });
+    });
 }
 
 app.UseHttpsRedirection();
