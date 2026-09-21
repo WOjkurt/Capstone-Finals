@@ -3,6 +3,7 @@ using Api.DTOs.StudyLoad;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers;
 
@@ -110,6 +111,7 @@ public class StudyLoadsController : ControllerBase
     }
 
     [HttpGet("student/{userId:guid}")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetByStudent(Guid userId, [FromQuery] Guid termId)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var authUserIdObj) || authUserIdObj is not Guid authUserId ||
@@ -151,6 +153,7 @@ public class StudyLoadsController : ControllerBase
     }
 
     [HttpGet("class/{classId:guid}")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetByClass(Guid classId)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var authUserIdObj) || authUserIdObj is not Guid authUserId ||

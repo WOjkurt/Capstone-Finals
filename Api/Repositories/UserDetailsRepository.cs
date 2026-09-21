@@ -68,11 +68,14 @@ public class UserDetailsRepository : IUserDetailsRepository
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim();
+            var term = search.Trim()
+                .Replace("\\", "\\\\")
+                .Replace("%", "\\%")
+                .Replace("_", "\\_");
             query = query.Where(ud =>
-                EF.Functions.ILike(ud.Firstname, $"%{term}%") ||
-                EF.Functions.ILike(ud.Lastname, $"%{term}%") ||
-                (ud.User != null && EF.Functions.ILike(ud.User.Email, $"%{term}%"))
+                EF.Functions.ILike(ud.Firstname, $"%{term}%", "\\") ||
+                EF.Functions.ILike(ud.Lastname, $"%{term}%", "\\") ||
+                (ud.User != null && EF.Functions.ILike(ud.User.Email, $"%{term}%", "\\"))
             );
         }
 

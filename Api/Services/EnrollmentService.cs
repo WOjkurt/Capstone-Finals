@@ -4,6 +4,8 @@ using Api.Domain.IdentityAccess;
 using Api.DTOs.Enrollment;
 using Api.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Api.Constants;
 
 namespace Api.Services;
 
@@ -16,6 +18,7 @@ public class EnrollmentService : IEnrollmentService
     private readonly IContactRepository _contactRepository;
     private readonly IUserDetailsRepository _userDetailsRepository;
     private readonly IUserRepository _userRepository;
+    private readonly ILogger<EnrollmentService> _logger;
 
     public EnrollmentService(
         AppDbContext context,
@@ -24,7 +27,8 @@ public class EnrollmentService : IEnrollmentService
         IEnrollmentFormRepository formRepository,
         IContactRepository contactRepository,
         IUserDetailsRepository userDetailsRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        ILogger<EnrollmentService> logger)
     {
         _context = context;
         _responseRepository = responseRepository;
@@ -33,6 +37,7 @@ public class EnrollmentService : IEnrollmentService
         _contactRepository = contactRepository;
         _userDetailsRepository = userDetailsRepository;
         _userRepository = userRepository;
+        _logger = logger;
     }
 
     public async Task<Guid> CreateResponseAsync(CreateEnrollmentResponseDto dto)
@@ -49,6 +54,8 @@ public class EnrollmentService : IEnrollmentService
             Form = formData,
             Contacts = contacts
         };
+
+        SanitizeWebhookPayload(responseData);
 
         // Serialize the applicant's form submission to jsonb.
         // Round-trip via JsonSerializer so Npgsql receives a proper JsonDocument.
@@ -70,6 +77,95 @@ public class EnrollmentService : IEnrollmentService
 
         await _responseRepository.AddAsync(response);
         return response.ResponseID;
+    }
+
+    private void SanitizeWebhookPayload(ResponseDataDto responseData)
+    {
+        string? Truncate(string? value, int maxLen, string fieldName)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var trimmed = value.Trim();
+            if (trimmed.Length > maxLen)
+            {
+                _logger.LogWarning("Webhook payload field '{FieldName}' exceeded max length {MaxLength} (was {ActualLength}). Truncating silently.", fieldName, maxLen, trimmed.Length);
+                return trimmed.Substring(0, maxLen);
+            }
+            return trimmed;
+        }
+
+        var f = responseData.Form;
+        if (f != null)
+        {
+            f.FirstName = Truncate(f.FirstName, ValidationConstants.NameMax, nameof(f.FirstName)) ?? string.Empty;
+            f.MiddleName = Truncate(f.MiddleName, ValidationConstants.ShortMax, nameof(f.MiddleName));
+            f.LastName = Truncate(f.LastName, ValidationConstants.NameMax, nameof(f.LastName)) ?? string.Empty;
+            f.Suffix = Truncate(f.Suffix, ValidationConstants.ShortMax, nameof(f.Suffix));
+            f.DateOfBirth = Truncate(f.DateOfBirth, ValidationConstants.DateStringMax, nameof(f.DateOfBirth));
+            f.PlaceOfBirth = Truncate(f.PlaceOfBirth, ValidationConstants.AddressMax, nameof(f.PlaceOfBirth));
+            f.Sex = Truncate(f.Sex, ValidationConstants.ShortMax, nameof(f.Sex));
+            f.CivilStatus = Truncate(f.CivilStatus, ValidationConstants.ShortMax, nameof(f.CivilStatus));
+            f.Nationality = Truncate(f.Nationality, ValidationConstants.ShortMax, nameof(f.Nationality));
+            f.Gender = Truncate(f.Gender, ValidationConstants.ShortMax, nameof(f.Gender));
+            f.BloodType = Truncate(f.BloodType, ValidationConstants.ShortMax, nameof(f.BloodType));
+            f.Religion = Truncate(f.Religion, ValidationConstants.ShortMax, nameof(f.Religion));
+            f.FacebookName = Truncate(f.FacebookName, ValidationConstants.NameMax, nameof(f.FacebookName));
+            f.MobileNumber = Truncate(f.MobileNumber, ValidationConstants.PhoneMax, nameof(f.MobileNumber));
+            f.HouseStreet = Truncate(f.HouseStreet, ValidationConstants.LongAddressMax, nameof(f.HouseStreet));
+            f.Barangay = Truncate(f.Barangay, ValidationConstants.AddressMax, nameof(f.Barangay));
+            f.CityOfMunicipality = Truncate(f.CityOfMunicipality, ValidationConstants.AddressMax, nameof(f.CityOfMunicipality));
+            f.Province = Truncate(f.Province, ValidationConstants.AddressMax, nameof(f.Province));
+            f.ZipCode = Truncate(f.ZipCode, ValidationConstants.ZipCodeMax, nameof(f.ZipCode));
+            f.ProvHouseStreet = Truncate(f.ProvHouseStreet, ValidationConstants.AddressMax, nameof(f.ProvHouseStreet));
+            f.ProvBarangay = Truncate(f.ProvBarangay, ValidationConstants.AddressMax, nameof(f.ProvBarangay));
+            f.ProvCityMunicipality = Truncate(f.ProvCityMunicipality, ValidationConstants.AddressMax, nameof(f.ProvCityMunicipality));
+            f.ProvProvince = Truncate(f.ProvProvince, ValidationConstants.AddressMax, nameof(f.ProvProvince));
+            f.ProvZipCode = Truncate(f.ProvZipCode, ValidationConstants.ZipCodeMax, nameof(f.ProvZipCode));
+            f.LastSchoolAttended = Truncate(f.LastSchoolAttended, ValidationConstants.LongAddressMax, nameof(f.LastSchoolAttended));
+            f.SchoolAddress = Truncate(f.SchoolAddress, ValidationConstants.LongAddressMax, nameof(f.SchoolAddress));
+            f.ProgramTrackStrand = Truncate(f.ProgramTrackStrand, ValidationConstants.AddressMax, nameof(f.ProgramTrackStrand));
+            f.YearGraduated = Truncate(f.YearGraduated, ValidationConstants.DateStringMax, nameof(f.YearGraduated));
+            f.PreviousCollege = Truncate(f.PreviousCollege, ValidationConstants.AddressMax, nameof(f.PreviousCollege));
+            f.PreviousCourse = Truncate(f.PreviousCourse, ValidationConstants.AddressMax, nameof(f.PreviousCourse));
+            f.LRN = Truncate(f.LRN, ValidationConstants.ShortMax, nameof(f.LRN));
+            f.AcademicYear = Truncate(f.AcademicYear, ValidationConstants.DateStringMax, nameof(f.AcademicYear));
+            f.IncomingCourse = Truncate(f.IncomingCourse, ValidationConstants.AddressMax, nameof(f.IncomingCourse));
+            f.PreviousStudentID = Truncate(f.PreviousStudentID, ValidationConstants.ShortMax, nameof(f.PreviousStudentID));
+            f.IntendedProgramCode = Truncate(f.IntendedProgramCode, ValidationConstants.ShortMax, nameof(f.IntendedProgramCode));
+            f.BirthOrder = Truncate(f.BirthOrder, ValidationConstants.ShortMax, nameof(f.BirthOrder));
+            f.FamilyStatus = Truncate(f.FamilyStatus, ValidationConstants.ShortMax, nameof(f.FamilyStatus));
+            f.FamilyMedicalConditionsNotes = Truncate(f.FamilyMedicalConditionsNotes, ValidationConstants.NotesMax, nameof(f.FamilyMedicalConditionsNotes));
+            f.OngoingMedications = Truncate(f.OngoingMedications, ValidationConstants.NotesMax, nameof(f.OngoingMedications));
+            f.DevelopmentalConditions = Truncate(f.DevelopmentalConditions, ValidationConstants.NotesMax, nameof(f.DevelopmentalConditions));
+            f.OtherMedicalDiagnosis = Truncate(f.OtherMedicalDiagnosis, ValidationConstants.NotesMax, nameof(f.OtherMedicalDiagnosis));
+
+            void TruncateList(List<string>? list, int maxLen, string listName)
+            {
+                if (list == null) return;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    list[i] = Truncate(list[i], maxLen, $"{listName}[{i}]") ?? string.Empty;
+                }
+            }
+
+            TruncateList(f.PresentMedicalConditions, ValidationConstants.NameMax, nameof(f.PresentMedicalConditions));
+            TruncateList(f.PastMedicalHistory, ValidationConstants.NameMax, nameof(f.PastMedicalHistory));
+            TruncateList(f.ImmunizationHistory, ValidationConstants.NameMax, nameof(f.ImmunizationHistory));
+        }
+
+        foreach (var c in responseData.Contacts)
+        {
+            c.FirstName = Truncate(c.FirstName, ValidationConstants.NameMax, nameof(c.FirstName)) ?? string.Empty;
+            c.LastName = Truncate(c.LastName, ValidationConstants.NameMax, nameof(c.LastName)) ?? string.Empty;
+            c.Occupation = Truncate(c.Occupation, ValidationConstants.AddressMax, nameof(c.Occupation));
+            c.ContactNo = Truncate(c.ContactNo, ValidationConstants.PhoneMax, nameof(c.ContactNo)) ?? string.Empty;
+            c.Email = Truncate(c.Email, 320, nameof(c.Email));
+            c.DateOfBirth = Truncate(c.DateOfBirth, ValidationConstants.DateStringMax, nameof(c.DateOfBirth));
+            c.Workplace = Truncate(c.Workplace, ValidationConstants.AddressMax, nameof(c.Workplace));
+            c.FacebookAccount = Truncate(c.FacebookAccount, ValidationConstants.NameMax, nameof(c.FacebookAccount));
+            c.GuardianRelationshipDescription = Truncate(c.GuardianRelationshipDescription, ValidationConstants.AddressMax, nameof(c.GuardianRelationshipDescription));
+            
+            // Also apply fallback deserializers manually if needed, though they happen on property set.
+        }
     }
 
     public async Task<List<EnrollmentResponseDto>> GetUnprocessedResponsesAsync()

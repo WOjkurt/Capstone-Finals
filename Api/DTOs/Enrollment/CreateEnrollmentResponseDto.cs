@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Api.DTOs.Enrollment;
 
 /// <summary>
@@ -8,6 +10,8 @@ namespace Api.DTOs.Enrollment;
 /// </summary>
 public class CreateEnrollmentResponseDto
 {
+    [Required]
+    [StringLength(320)]
     public required string EmailAddress { get; set; }
 
     /// <summary>Full form data submitted by the applicant.</summary>

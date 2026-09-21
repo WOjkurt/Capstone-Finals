@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Microsoft.AspNetCore.Mvc;
 
 // Force .NET network stack to use IPv4 DNS resolution for database connections on macOS
 AppContext.SetSwitch("System.Net.DisableIPv6", true);
@@ -89,7 +90,9 @@ if (!string.IsNullOrEmpty(firebaseProjectId) && FirebaseApp.DefaultInstance == n
     }
     else
     {
-        Console.WriteLine($"[FIREBASE WARNING] Service account key file not found at: {serviceAccountPath}");
+        // Log via the host's built logger so it flows into structured logging (Render log drain etc.)
+        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Startup");
+        startupLogger.LogCritical("[FIREBASE WARNING] Service account key file not found at: {ServiceAccountPath}. Firebase Admin SDK not initialized.", serviceAccountPath);
     }
 }
 
@@ -168,7 +171,18 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var firstError = context.ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .FirstOrDefault() ?? "Invalid request.";
+            return new BadRequestObjectResult(new { message = firstError });
+        };
+    });
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

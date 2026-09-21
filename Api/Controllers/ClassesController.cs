@@ -3,6 +3,7 @@ using Api.DTOs.Class;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers;
 
@@ -31,6 +32,7 @@ public class ClassesController : ControllerBase
     }
 
     [HttpGet]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetAll([FromQuery] Guid? termId, [FromQuery] Guid? subjectId, [FromQuery] Guid? teacherUserId)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)

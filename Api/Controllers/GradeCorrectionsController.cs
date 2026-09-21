@@ -2,6 +2,7 @@ using Api.Auth;
 using Api.DTOs.Grading;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers;
 
@@ -45,6 +46,7 @@ public class GradeCorrectionsController : ControllerBase
 
     [HttpGet("pending")]
     [RequireRegistrarOrAdmin]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetPending()
     {
         var pendingList = await _correctionService.GetPendingAsync();
@@ -52,6 +54,7 @@ public class GradeCorrectionsController : ControllerBase
     }
 
     [HttpGet("mine")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetMyCorrections()
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authenticatedUserId)

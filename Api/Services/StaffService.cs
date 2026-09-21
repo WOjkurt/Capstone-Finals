@@ -4,6 +4,7 @@ using Api.DTOs.Admin;
 using Api.Repositories;
 using FirebaseAdmin.Auth;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Api.Services;
 
@@ -15,6 +16,7 @@ public class StaffService : IStaffService
     private readonly IPositionRepository _positionRepository;
     private readonly IAcademicProgramRepository _academicProgramRepository;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<StaffService> _logger;
 
     public StaffService(
         AppDbContext context,
@@ -22,7 +24,8 @@ public class StaffService : IStaffService
         IUserDetailsRepository userDetailsRepository,
         IPositionRepository positionRepository,
         IAcademicProgramRepository academicProgramRepository,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<StaffService> logger)
     {
         _context = context;
         _userRepository = userRepository;
@@ -30,6 +33,7 @@ public class StaffService : IStaffService
         _positionRepository = positionRepository;
         _academicProgramRepository = academicProgramRepository;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<StaffResponseDto> CreateStaffAsync(CreateStaffDto dto, Guid adminUserId)
@@ -126,7 +130,7 @@ public class StaffService : IStaffService
             }
             catch (Exception fbEx)
             {
-                Console.WriteLine($"[STAFF COMPENSATION ERROR] Failed to delete Firebase user '{firebaseUser.Uid}' after DB failure: {fbEx.Message}");
+                _logger.LogError(fbEx, "Compensation failed: could not delete orphaned Firebase account after DB rollback. FirebaseUID={FirebaseUID}", firebaseUser.Uid);
             }
 
             throw new InvalidOperationException($"Failed to save staff record: {dbEx.Message}");
@@ -139,7 +143,7 @@ public class StaffService : IStaffService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[STAFF WARNING] Could not generate password reset link for '{email}': {ex.Message}");
+            _logger.LogWarning(ex, "Could not generate password reset link for new staff account.");
         }
 
         return await BuildStaffResponseDto(user.UserID, passwordResetLink);
@@ -218,7 +222,7 @@ public class StaffService : IStaffService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[STAFF WARNING] Firebase disable update failed for '{user.FirebaseUID}': {ex.Message}");
+            _logger.LogError(ex, "Firebase disable sync failed for UserID={UserID}. DB is updated; manual Firebase remediation may be needed.", user.UserID);
             firebaseWarning = "Database updated, but Firebase sync failed \u2014 this may need manual attention";
         }
 
@@ -247,7 +251,7 @@ public class StaffService : IStaffService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[STAFF WARNING] Firebase reactivate update failed for '{user.FirebaseUID}': {ex.Message}");
+            _logger.LogError(ex, "Firebase reactivate sync failed for UserID={UserID}. DB is updated; manual Firebase remediation may be needed.", user.UserID);
             firebaseWarning = "Database updated, but Firebase sync failed \u2014 this may need manual attention";
         }
 
@@ -390,7 +394,7 @@ public class StaffService : IStaffService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[STAFF WARNING] Firebase display name update failed for '{user.FirebaseUID}': {ex.Message}");
+                _logger.LogError(ex, "Firebase display name sync failed for UserID={UserID}. DB is updated; manual Firebase remediation may be needed.", user.UserID);
                 firebaseWarning = "Database updated, but Firebase sync failed \u2014 this may need manual attention";
             }
         }

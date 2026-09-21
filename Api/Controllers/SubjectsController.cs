@@ -2,6 +2,7 @@ using Api.Auth;
 using Api.DTOs.Setup;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers;
 
@@ -17,6 +18,7 @@ public class SubjectsController : ControllerBase
     }
 
     [HttpGet]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetAll([FromQuery] int? programId, [FromQuery] int? yearLevel)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)

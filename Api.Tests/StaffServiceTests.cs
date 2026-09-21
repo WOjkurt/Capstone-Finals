@@ -7,6 +7,7 @@ using Api.Repositories;
 using Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -52,7 +53,8 @@ public class StaffServiceTests : IDisposable
             _userDetailsRepoMock.Object,
             _positionRepoMock.Object,
             _programRepoMock.Object,
-            _configMock.Object);
+            _configMock.Object,
+            NullLogger<StaffService>.Instance);
     }
 
     public void Dispose()

@@ -2,6 +2,7 @@ using Api.Auth;
 using Api.DTOs.Grading;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers;
 
@@ -103,6 +104,7 @@ public class GradesController : ControllerBase
 
 
     [HttpGet("class/{classId:guid}")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetByClass(Guid classId)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authenticatedUserId ||
@@ -127,6 +129,7 @@ public class GradesController : ControllerBase
     }
 
     [HttpGet("student/{userId:guid}")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetByStudent(Guid userId, [FromQuery] Guid? termId)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authenticatedUserId ||

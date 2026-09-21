@@ -4,6 +4,7 @@ using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.ComponentModel.DataAnnotations;
 
 namespace Api.Controllers;
 
@@ -24,7 +25,7 @@ public class UserDetailsController : ControllerBase
 
     [HttpGet]
     [EnableRateLimiting("search")]
-    public async Task<IActionResult> Search([FromQuery] string? search, [FromQuery] int? role)
+    public async Task<IActionResult> Search([FromQuery, StringLength(100)] string? search, [FromQuery, Range(1, 5)] int? role)
     {
         if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int authRole)
         {

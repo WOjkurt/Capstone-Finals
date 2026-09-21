@@ -6,10 +6,12 @@ namespace Api.Auth;
 public class FirebaseAuthMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly ILogger<FirebaseAuthMiddleware> _logger;
 
-    public FirebaseAuthMiddleware(RequestDelegate next)
+    public FirebaseAuthMiddleware(RequestDelegate next, ILogger<FirebaseAuthMiddleware> logger)
     {
         _next = next;
+        _logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context, AppDbContext db, IConfiguration configuration)
@@ -29,14 +31,29 @@ public class FirebaseAuthMiddleware
             return;
         }
 
+        // ── Firebase instance null-guard ─────────────────────────────────────
+        if (FirebaseAuth.DefaultInstance == null)
+        {
+            _logger.LogCritical("Firebase is not initialized — check FIREBASE_KEY_PATH and service account configuration. All authenticated requests will fail.");
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new { message = "Authentication service unavailable." });
+            return;
+        }
+
         FirebaseToken decodedToken;
         try
         {
             decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(token, checkRevoked: true);
         }
+        catch (FirebaseAuthException ex)
+        {
+            _logger.LogWarning("Token verification failed: {AuthErrorCode} — {Message}", ex.AuthErrorCode, ex.Message);
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUTH DEBUG] Token verification failed: {ex.Message}");
+            _logger.LogError(ex, "Unexpected error during token verification");
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
         }
@@ -48,7 +65,7 @@ public class FirebaseAuthMiddleware
         string allowedDomain = configuration["Auth:AllowedEmailDomain"] ?? "@dbtc-cebu.edu.ph";
         if (string.IsNullOrWhiteSpace(email) || !email.EndsWith(allowedDomain, StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine($"[AUTH DEBUG] Rejected email '{email}'. Does not match allowed domain '{allowedDomain}'.");
+            _logger.LogWarning("Auth rejected: email domain not in allowed list. AllowedDomain={AllowedDomain}", allowedDomain);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new { error = "Only DBTC-Cebu school email addresses are allowed." });
@@ -77,7 +94,7 @@ public class FirebaseAuthMiddleware
 
             if (!hasApprovedApplication)
             {
-                Console.WriteLine($"[AUTH] No approved application found for new email '{email}'. Auto-creation denied.");
+                _logger.LogInformation("Auth denied: no approved application found for this email. Auto-creation skipped.");
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new
@@ -97,12 +114,12 @@ public class FirebaseAuthMiddleware
             };
             db.Users.Add(user);
             await db.SaveChangesAsync();
-            Console.WriteLine($"[AUTH] Auto-created new Users row for FirebaseUID: {uid} with Email: {email}");
+            _logger.LogInformation("Auto-created new Users row for new student account (FirebaseUID length={UidLength}).", uid.Length);
         }
 
         if (!user.IsActive)
         {
-            Console.WriteLine($"[AUTH] Account '{email}' (uid: {uid}) is disabled.");
+            _logger.LogWarning("Auth denied: account is disabled. UserID={UserID}", user.UserID);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new
@@ -114,7 +131,7 @@ public class FirebaseAuthMiddleware
 
         if (!RoleUtils.IsValidRole(user.Role))
         {
-            Console.WriteLine($"[AUTH DEBUG] Invalid or missing role for uid: {uid}");
+            _logger.LogError("Invalid or missing role for user. UserID={UserID}, Role={Role}", user.UserID, user.Role);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
         }
