@@ -86,8 +86,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         roleName: roleName,
         userId: userId,
       ));
-    } catch (_) {
-      emit(UnauthenticatedState());
+    } catch (e, st) {
+      final msg = getFriendlyErrorMessage(e, st);
+      emit(UnauthenticatedState(errorMessage: msg));
     }
   }
 

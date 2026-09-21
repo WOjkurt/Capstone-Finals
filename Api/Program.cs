@@ -53,6 +53,9 @@ builder.Services.AddScoped<IGradeClearanceService, GradeClearanceService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddScoped<IProgramScopingService, ProgramScopingService>();
 
+// Firebase Auth abstraction — allows tests to inject a mock without touching the real SDK
+builder.Services.AddSingleton<IFirebaseAuthVerifier, FirebaseAuthVerifier>();
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CORS POLICY — reads allowed origins from configuration.
 // Local dev origins are listed in appsettings.Development.json.

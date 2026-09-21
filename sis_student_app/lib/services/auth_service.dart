@@ -46,14 +46,15 @@ class AuthService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    return null;
+    throw ApiException(
+      statusCode: response.statusCode,
+      message: 'Failed to fetch user info: ${response.body}',
+    );
   }
 
   Future<void> signOut() async {
     await _auth.signOut();
   }
-
-  Map<String, String> get authHeaders => {};
 
   Future<Map<String, String>> getAuthHeaders() async {
     final token = await getToken();

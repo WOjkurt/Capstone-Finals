@@ -7,11 +7,16 @@ public class FirebaseAuthMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<FirebaseAuthMiddleware> _logger;
+    private readonly IFirebaseAuthVerifier _verifier;
 
-    public FirebaseAuthMiddleware(RequestDelegate next, ILogger<FirebaseAuthMiddleware> logger)
+    public FirebaseAuthMiddleware(
+        RequestDelegate next,
+        ILogger<FirebaseAuthMiddleware> logger,
+        IFirebaseAuthVerifier verifier)
     {
         _next = next;
         _logger = logger;
+        _verifier = verifier;
     }
 
     public async Task InvokeAsync(HttpContext context, AppDbContext db, IConfiguration configuration)
@@ -32,7 +37,7 @@ public class FirebaseAuthMiddleware
         }
 
         // ── Firebase instance null-guard ─────────────────────────────────────
-        if (FirebaseAuth.DefaultInstance == null)
+        if (!_verifier.IsInitialized)
         {
             _logger.LogCritical("Firebase is not initialized — check FIREBASE_KEY_PATH and service account configuration. All authenticated requests will fail.");
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
@@ -43,18 +48,29 @@ public class FirebaseAuthMiddleware
         FirebaseToken decodedToken;
         try
         {
-            decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(token, checkRevoked: true);
+            decodedToken = await _verifier.VerifyIdTokenAsync(token, checkRevoked: true);
         }
-        catch (FirebaseAuthException ex)
+        catch (TokenVerificationException ex)
         {
             _logger.LogWarning("Token verification failed: {AuthErrorCode} — {Message}", ex.AuthErrorCode, ex.Message);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.ContentType = "application/json";
+            var isExpiredOrRevoked = ex.AuthErrorCode is AuthErrorCode.ExpiredIdToken or AuthErrorCode.RevokedIdToken;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = isExpiredOrRevoked ? "token_expired" : "invalid_token"
+            });
             return;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error during token verification");
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "invalid_token"
+            });
             return;
         }
 

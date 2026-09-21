@@ -21,6 +21,7 @@ public class EnrollmentResponsesController : ControllerBase
 
     [HttpPost]
     [EnableRateLimiting("webhook")]
+    [RequestSizeLimit(65_536)] // 64 KB — more than sufficient for a Forms webhook payload
     public async Task<IActionResult> CreateResponse([FromBody] CreateEnrollmentResponseDto dto)
     {
         string? secretHeader = Request.Headers["X-Webhook-Secret"].FirstOrDefault();

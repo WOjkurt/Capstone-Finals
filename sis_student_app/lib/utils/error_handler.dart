@@ -22,8 +22,11 @@ String getFriendlyErrorMessage(dynamic error, [StackTrace? stackTrace]) {
   // 1. ApiException (HTTP status based)
   if (error is ApiException) {
     final code = error.statusCode;
-    if (code == 401 || code == 403) {
+    if (code == 401) {
       return 'Your session has expired. Please sign in again.';
+    }
+    if (code == 403) {
+      return 'Access denied — contact your administrator.';
     }
     if (code != null && code >= 500) {
       return 'Something went wrong on our end. Please try again, or contact support if this keeps happening.';
