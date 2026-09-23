@@ -16,19 +16,22 @@ public class ClassesController : ControllerBase
     private readonly IProgramScopingService _scopingService;
     private readonly IClassRepository _classRepository;
     private readonly ISubjectRepository _subjectRepository;
+    private readonly IUserDetailsRepository _userDetailsRepository;
 
     public ClassesController(
         IClassService classService,
         IClassScheduleService scheduleService,
         IProgramScopingService scopingService,
         IClassRepository classRepository,
-        ISubjectRepository subjectRepository)
+        ISubjectRepository subjectRepository,
+        IUserDetailsRepository userDetailsRepository)
     {
         _classService = classService;
         _scheduleService = scheduleService;
         _scopingService = scopingService;
         _classRepository = classRepository;
         _subjectRepository = subjectRepository;
+        _userDetailsRepository = userDetailsRepository;
     }
 
     [HttpGet]
@@ -176,6 +179,25 @@ public class ClassesController : ControllerBase
             catch (UnauthorizedAccessException ex)
             {
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+
+            if (dto.UserID.HasValue)
+            {
+                var teacherDetails = await _userDetailsRepository.GetByUserIdAsync(dto.UserID.Value);
+                if (teacherDetails == null)
+                {
+                    return NotFound(new { message = $"User with ID '{dto.UserID.Value}' was not found." });
+                }
+
+                if (teacherDetails.User?.Role != RoleUtils.Teacher)
+                {
+                    return BadRequest(new { message = "Assigned user must have the Teacher role." });
+                }
+
+                if (teacherDetails.ProgramID != existingClass.Subject?.ProgramID)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new { message = "Teacher does not belong to the same academic program as the class." });
+                }
             }
         }
 

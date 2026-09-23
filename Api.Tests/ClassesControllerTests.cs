@@ -1,6 +1,7 @@
 using Api.Auth;
 using Api.Controllers;
 using Api.Domain.Enrollment;
+using Api.Domain.IdentityAccess;
 using Api.DTOs.Class;
 using Api.Repositories;
 using Api.Services;
@@ -18,6 +19,7 @@ public class ClassesControllerTests
     private readonly Mock<IClassRepository> _classRepoMock;
     private readonly Mock<ISubjectRepository> _subjectRepoMock;
     private readonly Mock<IProgramScopingService> _scopingServiceMock;
+    private readonly Mock<IUserDetailsRepository> _userDetailsRepoMock;
     private readonly ClassesController _controller;
 
     public ClassesControllerTests()
@@ -27,13 +29,15 @@ public class ClassesControllerTests
         _classRepoMock = new Mock<IClassRepository>();
         _subjectRepoMock = new Mock<ISubjectRepository>();
         _scopingServiceMock = new Mock<IProgramScopingService>();
+        _userDetailsRepoMock = new Mock<IUserDetailsRepository>();
 
         _controller = new ClassesController(
             _classServiceMock.Object,
             _scheduleServiceMock.Object,
             _scopingServiceMock.Object,
             _classRepoMock.Object,
-            _subjectRepoMock.Object);
+            _subjectRepoMock.Object,
+            _userDetailsRepoMock.Object);
     }
 
     private void SetHttpContext(int role, Guid userId)
@@ -292,6 +296,24 @@ public class ClassesControllerTests
         _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class"))
             .Returns(Task.CompletedTask);
 
+        var teacherDetails = new UserDetails
+        {
+            UserDetailID = Guid.NewGuid(),
+            UserID = teacherId,
+            Firstname = "John",
+            Lastname = "Doe",
+            ProgramID = 1,
+            User = new User
+            {
+                UserID = teacherId,
+                FirebaseUID = "firebase-teacher",
+                Email = "teacher@dbtc-cebu.edu.ph",
+                Role = RoleUtils.Teacher,
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+        _userDetailsRepoMock.Setup(r => r.GetByUserIdAsync(teacherId)).ReturnsAsync(teacherDetails);
+
         var updatedClassDto = new ClassDto
         {
             ClassID = classId,
@@ -313,6 +335,141 @@ public class ClassesControllerTests
         var returnedDto = Assert.IsType<ClassDto>(okResult.Value);
         Assert.Equal(teacherId, returnedDto.UserID);
         _classServiceMock.Verify(s => s.AssignTeacherAsync(classId, teacherId), Times.Once);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningNonExistentUser_Returns404NotFound()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        var existingClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 1, SubjectCode = "IT101", SubjectTitle = "Intro to IT" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(existingClass);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class"))
+            .Returns(Task.CompletedTask);
+
+        _userDetailsRepoMock.Setup(r => r.GetByUserIdAsync(teacherId)).ReturnsAsync((UserDetails?)null);
+
+        var dto = new AssignTeacherDto { UserID = teacherId };
+
+        // Act
+        var result = await _controller.AssignTeacher(classId, dto);
+
+        // Assert
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal(StatusCodes.Status404NotFound, notFoundResult.StatusCode);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningNonTeacherRole_Returns400BadRequest()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        var classId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var existingClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 1, SubjectCode = "IT101", SubjectTitle = "Intro to IT" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(existingClass);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class"))
+            .Returns(Task.CompletedTask);
+
+        var studentDetails = new UserDetails
+        {
+            UserDetailID = Guid.NewGuid(),
+            UserID = studentId,
+            Firstname = "Student",
+            Lastname = "User",
+            ProgramID = 1,
+            User = new User
+            {
+                UserID = studentId,
+                FirebaseUID = "firebase-student",
+                Email = "student@dbtc-cebu.edu.ph",
+                Role = RoleUtils.Student,
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+        _userDetailsRepoMock.Setup(r => r.GetByUserIdAsync(studentId)).ReturnsAsync(studentDetails);
+
+        var dto = new AssignTeacherDto { UserID = studentId };
+
+        // Act
+        var result = await _controller.AssignTeacher(classId, dto);
+
+        // Assert
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequestResult.StatusCode);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningTeacherFromDifferentProgram_Returns403Forbidden()
+    {
+        // Arrange
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        var existingClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 1, SubjectCode = "IT101", SubjectTitle = "Intro to IT" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(existingClass);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class"))
+            .Returns(Task.CompletedTask);
+
+        // Teacher belongs to ProgramID 2 (BSBA), while class is ProgramID 1 (BSIT)
+        var teacherDetails = new UserDetails
+        {
+            UserDetailID = Guid.NewGuid(),
+            UserID = teacherId,
+            Firstname = "Jane",
+            Lastname = "Smith",
+            ProgramID = 2,
+            User = new User
+            {
+                UserID = teacherId,
+                FirebaseUID = "firebase-teacher-ba",
+                Email = "teacher.ba@dbtc-cebu.edu.ph",
+                Role = RoleUtils.Teacher,
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+        _userDetailsRepoMock.Setup(r => r.GetByUserIdAsync(teacherId)).ReturnsAsync(teacherDetails);
+
+        var dto = new AssignTeacherDto { UserID = teacherId };
+
+        // Act
+        var result = await _controller.AssignTeacher(classId, dto);
+
+        // Assert
+        var forbiddenResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, forbiddenResult.StatusCode);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
     }
 
     [Fact]
