@@ -148,6 +148,9 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(ea => ea.CreatedByUserID)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.Property(ea => ea.CreatedAt)
+                .HasDefaultValueSql("NOW()");
         });
 
         // ── EnrollmentForm ───────────────────────────────────────────
@@ -204,6 +207,9 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(c => c.CreatedByUserID)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.Property(c => c.CreatedAt)
+                .HasDefaultValueSql("NOW()");
         });
 
         // ── ClassSchedule ────────────────────────────────────────────
@@ -232,6 +238,9 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(sl => sl.CreatedByUserID)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.Property(sl => sl.CreatedAt)
+                .HasDefaultValueSql("NOW()");
         });
 
         // ── Grade ────────────────────────────────────────────────────
