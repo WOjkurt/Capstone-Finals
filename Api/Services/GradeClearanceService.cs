@@ -117,17 +117,52 @@ public class GradeClearanceService : IGradeClearanceService
         };
     }
 
+    public static string? FormatDisplayName(string? firstname, string? lastname, string? email)
+    {
+        bool hasFirst = !string.IsNullOrWhiteSpace(firstname);
+        bool hasLast = !string.IsNullOrWhiteSpace(lastname);
+
+        if (hasFirst && hasLast)
+        {
+            return $"{firstname!.Trim()} {lastname!.Trim()}";
+        }
+
+        if (hasFirst)
+        {
+            return firstname!.Trim();
+        }
+
+        if (hasLast)
+        {
+            return lastname!.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return $"(no name on file) {email.Trim()}";
+        }
+
+        return null;
+    }
+
     private async Task<string?> ResolveUserNameAsync(Guid userId)
     {
         var userDetails = await _context.UserDetails
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.UserID == userId);
 
-        if (userDetails != null && (!string.IsNullOrWhiteSpace(userDetails.Firstname) || !string.IsNullOrWhiteSpace(userDetails.Lastname)))
+        bool hasFirst = userDetails != null && !string.IsNullOrWhiteSpace(userDetails.Firstname);
+        bool hasLast = userDetails != null && !string.IsNullOrWhiteSpace(userDetails.Lastname);
+
+        if (hasFirst || hasLast)
         {
-            return $"{userDetails.Firstname} {userDetails.Lastname}".Trim();
+            return FormatDisplayName(userDetails?.Firstname, userDetails?.Lastname, null);
         }
 
-        return null;
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserID == userId);
+
+        return FormatDisplayName(null, null, user?.Email);
     }
 }
