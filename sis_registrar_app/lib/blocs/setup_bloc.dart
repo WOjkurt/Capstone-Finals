@@ -16,6 +16,11 @@ class SwitchSetupTab extends SetupEvent {
   SwitchSetupTab(this.activeTab);
 }
 
+class SelectTermForClassesEvent extends SetupEvent {
+  final String termId;
+  SelectTermForClassesEvent(this.termId);
+}
+
 // Program Events
 class CreateProgramEvent extends SetupEvent {
   final String code;
@@ -94,13 +99,14 @@ class RemovePrerequisiteEvent extends SetupEvent {
 
 // State
 class SetupState {
-  final int activeTab; // 0 = Programs, 1 = Terms, 2 = Subjects
+  final int activeTab; // 0 = Programs, 1 = Terms, 2 = Subjects, 3 = Classes & Rosters
   final bool isLoading;
   final bool isSubmitting;
   final List<AcademicProgramModel> programs;
   final List<AcademicTermModel> terms;
   final List<SubjectModel> subjects;
   final SubjectModel? selectedSubjectForPrereqs;
+  final String? selectedTermIdForClasses;
   final List<PrerequisiteModel> prerequisites;
   final bool isPrereqsLoading;
   final String? errorMessage;
@@ -114,6 +120,7 @@ class SetupState {
     this.terms = const [],
     this.subjects = const [],
     this.selectedSubjectForPrereqs,
+    this.selectedTermIdForClasses,
     this.prerequisites = const [],
     this.isPrereqsLoading = false,
     this.errorMessage,
@@ -129,6 +136,7 @@ class SetupState {
     List<SubjectModel>? subjects,
     SubjectModel? selectedSubjectForPrereqs,
     bool clearSelectedSubject = false,
+    String? selectedTermIdForClasses,
     List<PrerequisiteModel>? prerequisites,
     bool? isPrereqsLoading,
     String? errorMessage,
@@ -145,6 +153,8 @@ class SetupState {
       selectedSubjectForPrereqs: clearSelectedSubject
           ? null
           : (selectedSubjectForPrereqs ?? this.selectedSubjectForPrereqs),
+      selectedTermIdForClasses:
+          selectedTermIdForClasses ?? this.selectedTermIdForClasses,
       prerequisites: prerequisites ?? this.prerequisites,
       isPrereqsLoading: isPrereqsLoading ?? this.isPrereqsLoading,
       errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
@@ -160,6 +170,7 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
   SetupBloc(this._setupRepo) : super(SetupState(programs: const [])) {
     on<LoadSetupData>(_onLoadSetupData);
     on<SwitchSetupTab>(_onSwitchSetupTab);
+    on<SelectTermForClassesEvent>(_onSelectTermForClasses);
     on<CreateProgramEvent>(_onCreateProgram);
     on<UpdateProgramEvent>(_onUpdateProgram);
     on<DeleteProgramEvent>(_onDeleteProgram);
@@ -201,6 +212,15 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
 
   void _onSwitchSetupTab(SwitchSetupTab event, Emitter<SetupState> emit) {
     emit(state.copyWith(activeTab: event.activeTab, clearMessages: true));
+  }
+
+  void _onSelectTermForClasses(
+      SelectTermForClassesEvent event, Emitter<SetupState> emit) {
+    emit(state.copyWith(
+      activeTab: 3,
+      selectedTermIdForClasses: event.termId,
+      clearMessages: true,
+    ));
   }
 
   Future<void> _onCreateProgram(

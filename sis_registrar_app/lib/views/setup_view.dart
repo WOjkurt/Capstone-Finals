@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/setup_bloc.dart';
+import '../injection.dart';
+import '../models/class_models.dart';
 import '../models/setup_models.dart';
-import 'widgets/page_header.dart';
+import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
+import 'widgets/class_roster_dialog.dart';
+import 'widgets/page_header.dart';
 
 class SetupView extends StatefulWidget {
   const SetupView({super.key});
@@ -101,6 +105,7 @@ class _SetupViewState extends State<SetupView> {
       {'title': 'Academic Programs', 'index': 0, 'icon': Icons.school_outlined},
       {'title': 'Academic Terms', 'index': 1, 'icon': Icons.calendar_month_outlined},
       {'title': 'Subjects & Prerequisites', 'index': 2, 'icon': Icons.menu_book_outlined},
+      {'title': 'Classes & Rosters', 'index': 3, 'icon': Icons.groups_outlined},
     ];
 
     return Container(
@@ -108,53 +113,56 @@ class _SetupViewState extends State<SetupView> {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
       ),
-      child: Row(
-        children: tabs.map((t) {
-          final isSelected = state.activeTab == t['index'];
-          return InkWell(
-            onTap: () {
-              context
-                  .read<SetupBloc>()
-                  .add(SwitchSetupTab(t['index'] as int));
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isSelected
-                        ? AppColors.primary
-                        : Colors.transparent,
-                    width: 2.5,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: tabs.map((t) {
+            final isSelected = state.activeTab == t['index'];
+            return InkWell(
+              onTap: () {
+                context
+                    .read<SetupBloc>()
+                    .add(SwitchSetupTab(t['index'] as int));
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isSelected
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      width: 2.5,
+                    ),
                   ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    t['icon'] as IconData,
-                    size: 18,
-                    color: isSelected
-                        ? AppColors.primary
-                        : const Color(0xFF64748B),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    t['title'] as String,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                child: Row(
+                  children: [
+                    Icon(
+                      t['icon'] as IconData,
+                      size: 18,
                       color: isSelected
                           ? AppColors.primary
                           : const Color(0xFF64748B),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      t['title'] as String,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                          ? AppColors.primary
+                          : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -166,8 +174,10 @@ class _SetupViewState extends State<SetupView> {
       case 1:
         return _TermsTab(state: state);
       case 2:
-      default:
         return _SubjectsTab(state: state);
+      case 3:
+      default:
+        return _ClassesTab(state: state);
     }
   }
 }
@@ -550,6 +560,15 @@ class _TermsTab extends StatelessWidget {
                                       ),
                                       const SizedBox(width: 8),
                                     ],
+                                    IconButton(
+                                      icon: const Icon(Icons.groups_outlined,
+                                          size: 18,
+                                          color: AppColors.primary),
+                                      tooltip: 'View Classes & Rosters',
+                                      onPressed: () => context
+                                          .read<SetupBloc>()
+                                          .add(SelectTermForClassesEvent(t.termId)),
+                                    ),
                                     IconButton(
                                       icon: const Icon(Icons.edit_outlined,
                                           size: 18,
@@ -1527,4 +1546,617 @@ void _confirmDelete(
       ),
     ),
   );
+}
+
+// ==========================================
+// 4. CLASSES & ROSTERS TAB
+// ==========================================
+class _ClassesTab extends StatefulWidget {
+  final SetupState state;
+  const _ClassesTab({required this.state});
+
+  @override
+  State<_ClassesTab> createState() => _ClassesTabState();
+}
+
+class _ClassesTabState extends State<_ClassesTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String? _selectedTermId;
+  List<ClassModel> _classes = [];
+  bool _isLoading = false;
+  String? _error;
+  String _filter = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initTermAndFetch();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ClassesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.selectedTermIdForClasses != null &&
+        widget.state.selectedTermIdForClasses != _selectedTermId) {
+      _selectedTermId = widget.state.selectedTermIdForClasses;
+      _fetchClasses();
+    } else if (_selectedTermId == null && widget.state.terms.isNotEmpty) {
+      _initTermAndFetch();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _initTermAndFetch() {
+    if (widget.state.terms.isEmpty) return;
+
+    if (widget.state.selectedTermIdForClasses != null &&
+        widget.state.terms.any((t) => t.termId == widget.state.selectedTermIdForClasses)) {
+      _selectedTermId = widget.state.selectedTermIdForClasses;
+    } else {
+      final activeTerm = widget.state.terms.firstWhere(
+        (t) => t.isActive,
+        orElse: () => widget.state.terms.first,
+      );
+      _selectedTermId = activeTerm.termId;
+    }
+
+    _fetchClasses();
+  }
+
+  Future<void> _fetchClasses() async {
+    if (_selectedTermId == null) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final repo = getIt<ClassRepository>();
+      final list = await repo.getClasses(termId: _selectedTermId);
+      if (mounted) {
+        setState(() {
+          _classes = list;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final terms = widget.state.terms;
+    final filteredClasses = _classes.where((c) {
+      if (_filter.isEmpty) return true;
+      final q = _filter.toLowerCase();
+      final code = (c.subjectCode ?? '').toLowerCase();
+      final title = (c.subjectTitle ?? '').toLowerCase();
+      final name = c.className.toLowerCase();
+      final teacher = (c.teacherName ?? '').toLowerCase();
+      return code.contains(q) ||
+          title.contains(q) ||
+          name.contains(q) ||
+          teacher.contains(q);
+    }).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row with Term Selector & Search
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Classes & Student Rosters (${filteredClasses.length})',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'View enrolled student rosters for each class and manage enrollment statuses (Enrolled, Dropped, Withdrawn).',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Term Selector Dropdown
+              if (terms.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedTermId,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFF64748B)),
+                      items: terms.map((t) {
+                        return DropdownMenuItem<String>(
+                          value: t.termId,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                t.label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              if (t.isActive) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDCFCE7),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                        color: const Color(0xFF86EFAC)),
+                                  ),
+                                  child: const Text(
+                                    'Active',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF15803D),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null && val != _selectedTermId) {
+                          setState(() {
+                            _selectedTermId = val;
+                          });
+                          _fetchClasses();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 12),
+              // Refresh Button
+              IconButton(
+                icon: const Icon(Icons.refresh, color: AppColors.primary),
+                tooltip: 'Refresh Classes',
+                onPressed: _fetchClasses,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Search Filter Input
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) =>
+                  setState(() => _filter = val.trim().toLowerCase()),
+              decoration: InputDecoration(
+                hintText: 'Search by subject code, title, section, or instructor...',
+                hintStyle:
+                    const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                prefixIcon: const Icon(Icons.search,
+                    size: 18, color: AppColors.textSecondary),
+                suffixIcon: _filter.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _filter = '');
+                        },
+                      )
+                    : null,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 1.5),
+                ),
+              ),
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Content Area
+          if (terms.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_month_outlined,
+                        size: 48, color: Color(0xFFCBD5E1)),
+                    SizedBox(height: 12),
+                    Text(
+                      'No Academic Terms Found',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF334155),
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Please configure an academic term in the Academic Terms tab first.',
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (_isLoading)
+            Container(
+              padding: const EdgeInsets.all(60),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.primary),
+                    SizedBox(height: 16),
+                    Text('Loading classes...',
+                        style: TextStyle(color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+            )
+          else if (_error != null)
+            Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: Color(0xFFDC2626), size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to load classes: $_error',
+                      style: const TextStyle(
+                          color: Color(0xFF991B1B), fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _fetchClasses,
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (filteredClasses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.class_outlined,
+                        size: 48, color: Color(0xFFCBD5E1)),
+                    const SizedBox(height: 12),
+                    Text(
+                      _filter.isNotEmpty
+                          ? 'No classes match "$_filter"'
+                          : 'No classes scheduled for this term.',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF334155),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Classes are configured per academic term.',
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minWidth: constraints.maxWidth),
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(
+                              const Color(0xFFF8FAFC)),
+                          horizontalMargin: 24,
+                          columns: const [
+                            DataColumn(
+                              label: Text('Subject',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                            DataColumn(
+                              label: Text('Section',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                            DataColumn(
+                              label: Text('Instructor',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                            DataColumn(
+                              label: Text('Schedule',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                            DataColumn(
+                              label: Text('Enrolled',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                            DataColumn(
+                              label: Text('Actions',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                          ],
+                          rows: filteredClasses.map((c) {
+                            return DataRow(
+                              cells: [
+                                // Subject Code & Title
+                                DataCell(
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primary,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              c.subjectCode ?? 'N/A',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        c.subjectTitle ?? 'Untitled Subject',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Section / Class Name
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                          color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Text(
+                                      c.className,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // Instructor
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        c.teacherName != null
+                                            ? Icons.person_outline
+                                            : Icons.person_off_outlined,
+                                        size: 16,
+                                        color: c.teacherName != null
+                                            ? const Color(0xFF475569)
+                                            : const Color(0xFF94A3B8),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        c.teacherName ?? 'Unassigned',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: c.teacherName != null
+                                              ? const Color(0xFF334155)
+                                              : Colors.grey.shade500,
+                                          fontStyle: c.teacherName == null
+                                              ? FontStyle.italic
+                                              : FontStyle.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Schedule
+                                DataCell(
+                                  Text(
+                                    c.scheduleSummary,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                                // Enrolled Count Badge
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: const Color(0xFFBFDBFE)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.people_alt,
+                                            size: 13,
+                                            color: Color(0xFF1D4ED8)),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          '${c.enrolledCount} students',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                            color: Color(0xFF1D4ED8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // Actions
+                                DataCell(
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      ClassRosterDialog.show(
+                                        context,
+                                        classItem: c,
+                                        onRosterUpdated: _fetchClasses,
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(6),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    icon: const Icon(Icons.people_outline,
+                                        size: 16),
+                                    label: const Text(
+                                      'View Roster',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

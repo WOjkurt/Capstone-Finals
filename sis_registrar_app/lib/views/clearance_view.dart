@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../blocs/clearance_bloc.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/student_study_load_dialog.dart';
 import '../theme/app_theme.dart';
 
 class ClearanceView extends StatefulWidget {
@@ -584,6 +585,32 @@ class _ClearanceViewState extends State<ClearanceView> {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.menu_book_outlined,
+                                      size: 14),
+                                  label: const Text('Study Load'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.primary,
+                                    side: const BorderSide(
+                                        color: Color(0xFFBFDBFE)),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    visualDensity: VisualDensity.compact,
+                                    textStyle: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12),
+                                  ),
+                                  onPressed: () {
+                                    StudentStudyLoadDialog.show(
+                                      context,
+                                      student: student,
+                                      termId: c.termId,
+                                      termLabel:
+                                          c.termLabel ?? 'Academic Term',
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 8),
                                 // Toggle Switch (no label — badge shows state)
                                 isToggling
                                     ? const SizedBox(

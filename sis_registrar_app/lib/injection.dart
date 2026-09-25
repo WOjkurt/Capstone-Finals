@@ -7,6 +7,7 @@ import 'blocs/link_accounts_bloc.dart';
 import 'blocs/responses_bloc.dart';
 import 'blocs/setup_bloc.dart';
 import 'blocs/staff_bloc.dart';
+import 'repositories/class_repository.dart';
 import 'repositories/enrollment_repository.dart';
 import 'repositories/grading_repository.dart';
 import 'repositories/staff_repository.dart';
@@ -31,6 +32,8 @@ void setupLocator() {
       () => UserSearchRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<StaffRepository>(
       () => StaffRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<ClassRepository>(
+      () => ClassRepository(getIt<AuthService>()));
 
   // Blocs
   getIt.registerFactory<DashboardBloc>(() => DashboardBloc(
