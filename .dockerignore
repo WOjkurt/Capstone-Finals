@@ -1,0 +1,30 @@
+# Build artifacts
+**/bin/
+**/obj/
+
+# Local secrets and dev config — must never enter the Docker build context
+appsettings.Development.json
+appsettings.Testing.json
+*service-account*.json
+*firebase-adminsdk*.json
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS junk
+.vs/
+.vscode/
+.idea/
+.DS_Store
+
+# Flutter apps (not part of the API image)
+sis_registrar_app/
+sis_teacher_app/
+sis_student_app/
+sis_login_test/
+
+# Test project (not needed in the runtime image)
+Api.Tests/
