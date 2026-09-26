@@ -134,8 +134,8 @@ public class InputValidationTests : IClassFixture<WebApplicationFactory<Program>
     [Fact]
     public async Task WebhookPayload_ExcessiveLength_TruncatesInsteadOf400()
     {
-        // Arrange — use the webhook secret that's configured in appsettings
-        const string WebhookSecret = "dbtc_forms_wh_sec_7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d";
+        // Arrange — use the test webhook secret configured in appsettings.Testing.json
+        const string WebhookSecret = "test_forms_wh_sec_mock_for_integration_tests";
         var longString = new string('B', 10000);
         var dto = new CreateEnrollmentResponseDto
         {

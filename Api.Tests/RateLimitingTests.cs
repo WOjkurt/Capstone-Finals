@@ -61,7 +61,7 @@ public class RateLimitingTests : IClassFixture<WebApplicationFactory<Program>>
         // Forwarded headers simulating Render reverse proxy
         request.Headers.Add("X-Forwarded-For", clientIp);
         request.Headers.Add("X-Forwarded-Proto", "https");
-        request.Headers.Add("X-Webhook-Secret", "dbtc_forms_wh_sec_7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d");
+        request.Headers.Add("X-Webhook-Secret", "test_forms_wh_sec_mock_for_integration_tests");
 
         return request;
     }
