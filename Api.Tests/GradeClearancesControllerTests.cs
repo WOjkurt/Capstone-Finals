@@ -6,6 +6,9 @@ using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
 using Moq;
 using Xunit;
 
@@ -177,4 +180,136 @@ public class GradeClearancesControllerTests
         await Assert.ThrowsAsync<Exception>(() =>
             _controller.SetClearance(studentId, termId, new SetGradeClearanceDto { IsCleared = true }));
     }
+
+    [Fact]
+    public async Task CreateClearance_ValidRequest_Returns201Created()
+    {
+        // Arrange
+        var registrarId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Registrar, registrarId);
+
+        var dto = new CreateGradeClearanceDto { UserId = studentId, TermId = termId, IsCleared = false };
+        var responseDto = new GradeClearanceResponseDto
+        {
+            ClearanceID = Guid.NewGuid(),
+            UserID = studentId,
+            TermID = termId,
+            IsCleared = false
+        };
+
+        _clearanceServiceMock
+            .Setup(s => s.CreateClearanceAsync(studentId, termId, false, registrarId))
+            .ReturnsAsync(responseDto);
+
+        // Act
+        var result = await _controller.CreateClearance(dto);
+
+        // Assert
+        var statusResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status201Created, statusResult.StatusCode);
+        _clearanceServiceMock.Verify(
+            s => s.CreateClearanceAsync(studentId, termId, false, registrarId), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateClearance_RecordAlreadyExists_Returns409Conflict()
+    {
+        // Arrange
+        var registrarId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Registrar, registrarId);
+
+        var dto = new CreateGradeClearanceDto { UserId = studentId, TermId = termId };
+
+        _clearanceServiceMock
+            .Setup(s => s.CreateClearanceAsync(studentId, termId, false, registrarId))
+            .ThrowsAsync(new InvalidOperationException(
+                "A grade clearance record already exists for this student and academic term."));
+
+        // Act
+        var result = await _controller.CreateClearance(dto);
+
+        // Assert
+        var conflictResult = Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, conflictResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateClearance_NoAuthenticatedUser_Returns401Unauthorized()
+    {
+        // Arrange — HttpContext.Items has no "user_id" key (simulates a caller whose
+        // auth token was missing or whose JWT was not decoded into Items by middleware).
+        var httpContext = new DefaultHttpContext();
+        // Deliberately do NOT set "user_id" in Items
+        _controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+
+        var dto = new CreateGradeClearanceDto { UserId = Guid.NewGuid(), TermId = Guid.NewGuid() };
+
+        // Act
+        var result = await _controller.CreateClearance(dto);
+
+        // Assert — must get 401 before the service is ever called
+        Assert.IsType<UnauthorizedObjectResult>(result);
+        _clearanceServiceMock.Verify(
+            s => s.CreateClearanceAsync(
+                It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<Guid>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData(RoleUtils.Teacher)]
+    [InlineData(RoleUtils.Student)]
+    public async Task CreateClearance_AuthenticatedAsNonRegistrarNonAdmin_Returns403Forbidden(int nonAuthorizedRole)
+    {
+        // 1. Confirm the endpoint is protected by [RequireRegistrarOrAdmin]
+        var actionMethod = typeof(GradeClearancesController).GetMethod(nameof(GradeClearancesController.CreateClearance));
+        var filterAttr = actionMethod?.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false)
+            .FirstOrDefault() as RequireRegistrarOrAdminAttribute;
+        Assert.NotNull(filterAttr);
+
+        // 2. Execute the filter with a non-Registrar / non-Admin caller (Teacher or Student)
+        var callerId = Guid.NewGuid();
+        var userRepoMock = new Mock<IUserRepository>();
+        userRepoMock.Setup(r => r.GetByIdAsync(callerId))
+            .ReturnsAsync(new User
+            {
+                UserID = callerId,
+                Role = nonAuthorizedRole,
+                Email = "user@school.edu",
+                FirebaseUID = "firebase-uid"
+            });
+
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        serviceProviderMock.Setup(sp => sp.GetService(typeof(IUserRepository)))
+            .Returns(userRepoMock.Object);
+
+        var httpContext = new DefaultHttpContext { RequestServices = serviceProviderMock.Object };
+        httpContext.Items["user_id"] = callerId;
+        httpContext.Items["role"] = nonAuthorizedRole;
+
+        var actionExecutingContext = new ActionExecutingContext(
+            new ActionContext(httpContext, new RouteData(), new ActionDescriptor()),
+            new List<IFilterMetadata>(),
+            new Dictionary<string, object?>(),
+            _controller);
+
+        bool nextCalled = false;
+        ActionExecutionDelegate next = () =>
+        {
+            nextCalled = true;
+            return Task.FromResult<ActionExecutedContext>(null!);
+        };
+
+        // Act — The action filter runs as part of the request pipeline before the action
+        await filterAttr.OnActionExecutionAsync(actionExecutingContext, next);
+
+        // Assert — Filter returns 403 Forbidden and short-circuits (next is NEVER called)
+        Assert.False(nextCalled);
+        var statusResult = Assert.IsType<ObjectResult>(actionExecutingContext.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, statusResult.StatusCode);
+    }
 }
+

@@ -23,6 +23,12 @@ class ToggleClearanceEvent extends ClearanceEvent {
   ToggleClearanceEvent(this.termId, this.isCleared);
 }
 
+class InitializeClearanceEvent extends ClearanceEvent {
+  final String termId;
+  final bool isCleared;
+  InitializeClearanceEvent({required this.termId, this.isCleared = false});
+}
+
 // States
 abstract class ClearanceState {}
 
@@ -89,6 +95,7 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
     on<SearchStudentsEvent>(_onSearchStudents);
     on<SelectStudentEvent>(_onSelectStudent);
     on<ToggleClearanceEvent>(_onToggleClearance);
+    on<InitializeClearanceEvent>(_onInitializeClearance);
   }
 
   @override
@@ -198,6 +205,40 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
     } catch (e, st) {
       emit(current.copyWith(
         clearToggling: true,
+        errorMessage: getFriendlyErrorMessage(e, st),
+      ));
+    }
+  }
+
+  Future<void> _onInitializeClearance(
+      InitializeClearanceEvent event, Emitter<ClearanceState> emit) async {
+    if (state is! ClearanceStateData) return;
+    final current = state as ClearanceStateData;
+    if (current.selectedStudent == null) return;
+
+    emit(current.copyWith(
+      isClearanceLoading: true,
+      clearMessages: true,
+    ));
+
+    try {
+      final created = await _clearanceRepo.createClearance(
+        userId: current.selectedStudent!.userId,
+        termId: event.termId,
+        isCleared: event.isCleared,
+      );
+
+      final updatedList = List<GradeClearanceModel>.from(current.clearances)
+        ..add(created);
+
+      emit(current.copyWith(
+        clearances: updatedList,
+        isClearanceLoading: false,
+        successMessage: 'Grade clearance initialized successfully!',
+      ));
+    } catch (e, st) {
+      emit(current.copyWith(
+        isClearanceLoading: false,
         errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }

@@ -5,6 +5,7 @@ import '../blocs/clearance_bloc.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/student_study_load_dialog.dart';
+import 'widgets/initialize_clearance_dialog.dart';
 import '../theme/app_theme.dart';
 
 class ClearanceView extends StatefulWidget {
@@ -427,6 +428,41 @@ class _ClearanceViewState extends State<ClearanceView> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add_moderator_outlined, size: 16),
+                  label: const Text('Initialize Clearance'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    InitializeClearanceDialog.show(
+                      context,
+                      student: student,
+                      existingTermIds:
+                          data.clearances.map((c) => c.termId).toList(),
+                      onConfirmed: (termId, isCleared) {
+                        context.read<ClearanceBloc>().add(
+                              InitializeClearanceEvent(
+                                termId: termId,
+                                isCleared: isCleared,
+                              ),
+                            );
+                      },
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -454,8 +490,40 @@ class _ClearanceViewState extends State<ClearanceView> {
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'This student has no enrolled terms or clearance records initialized.',
+                              'This student has no clearance records initialized for any term.',
                               style: TextStyle(color: Color(0xFF64748B)),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.add_moderator_outlined,
+                                  size: 16),
+                              label: const Text('Initialize Term Clearance'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () {
+                                InitializeClearanceDialog.show(
+                                  context,
+                                  student: student,
+                                  existingTermIds: data.clearances
+                                      .map((c) => c.termId)
+                                      .toList(),
+                                  onConfirmed: (termId, isCleared) {
+                                    context.read<ClearanceBloc>().add(
+                                          InitializeClearanceEvent(
+                                            termId: termId,
+                                            isCleared: isCleared,
+                                          ),
+                                        );
+                                  },
+                                );
+                              },
                             ),
                           ],
                         ),

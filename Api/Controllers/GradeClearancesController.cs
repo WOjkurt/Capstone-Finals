@@ -48,6 +48,31 @@ public class GradeClearancesController : ControllerBase
         }
     }
 
+    [HttpPost]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> CreateClearance([FromBody] CreateGradeClearanceDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid creatorUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var isCleared = dto.IsCleared ?? false;
+            var result = await _clearanceService.CreateClearanceAsync(dto.UserId, dto.TermId, isCleared, creatorUserId);
+            return StatusCode(StatusCodes.Status201Created, result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("{userId:guid}")]
     public async Task<IActionResult> GetByStudent(Guid userId)
     {

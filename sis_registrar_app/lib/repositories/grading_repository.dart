@@ -46,6 +46,29 @@ class GradeClearanceRepository {
     return GradeClearanceModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
+
+  Future<GradeClearanceModel> createClearance({
+    required String userId,
+    required String termId,
+    bool isCleared = false,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/gradeclearances'),
+      headers: headers,
+      body: jsonEncode({
+        'userId': userId,
+        'termId': termId,
+        'isCleared': isCleared,
+      }),
+    );
+    if (res.statusCode != 200 && res.statusCode != 201) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return GradeClearanceModel.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
 }
 
 class GradeCorrectionRepository {

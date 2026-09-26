@@ -60,6 +60,62 @@ public class GradeClearanceService : IGradeClearanceService
         return await MapToDtoAsync(updated ?? clearance);
     }
 
+    public async Task<GradeClearanceResponseDto> CreateClearanceAsync(Guid userId, Guid termId, bool isCleared, Guid creatorUserId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"User with ID '{userId}' was not found.");
+        }
+
+        var term = await _context.AcademicTerms.FindAsync(termId);
+        if (term == null)
+        {
+            throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+        }
+
+        var existing = await _clearanceRepository.GetByUserAndTermAsync(userId, termId);
+        if (existing != null)
+        {
+            throw new InvalidOperationException("A grade clearance record already exists for this student and academic term.");
+        }
+
+        DateTime? clearedAt = isCleared ? DateTime.UtcNow : null;
+        Guid? clearedBy = isCleared ? creatorUserId : null;
+
+        var clearance = new GradeClearance
+        {
+            ClearanceID = Guid.NewGuid(),
+            UserID = userId,
+            TermID = termId,
+            IsCleared = isCleared,
+            ClearedByUserID = clearedBy,
+            ClearedAt = clearedAt
+        };
+
+        await _clearanceRepository.AddAsync(clearance);
+        var created = await _clearanceRepository.GetByUserAndTermAsync(userId, termId);
+        return await MapToDtoAsync(created ?? clearance);
+    }
+
+    public async Task EnsureClearanceAsync(Guid userId, Guid termId)
+    {
+        var existing = await _clearanceRepository.GetByUserAndTermAsync(userId, termId);
+        if (existing == null)
+        {
+            var clearance = new GradeClearance
+            {
+                ClearanceID = Guid.NewGuid(),
+                UserID = userId,
+                TermID = termId,
+                IsCleared = false, // safe default: hold / pending audit
+                ClearedByUserID = null,
+                ClearedAt = null
+            };
+            await _clearanceRepository.AddAsync(clearance);
+        }
+    }
+
     public async Task<bool> IsClearedAsync(Guid userId, Guid termId)
     {
         var clearance = await _clearanceRepository.GetByUserAndTermAsync(userId, termId);

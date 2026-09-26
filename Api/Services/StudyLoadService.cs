@@ -185,6 +185,12 @@ public class StudyLoadService : IStudyLoadService
                 }
             }
 
+            // Ensure exactly one GradeClearance row exists for this student + term (idempotent)
+            if (resultList.Count > 0)
+            {
+                await _clearanceService.EnsureClearanceAsync(dto.UserId, dto.TermId);
+            }
+
             await transaction.CommitAsync();
             return resultList;
         }
@@ -324,6 +330,9 @@ public class StudyLoadService : IStudyLoadService
         };
 
         await _studyLoadRepository.AddAsync(studyLoad);
+
+        // Ensure exactly one GradeClearance row exists for this student + term (idempotent)
+        await _clearanceService.EnsureClearanceAsync(dto.UserId, termId);
 
         return new EnrollSingleResponseDto
         {

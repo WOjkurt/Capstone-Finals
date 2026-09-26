@@ -17,6 +17,16 @@ public class TestAppDbContext : AppDbContext
 {
     public TestAppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        // Transactions are no-ops on the in-memory provider but the warning is
+        // thrown as an exception by default. Suppress it so service tests that
+        // call BeginTransactionAsync (e.g. EnrollBatchAsync) can run cleanly.
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
