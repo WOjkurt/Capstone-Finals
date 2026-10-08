@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Api.DTOs.Setup;
 
 public class CreateSubjectDto
@@ -10,5 +12,8 @@ public class CreateSubjectDto
     public decimal LabHours { get; set; }
     public int ProgramID { get; set; }
     public int YearLevel { get; set; }
+
+    /// <summary>1 = 1st Semester, 2 = 2nd Semester, 3 = Summer Term.</summary>
+    [Range(1, 3, ErrorMessage = "DefaultSemester must be 1 (1st Semester), 2 (2nd Semester), or 3 (Summer Term).")]
     public int DefaultSemester { get; set; }
 }

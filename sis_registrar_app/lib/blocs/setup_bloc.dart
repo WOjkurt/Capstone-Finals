@@ -89,7 +89,10 @@ class SelectSubjectForPrereqs extends SetupEvent {
 class AddPrerequisiteEvent extends SetupEvent {
   final String subjectId;
   final String prerequisiteSubjectId;
-  AddPrerequisiteEvent(this.subjectId, this.prerequisiteSubjectId);
+  /// 0 = Prerequisite, 1 = Corequisite.
+  final int requisiteType;
+  AddPrerequisiteEvent(this.subjectId, this.prerequisiteSubjectId,
+      {this.requisiteType = 0});
 }
 
 class RemovePrerequisiteEvent extends SetupEvent {
@@ -451,7 +454,8 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
     emit(state.copyWith(isSubmitting: true, clearMessages: true));
     try {
       await _setupRepo.addPrerequisite(
-          event.subjectId, event.prerequisiteSubjectId);
+          event.subjectId, event.prerequisiteSubjectId,
+          requisiteType: event.requisiteType);
       final updated =
           await _setupRepo.getPrerequisites(event.subjectId);
       emit(state.copyWith(

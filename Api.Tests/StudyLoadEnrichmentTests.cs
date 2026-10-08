@@ -129,7 +129,7 @@ public class StudyLoadEnrichmentTests : IDisposable
         Assert.Equal("Data Structures and Algorithms", dto.SubjectTitle);
         Assert.Equal(4.0m, dto.Units); // 3.0 Lec + 1.0 Lab
         Assert.Equal("Enrolled", dto.LoadStatus);
-        Assert.Equal("2025-2026 (Sem 1)", dto.TermLabel);
+        Assert.Equal("2025-2026 (1st Sem)", dto.TermLabel);
 
         // Schedules check
         Assert.NotNull(dto.Schedules);

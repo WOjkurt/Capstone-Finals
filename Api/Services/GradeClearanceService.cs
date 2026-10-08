@@ -1,3 +1,4 @@
+using Api.Common;
 using Api.Domain.Grading;
 using Api.DTOs.Grading;
 using Api.Repositories;
@@ -145,14 +146,14 @@ public class GradeClearanceService : IGradeClearanceService
         string? termLabel = null;
         if (gc.Term != null)
         {
-            termLabel = $"{gc.Term.SchoolYear} (Sem {gc.Term.Semester})";
+            termLabel = TermLabel.Format(gc.Term.SchoolYear, gc.Term.Semester);
         }
         else
         {
             var term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == gc.TermID);
             if (term != null)
             {
-                termLabel = $"{term.SchoolYear} (Sem {term.Semester})";
+                termLabel = TermLabel.Format(term.SchoolYear, term.Semester);
             }
         }
 

@@ -79,7 +79,8 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
   Future<List<PrerequisiteModel>> getPrerequisites(String subjectId) async => [];
 
   @override
-  Future<void> addPrerequisite(String subjectId, String prerequisiteSubjectId) async {}
+  Future<void> addPrerequisite(String subjectId, String prerequisiteSubjectId,
+      {int requisiteType = 0}) async {}
 
   @override
   Future<void> removePrerequisite(String prerequisiteId) async {}

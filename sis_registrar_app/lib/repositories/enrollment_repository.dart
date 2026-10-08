@@ -281,12 +281,16 @@ class AcademicSetupRepository {
   }
 
   Future<void> addPrerequisite(
-      String subjectId, String prerequisiteSubjectId) async {
+      String subjectId, String prerequisiteSubjectId,
+      {int requisiteType = 0}) async {
     final headers = await _auth.getAuthHeaders();
     final res = await http.post(
         Uri.parse('$baseUrl/api/Subjects/$subjectId/prerequisites'),
         headers: headers,
-        body: jsonEncode({'prerequisiteSubjectID': prerequisiteSubjectId}));
+        body: jsonEncode({
+          'prerequisiteSubjectID': prerequisiteSubjectId,
+          'requisiteType': requisiteType,
+        }));
     if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 

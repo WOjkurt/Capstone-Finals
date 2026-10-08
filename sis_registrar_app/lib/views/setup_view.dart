@@ -467,7 +467,7 @@ class _TermsTab extends StatelessWidget {
                               ? '1st Semester'
                               : t.semester == 2
                                   ? '2nd Semester'
-                                  : 'Summer / Special';
+                                  : 'Summer Term';
 
                           return DataRow(
                             cells: [
@@ -1080,10 +1080,14 @@ class _SubjectsTab extends StatelessWidget {
             child: _AddPrerequisiteRow(
               subjectId: subject.subjectId,
               candidates: candidateSubjects,
-              onAdd: (prereqSubId) {
+              onAdd: (prereqSubId, requisiteType) {
                 context
                     .read<SetupBloc>()
-                    .add(AddPrerequisiteEvent(subject.subjectId, prereqSubId));
+                    .add(AddPrerequisiteEvent(
+                      subject.subjectId,
+                      prereqSubId,
+                      requisiteType: requisiteType,
+                    ));
               },
             ),
           ),
@@ -1113,6 +1117,7 @@ class _SubjectsTab extends StatelessWidget {
                             const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
                           final p = state.prerequisites[i];
+                          final isCoreq = p.isCorequisite;
 
                           return Container(
                             padding: const EdgeInsets.symmetric(
@@ -1133,14 +1138,49 @@ class _SubjectsTab extends StatelessWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        p.prerequisiteSubjectCode ??
-                                            'Prerequisite Subject',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13,
-                                          color: Color(0xFF0F172A),
-                                        ),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              p.prerequisiteSubjectCode ??
+                                                  'Unknown Subject',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isCoreq
+                                                  ? const Color(0xFFFEF3C7)
+                                                  : const Color(0xFFDBEAFE),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: isCoreq
+                                                    ? const Color(0xFFF59E0B)
+                                                    : const Color(0xFF3B82F6),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              isCoreq
+                                                  ? 'Corequisite'
+                                                  : 'Prerequisite',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                color: isCoreq
+                                                    ? const Color(0xFF92400E)
+                                                    : const Color(0xFF1D4ED8),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       if (p.prerequisiteSubjectTitle != null)
                                         Text(
@@ -1156,12 +1196,14 @@ class _SubjectsTab extends StatelessWidget {
                                 IconButton(
                                   icon: const Icon(Icons.link_off_rounded,
                                       size: 18, color: Colors.red),
-                                  tooltip: 'Unlink Prerequisite',
+                                  tooltip: 'Unlink',
                                   onPressed: () => _confirmDelete(
                                     context,
-                                    title: 'Unlink Prerequisite',
+                                    title: isCoreq
+                                        ? 'Unlink Corequisite'
+                                        : 'Unlink Prerequisite',
                                     message:
-                                        'Are you sure you want to remove ${p.prerequisiteSubjectCode ?? "this subject"} as a prerequisite for ${subject.subjectCode}?',
+                                        'Are you sure you want to remove ${p.prerequisiteSubjectCode ?? "this subject"} as a ${isCoreq ? "corequisite" : "prerequisite"} for ${subject.subjectCode}?',
                                     confirmLabel: 'Confirm Unlink',
                                     onConfirm: () => context
                                         .read<SetupBloc>()
@@ -1441,7 +1483,8 @@ class _SubjectsTab extends StatelessWidget {
 class _AddPrerequisiteRow extends StatefulWidget {
   final String subjectId;
   final List<SubjectModel> candidates;
-  final Function(String prereqSubjectId) onAdd;
+  /// Called with (prerequisiteSubjectId, requisiteType) when the user taps Add.
+  final Function(String prereqSubjectId, int requisiteType) onAdd;
 
   const _AddPrerequisiteRow({
     required this.subjectId,
@@ -1455,6 +1498,8 @@ class _AddPrerequisiteRow extends StatefulWidget {
 
 class _AddPrerequisiteRowState extends State<_AddPrerequisiteRow> {
   String? _selectedPrereqId;
+  // 0 = Prerequisite, 1 = Corequisite
+  int _requisiteType = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -1466,46 +1511,84 @@ class _AddPrerequisiteRowState extends State<_AddPrerequisiteRow> {
     final effectiveSelectedId =
         candidateIds.contains(_selectedPrereqId) ? _selectedPrereqId : null;
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: effectiveSelectedId,
-            isExpanded: true,
-            hint: const Text('Select Prerequisite Subject'),
-            decoration: const InputDecoration(
-              isDense: true,
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            ),
-            items: widget.candidates.map((s) {
-              return DropdownMenuItem(
-                value: s.subjectId,
-                child: Text(
-                  '${s.subjectCode} - ${s.subjectTitle}',
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              );
-            }).toList(),
-            onChanged: (v) => setState(() => _selectedPrereqId = v),
+        // Subject picker
+        DropdownButtonFormField<String>(
+          key: ValueKey(effectiveSelectedId),
+          initialValue: effectiveSelectedId,
+          isExpanded: true,
+          hint: const Text('Select Subject'),
+          decoration: const InputDecoration(
+            isDense: true,
+            border: OutlineInputBorder(),
+            labelText: 'Subject',
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           ),
+          items: widget.candidates.map((s) {
+            return DropdownMenuItem(
+              value: s.subjectId,
+              child: Text(
+                '${s.subjectCode} - ${s.subjectTitle}',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            );
+          }).toList(),
+          onChanged: (v) => setState(() => _selectedPrereqId = v),
         ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: _selectedPrereqId == null
-              ? null
-              : () {
-                  widget.onAdd(_selectedPrereqId!);
-                  setState(() => _selectedPrereqId = null);
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            elevation: 0,
-          ),
-          child: const Text('Add'),
+        const SizedBox(height: 8),
+        // Type picker + Add button
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<int>(
+                isExpanded: true,
+                value: _requisiteType,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                  labelText: 'Type',
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 0,
+                    child: Text('Prerequisite',
+                        overflow: TextOverflow.ellipsis, maxLines: 1),
+                  ),
+                  DropdownMenuItem(
+                    value: 1,
+                    child: Text('Corequisite',
+                        overflow: TextOverflow.ellipsis, maxLines: 1),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _requisiteType = v ?? 0),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _selectedPrereqId == null
+                  ? null
+                  : () {
+                      widget.onAdd(_selectedPrereqId!, _requisiteType);
+                      setState(() {
+                        _selectedPrereqId = null;
+                        _requisiteType = 0;
+                      });
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                elevation: 0,
+              ),
+              child: const Text('Add'),
+            ),
+          ],
         ),
       ],
     );

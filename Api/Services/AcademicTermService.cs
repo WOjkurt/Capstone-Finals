@@ -1,3 +1,4 @@
+using Api.Common;
 using Api.Domain.Enrollment;
 using Api.DTOs.Setup;
 using Api.Repositories;
@@ -134,13 +135,13 @@ public class AcademicTermService : IAcademicTermService
         bool hasClasses = await _context.Classes.AnyAsync(c => c.TermID == termId);
         if (hasClasses)
         {
-            throw new InvalidOperationException($"Cannot delete AcademicTerm '{term.SchoolYear}' (Sem {term.Semester}) because it is referenced by existing classes.");
+            throw new InvalidOperationException($"Cannot delete AcademicTerm '{TermLabel.Format(term.SchoolYear, term.Semester)}' because it is referenced by existing classes.");
         }
 
         bool hasApplications = await _context.EnrollmentApplications.AnyAsync(ea => ea.TermID == termId);
         if (hasApplications)
         {
-            throw new InvalidOperationException($"Cannot delete AcademicTerm '{term.SchoolYear}' (Sem {term.Semester}) because it is referenced by existing enrollment applications.");
+            throw new InvalidOperationException($"Cannot delete AcademicTerm '{TermLabel.Format(term.SchoolYear, term.Semester)}' because it is referenced by existing enrollment applications.");
         }
 
         await _termRepository.DeleteAsync(termId);

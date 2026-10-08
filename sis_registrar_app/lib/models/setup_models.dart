@@ -64,12 +64,16 @@ class PrerequisiteModel {
   final String? prerequisiteSubjectCode;
   final String? prerequisiteSubjectTitle;
 
+  /// 0 = Prerequisite, 1 = Corequisite. Defaults to 0 when the server omits the field.
+  final int requisiteType;
+
   const PrerequisiteModel({
     required this.prerequisiteId,
     required this.subjectId,
     required this.prerequisiteSubjectId,
     this.prerequisiteSubjectCode,
     this.prerequisiteSubjectTitle,
+    this.requisiteType = 0,
   });
 
   factory PrerequisiteModel.fromJson(Map<String, dynamic> json) {
@@ -82,8 +86,11 @@ class PrerequisiteModel {
           json['prerequisiteSubjectCode'] as String?,
       prerequisiteSubjectTitle:
           json['prerequisiteSubjectTitle'] as String?,
+      requisiteType: (json['requisiteType'] as num?)?.toInt() ?? 0,
     );
   }
+
+  bool get isCorequisite => requisiteType == 1;
 }
 
 class SubjectModel {

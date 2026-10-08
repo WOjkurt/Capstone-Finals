@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Domain.Enrollment;
 using Api.DTOs.Setup;
 using Api.Repositories;
@@ -237,9 +238,10 @@ public class SubjectService : ISubjectService
 
     public async Task<PrerequisiteDto> AddPrerequisiteAsync(CreatePrerequisiteDto dto)
     {
+        // ── 1. Self-link guard (applies to both types) ────────────────────────
         if (dto.SubjectID == dto.PrerequisiteSubjectID)
         {
-            throw new InvalidOperationException("A subject cannot be a prerequisite of itself.");
+            throw new InvalidOperationException("A subject cannot be linked to itself.");
         }
 
         var subject = await _subjectRepository.GetByIdAsync(dto.SubjectID);
@@ -254,17 +256,50 @@ public class SubjectService : ISubjectService
             throw new KeyNotFoundException($"Prerequisite subject with ID '{dto.PrerequisiteSubjectID}' was not found.");
         }
 
-        bool exists = await _context.SubjectPrerequisites
-            .AnyAsync(sp => sp.SubjectID == dto.SubjectID && sp.PrerequisiteSubjectID == dto.PrerequisiteSubjectID);
-        if (exists)
+        // ── 2. Exact-duplicate guard: same pair AND same type ─────────────────
+        bool exactDuplicate = await _context.SubjectPrerequisites
+            .AnyAsync(sp =>
+                sp.SubjectID == dto.SubjectID &&
+                sp.PrerequisiteSubjectID == dto.PrerequisiteSubjectID &&
+                sp.RequisiteType == dto.RequisiteType);
+        if (exactDuplicate)
         {
-            throw new InvalidOperationException($"Prerequisite relationship already exists between '{subject.SubjectCode}' and '{prereqSubject.SubjectCode}'.");
+            var typeLabel = dto.RequisiteType == RequisiteTypeConstants.Prerequisite
+                ? "prerequisite"
+                : "corequisite";
+            throw new InvalidOperationException(
+                $"A {typeLabel} relationship already exists between '{subject.SubjectCode}' and '{prereqSubject.SubjectCode}'.");
         }
 
-        bool circular = await IsReachableAsync(dto.PrerequisiteSubjectID, dto.SubjectID);
-        if (circular)
+        // ── 3. Pair-conflict guard: same pair but opposite type ───────────────
+        bool oppositeExists = await _context.SubjectPrerequisites
+            .AnyAsync(sp =>
+                sp.SubjectID == dto.SubjectID &&
+                sp.PrerequisiteSubjectID == dto.PrerequisiteSubjectID &&
+                sp.RequisiteType != dto.RequisiteType);
+        if (oppositeExists)
         {
-            throw new InvalidOperationException($"Circular prerequisite detected: Subject '{prereqSubject.SubjectCode}' already requires Subject '{subject.SubjectCode}' directly or indirectly.");
+            var existingTypeLabel = dto.RequisiteType == RequisiteTypeConstants.Prerequisite
+                ? "corequisite"
+                : "prerequisite";
+            var newTypeLabel = dto.RequisiteType == RequisiteTypeConstants.Prerequisite
+                ? "prerequisite"
+                : "corequisite";
+            throw new InvalidOperationException(
+                $"Cannot add '{subject.SubjectCode}' → '{prereqSubject.SubjectCode}' as a {newTypeLabel}: " +
+                $"that pair already exists as a {existingTypeLabel}. Remove the existing row first.");
+        }
+
+        // ── 4. Circular-link guard: only for prerequisites (type 0) ──────────
+        //    Mutual corequisites (A coreq B and B coreq A) are explicitly allowed.
+        if (dto.RequisiteType == RequisiteTypeConstants.Prerequisite)
+        {
+            bool circular = await IsReachableViaPrerequisitesAsync(dto.PrerequisiteSubjectID, dto.SubjectID);
+            if (circular)
+            {
+                throw new InvalidOperationException(
+                    $"Circular prerequisite detected: '{prereqSubject.SubjectCode}' already requires '{subject.SubjectCode}' directly or indirectly.");
+            }
         }
 
         var prerequisite = new SubjectPrerequisite
@@ -319,7 +354,12 @@ public class SubjectService : ISubjectService
         }).ToList();
     }
 
-    private async Task<bool> IsReachableAsync(Guid startSubjectId, Guid targetSubjectId)
+    /// <summary>
+    /// BFS that only follows RequisiteType == Prerequisite (type 0) edges.
+    /// Returns true if <paramref name="targetSubjectId"/> is reachable from
+    /// <paramref name="startSubjectId"/> through the prerequisite graph.
+    /// </summary>
+    private async Task<bool> IsReachableViaPrerequisitesAsync(Guid startSubjectId, Guid targetSubjectId)
     {
         var visited = new HashSet<Guid>();
         var queue = new Queue<Guid>();
@@ -337,7 +377,7 @@ public class SubjectService : ISubjectService
             }
 
             var prereqsOfCurrent = await _context.SubjectPrerequisites
-                .Where(sp => sp.SubjectID == current)
+                .Where(sp => sp.SubjectID == current && sp.RequisiteType == RequisiteTypeConstants.Prerequisite)
                 .Select(sp => sp.PrerequisiteSubjectID)
                 .ToListAsync();
 

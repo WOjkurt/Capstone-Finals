@@ -1,4 +1,6 @@
 using Api.Auth;
+using Api.Common;
+using Api.Constants;
 using Api.Domain.Enrollment;
 using Api.Domain.IdentityAccess;
 using Api.DTOs.StudyLoad;
@@ -62,7 +64,7 @@ public class StudyLoadService : IStudyLoadService
             var prereqs = await _context.SubjectPrerequisites
                 .AsNoTracking()
                 .Include(sp => sp.PrerequisiteSubject)
-                .Where(sp => sp.SubjectID == subject.SubjectID && sp.RequisiteType == 0)
+                .Where(sp => sp.SubjectID == subject.SubjectID && sp.RequisiteType == RequisiteTypeConstants.Prerequisite)
                 .ToListAsync();
 
             var prereqMessages = new List<string>();
@@ -512,7 +514,7 @@ public class StudyLoadService : IStudyLoadService
         var prereqs = await _context.SubjectPrerequisites
             .AsNoTracking()
             .Include(sp => sp.PrerequisiteSubject)
-            .Where(sp => sp.SubjectID == subjectId && sp.RequisiteType == 0)
+            .Where(sp => sp.SubjectID == subjectId && sp.RequisiteType == RequisiteTypeConstants.Prerequisite)
             .ToListAsync();
 
         foreach (var sp in prereqs)
@@ -811,7 +813,7 @@ public class StudyLoadService : IStudyLoadService
         string termLabel = "N/A";
         if (sl.Class?.Term != null)
         {
-            termLabel = $"{sl.Class.Term.SchoolYear} (Sem {sl.Class.Term.Semester})";
+            termLabel = TermLabel.Format(sl.Class.Term.SchoolYear, sl.Class.Term.Semester);
         }
 
         decimal units = 0;
@@ -890,7 +892,7 @@ public class StudyLoadService : IStudyLoadService
             bool isCleared = await _clearanceService.IsClearedAsync(userId, priorTerm.TermID);
             if (!isCleared)
             {
-                string termLabel = $"{priorTerm.SchoolYear} (Sem {priorTerm.Semester})";
+                string termLabel = TermLabel.Format(priorTerm.SchoolYear, priorTerm.Semester);
                 throw new InvalidOperationException($"Cannot enroll: student has an unresolved clearance hold for {termLabel}.");
             }
         }
