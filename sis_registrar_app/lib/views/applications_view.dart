@@ -7,6 +7,7 @@ import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/edit_lrn_dialog.dart';
 
 class ApplicationsView extends StatefulWidget {
   const ApplicationsView({super.key});
@@ -755,6 +756,75 @@ class _ApplicationDetailDialog extends StatelessWidget {
                             Expanded(child: _buildInfoPair('Nationality', form?.nationality ?? '—')),
                             Expanded(child: _buildInfoPair('Mobile Number', form?.mobileNumber ?? '—')),
                             Expanded(child: _buildInfoPair('Previous Physical Student ID', form?.previousStudentID ?? 'None')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'LRN (Learner Reference Number)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        form?.lrn?.isNotEmpty == true
+                                            ? form!.lrn!
+                                            : 'No LRN recorded',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: form?.lrn?.isNotEmpty == true
+                                              ? const Color(0xFF0F172A)
+                                              : const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (detail.status == 1 || detail.status == 2)
+                                        TextButton.icon(
+                                          onPressed: () {
+                                            EditLrnDialog.showForApplication(
+                                              context,
+                                              applicationId: detail.applicationId,
+                                              applicantName: form?.fullName ?? 'Applicant',
+                                              currentLrn: form?.lrn,
+                                              onSaved: (_) {
+                                                context.read<ApplicationsBloc>().add(
+                                                      ViewApplicationDetail(detail.applicationId),
+                                                    );
+                                              },
+                                            );
+                                          },
+                                          icon: const Icon(Icons.edit_outlined, size: 14),
+                                          label: const Text('Edit LRN', style: TextStyle(fontSize: 12)),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        )
+                                      else
+                                        Tooltip(
+                                          message: detail.status == 4
+                                              ? 'Application already linked to student. Edit LRN in student profile instead.'
+                                              : 'Cannot edit LRN for rejected application.',
+                                          child: Icon(Icons.info_outline, size: 16, color: Colors.grey.shade400),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),

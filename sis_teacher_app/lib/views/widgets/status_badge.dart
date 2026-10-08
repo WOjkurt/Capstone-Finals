@@ -58,6 +58,21 @@ class StatusBadge extends StatelessWidget {
     );
   }
 
+  static Widget forLoadStatus(String status) {
+    final s = status.trim();
+    final lower = s.toLowerCase();
+    if (lower == 'enrolled' || lower == 'active' || lower == 'completed') {
+      return StatusBadge.success(label: s.isNotEmpty ? s : 'Enrolled');
+    } else if (lower.contains('pending')) {
+      return StatusBadge.pending(label: s.isNotEmpty ? s : 'Pending');
+    } else if (lower == 'dropped' || lower == 'failed') {
+      return StatusBadge.danger(label: s.isNotEmpty ? s : 'Dropped');
+    } else if (lower == 'withdrawn') {
+      return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Withdrawn');
+    }
+    return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Unknown');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(

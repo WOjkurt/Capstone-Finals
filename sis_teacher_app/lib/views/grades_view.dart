@@ -294,7 +294,7 @@ class _GradesViewState extends State<GradesView> {
           }
 
           if (state.lastBatchResult != null) {
-            _showBatchResultDialog(context, state.lastBatchResult!);
+            _showBatchResultDialog(context, state.lastBatchResult!, state.roster);
             context.read<GradesBloc>().add(ClearGradeSheetFeedbackEvent());
           }
         }
@@ -693,7 +693,9 @@ class _GradesViewState extends State<GradesView> {
     );
   }
 
-  void _showBatchResultDialog(BuildContext context, GradeBatchResultModel result) {
+  void _showBatchResultDialog(
+      BuildContext context, GradeBatchResultModel result,
+      [List<ClassRosterItemModel> roster = const []]) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -754,6 +756,13 @@ class _GradesViewState extends State<GradesView> {
                     separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (ctx, i) {
                       final f = result.failed[i];
+                      final student = roster
+                          .where((r) => r.studyLoadId == f.studyLoadId)
+                          .firstOrNull;
+                      final studentHeader = student != null
+                          ? student.displayName
+                          : 'Student (ID: ${f.studyLoadId})';
+
                       return Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
@@ -765,13 +774,17 @@ class _GradesViewState extends State<GradesView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'StudyLoad ID: ${f.studyLoadId}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF991B1B)),
+                              studentHeader,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF991B1B)),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             Text(
                               f.reason,
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D)),
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFF7F1D1D)),
                             ),
                           ],
                         ),
@@ -837,7 +850,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
   }
 
   void _initControllers() {
-    for (final r in widget.roster) {
+    for (final r in widget.roster.where((r) => r.isEnrolled)) {
       final g = widget.grades[r.studyLoadId];
       final midtermVal = g?.midtermGrade?.toStringAsFixed(2) ?? '';
       final finalVal = g?.finalGrade?.toStringAsFixed(2) ?? '';
@@ -892,7 +905,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
 
   int _countBatchReadyRows() {
     int count = 0;
-    for (final r in widget.roster) {
+    for (final r in widget.roster.where((r) => r.isEnrolled)) {
       if (_hasRowChanges(r.studyLoadId)) {
         count++;
       }
@@ -928,7 +941,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
   void _submitBatchAll() {
     final batchItems = <SubmitGradeBatchItemModel>[];
 
-    for (final r in widget.roster) {
+    for (final r in widget.roster.where((r) => r.isEnrolled)) {
       if (_hasRowChanges(r.studyLoadId)) {
         final g = widget.grades[r.studyLoadId];
         final isMidtermLocked = g?.midtermGrade != null;
@@ -968,6 +981,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
     final batchCount = _countBatchReadyRows();
 
     final filteredRoster = widget.roster.where((r) {
+      if (!r.isEnrolled) return false;
       if (_searchFilter.isEmpty) return true;
       return r.displayName.toLowerCase().contains(_searchFilter);
     }).toList();

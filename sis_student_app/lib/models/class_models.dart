@@ -245,4 +245,7 @@ class StudentScheduleItemModel {
     final valStr = isWhole ? units.toInt().toString() : units.toStringAsFixed(1);
     return '$valStr ${units == 1 ? 'Unit' : 'Units'}';
   }
+
+  bool get isEnrolled => loadStatus.trim().toLowerCase() == 'enrolled';
+  bool get isPending  => loadStatus.trim().toLowerCase() == 'pending';
 }

@@ -6,6 +6,7 @@ import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/student_study_load_dialog.dart';
 import 'widgets/initialize_clearance_dialog.dart';
+import 'widgets/edit_lrn_dialog.dart';
 import '../theme/app_theme.dart';
 
 class ClearanceView extends StatefulWidget {
@@ -200,6 +201,36 @@ class _ClearanceViewState extends State<ClearanceView> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilterChip(
+                    label: const Text('Missing LRN only', style: TextStyle(fontSize: 12)),
+                    selected: data.missingLrnOnly,
+                    onSelected: (selected) {
+                      context
+                          .read<ClearanceBloc>()
+                          .add(ToggleMissingLrnFilterEvent(selected));
+                    },
+                    selectedColor: const Color(0xFFFEF3C7),
+                    checkmarkColor: const Color(0xFFD97706),
+                    labelStyle: TextStyle(
+                      color: data.missingLrnOnly
+                          ? const Color(0xFFB45309)
+                          : const Color(0xFF475569),
+                      fontWeight:
+                          data.missingLrnOnly ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      side: BorderSide(
+                        color: data.missingLrnOnly
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -308,6 +339,36 @@ class _ClearanceViewState extends State<ClearanceView> {
                                     ),
                                   ),
                                 ],
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                if (s.hasLrn == false)
+                                  StatusBadge.noLrn(
+                                    onTap: () {
+                                      EditLrnDialog.showForStudent(
+                                        context,
+                                        userId: s.userId,
+                                        studentName: s.fullName,
+                                        currentLrn: s.lrn,
+                                        onSaved: (newLrn) {
+                                          context
+                                              .read<ClearanceBloc>()
+                                              .add(StudentLrnUpdatedEvent(s.userId, newLrn));
+                                        },
+                                      );
+                                    },
+                                  )
+                                else if (s.lrn != null && s.lrn!.isNotEmpty)
+                                  Text(
+                                    'LRN: ${s.lrn}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                               ],
                             ),
                           ],
@@ -425,10 +486,105 @@ class _ClearanceViewState extends State<ClearanceView> {
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          if (student.hasLrn == false)
+                            StatusBadge.noLrn(
+                              onTap: () {
+                                EditLrnDialog.showForStudent(
+                                  context,
+                                  userId: student.userId,
+                                  studentName: student.fullName,
+                                  currentLrn: student.lrn,
+                                  onSaved: (newLrn) {
+                                    context
+                                        .read<ClearanceBloc>()
+                                        .add(StudentLrnUpdatedEvent(student.userId, newLrn));
+                                  },
+                                );
+                              },
+                            )
+                          else if (student.lrn != null && student.lrn!.isNotEmpty)
+                            InkWell(
+                              onTap: () {
+                                EditLrnDialog.showForStudent(
+                                  context,
+                                  userId: student.userId,
+                                  studentName: student.fullName,
+                                  currentLrn: student.lrn,
+                                  onSaved: (newLrn) {
+                                    context
+                                        .read<ClearanceBloc>()
+                                        .add(StudentLrnUpdatedEvent(student.userId, newLrn));
+                                  },
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'LRN: ${student.lrn}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.edit_outlined,
+                                        size: 13, color: Colors.white70),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.badge_outlined, size: 16),
+                  label: const Text('Edit LRN'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white70),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    EditLrnDialog.showForStudent(
+                      context,
+                      userId: student.userId,
+                      studentName: student.fullName,
+                      currentLrn: student.lrn,
+                      onSaved: (newLrn) {
+                        context
+                            .read<ClearanceBloc>()
+                            .add(StudentLrnUpdatedEvent(student.userId, newLrn));
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.add_moderator_outlined, size: 16),
                   label: const Text('Initialize Clearance'),

@@ -7,8 +7,21 @@ import '../utils/error_handler.dart';
 
 String _extractMessage(String body) {
   try {
-    final j = jsonDecode(body) as Map<String, dynamic>;
-    return (j['message'] ?? j['error'] ?? body).toString();
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) {
+      if (decoded['message'] != null) return decoded['message'].toString();
+      if (decoded['error'] != null) return decoded['error'].toString();
+      if (decoded['detail'] != null) return decoded['detail'].toString();
+      if (decoded['title'] != null) return decoded['title'].toString();
+      if (decoded['errors'] != null && decoded['errors'] is Map) {
+        final errMap = decoded['errors'] as Map;
+        final firstList = errMap.values.firstWhere((v) => v is List && v.isNotEmpty, orElse: () => null);
+        if (firstList != null && (firstList as List).isNotEmpty) {
+          return firstList.first.toString();
+        }
+      }
+    }
+    return body;
   } catch (_) {
     return body;
   }
@@ -124,9 +137,31 @@ class UserSearchRepository {
   final AuthService _auth;
   UserSearchRepository(this._auth);
 
-  Future<List<UserSearchResultModel>> search(
-      {String? query, int? role}) async {
+  Future<List<UserSearchResultModel>> search({
+    String? query,
+    int? role,
+    bool? missingLrn,
+    int? programId,
+  }) async {
     final headers = await _auth.getAuthHeaders();
+    if (role == null || role == 5 || missingLrn == true) {
+      final params = <String, String>{};
+      if (query != null && query.trim().isNotEmpty) params['q'] = query.trim();
+      if (missingLrn != null) params['missingLrn'] = missingLrn.toString();
+      if (programId != null) params['programId'] = programId.toString();
+      final uri = Uri.parse('$baseUrl/api/students/search')
+          .replace(queryParameters: params.isNotEmpty ? params : null);
+      final res = await http.get(uri, headers: headers);
+      if (res.statusCode != 200) {
+        throw ApiException(
+            statusCode: res.statusCode, message: _extractMessage(res.body));
+      }
+      return (jsonDecode(res.body) as List)
+          .map((e) =>
+              UserSearchResultModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+
     final params = <String, String>{};
     if (query != null && query.isNotEmpty) params['search'] = query;
     if (role != null) params['role'] = role.toString();
@@ -141,5 +176,18 @@ class UserSearchRepository {
         .map((e) =>
             UserSearchResultModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<void> updateStudentLrn(String userId, String? lrn) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/UserDetails/$userId/lrn'),
+      headers: headers,
+      body: jsonEncode({'lrn': lrn}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
   }
 }

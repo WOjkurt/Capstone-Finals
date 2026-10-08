@@ -29,6 +29,17 @@ class InitializeClearanceEvent extends ClearanceEvent {
   InitializeClearanceEvent({required this.termId, this.isCleared = false});
 }
 
+class ToggleMissingLrnFilterEvent extends ClearanceEvent {
+  final bool missingLrnOnly;
+  ToggleMissingLrnFilterEvent(this.missingLrnOnly);
+}
+
+class StudentLrnUpdatedEvent extends ClearanceEvent {
+  final String userId;
+  final String? cleanLrn;
+  StudentLrnUpdatedEvent(this.userId, this.cleanLrn);
+}
+
 // States
 abstract class ClearanceState {}
 
@@ -44,6 +55,7 @@ class ClearanceStateData extends ClearanceState {
   final String? togglingTermId;
   final String? errorMessage;
   final String? successMessage;
+  final bool missingLrnOnly;
 
   ClearanceStateData({
     this.searchQuery = '',
@@ -55,6 +67,7 @@ class ClearanceStateData extends ClearanceState {
     this.togglingTermId,
     this.errorMessage,
     this.successMessage,
+    this.missingLrnOnly = false,
   });
 
   ClearanceStateData copyWith({
@@ -69,6 +82,7 @@ class ClearanceStateData extends ClearanceState {
     String? errorMessage,
     String? successMessage,
     bool clearMessages = false,
+    bool? missingLrnOnly,
   }) {
     return ClearanceStateData(
       searchQuery: searchQuery ?? this.searchQuery,
@@ -80,6 +94,7 @@ class ClearanceStateData extends ClearanceState {
       togglingTermId: clearToggling ? null : (togglingTermId ?? this.togglingTermId),
       errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
       successMessage: clearMessages ? null : (successMessage ?? this.successMessage),
+      missingLrnOnly: missingLrnOnly ?? this.missingLrnOnly,
     );
   }
 }
@@ -96,6 +111,8 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
     on<SelectStudentEvent>(_onSelectStudent);
     on<ToggleClearanceEvent>(_onToggleClearance);
     on<InitializeClearanceEvent>(_onInitializeClearance);
+    on<ToggleMissingLrnFilterEvent>(_onToggleMissingLrnFilter);
+    on<StudentLrnUpdatedEvent>(_onStudentLrnUpdated);
   }
 
   @override
@@ -121,8 +138,11 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
         clearMessages: true,
       ));
       try {
-        final results =
-            await _userRepo.search(query: event.query, role: 5);
+        final results = await _userRepo.search(
+          query: event.query,
+          role: 5,
+          missingLrn: current.missingLrnOnly ? true : null,
+        );
         emit(current.copyWith(
           searchQuery: event.query,
           isSearching: false,
@@ -139,6 +159,69 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
     });
 
     await completer.future;
+  }
+
+  Future<void> _onToggleMissingLrnFilter(
+      ToggleMissingLrnFilterEvent event, Emitter<ClearanceState> emit) async {
+    final current = state is ClearanceStateData
+        ? state as ClearanceStateData
+        : ClearanceStateData();
+
+    emit(current.copyWith(
+      missingLrnOnly: event.missingLrnOnly,
+      isSearching: true,
+      clearMessages: true,
+    ));
+
+    try {
+      final results = await _userRepo.search(
+        query: current.searchQuery,
+        role: 5,
+        missingLrn: event.missingLrnOnly ? true : null,
+      );
+      emit(current.copyWith(
+        missingLrnOnly: event.missingLrnOnly,
+        isSearching: false,
+        searchResults: results,
+      ));
+    } catch (e, st) {
+      emit(current.copyWith(
+        missingLrnOnly: event.missingLrnOnly,
+        isSearching: false,
+        errorMessage: getFriendlyErrorMessage(e, st),
+      ));
+    }
+  }
+
+  void _onStudentLrnUpdated(
+      StudentLrnUpdatedEvent event, Emitter<ClearanceState> emit) {
+    if (state is! ClearanceStateData) return;
+    final current = state as ClearanceStateData;
+
+    final updatedResults = current.searchResults.map((s) {
+      if (s.userId == event.userId) {
+        return s.copyWith(
+          lrn: event.cleanLrn,
+          clearLrn: event.cleanLrn == null || event.cleanLrn!.isEmpty,
+          hasLrn: event.cleanLrn != null && event.cleanLrn!.isNotEmpty,
+        );
+      }
+      return s;
+    }).toList();
+
+    UserSearchResultModel? updatedSelected = current.selectedStudent;
+    if (current.selectedStudent?.userId == event.userId) {
+      updatedSelected = current.selectedStudent!.copyWith(
+        lrn: event.cleanLrn,
+        clearLrn: event.cleanLrn == null || event.cleanLrn!.isEmpty,
+        hasLrn: event.cleanLrn != null && event.cleanLrn!.isNotEmpty,
+      );
+    }
+
+    emit(current.copyWith(
+      searchResults: updatedResults,
+      selectedStudent: updatedSelected,
+    ));
   }
 
   Future<void> _onSelectStudent(

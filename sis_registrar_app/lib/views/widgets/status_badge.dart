@@ -5,6 +5,7 @@ class StatusBadge extends StatelessWidget {
   final Color backgroundColor;
   final Color textColor;
   final IconData? icon;
+  final VoidCallback? onTap;
 
   const StatusBadge({
     super.key,
@@ -12,14 +13,26 @@ class StatusBadge extends StatelessWidget {
     required this.backgroundColor,
     required this.textColor,
     this.icon,
+    this.onTap,
   });
 
-  factory StatusBadge.pending({String label = 'Pending'}) {
+  factory StatusBadge.noLrn({String label = 'No LRN', VoidCallback? onTap}) {
+    return StatusBadge(
+      label: label,
+      backgroundColor: const Color(0xFFFEF3C7),
+      textColor: const Color(0xFF92400E),
+      icon: Icons.warning_amber_rounded,
+      onTap: onTap,
+    );
+  }
+
+  factory StatusBadge.pending({String label = 'Pending', VoidCallback? onTap}) {
     return StatusBadge(
       label: label,
       backgroundColor: const Color(0xFFFEF3C7),
       textColor: const Color(0xFF92400E),
       icon: Icons.access_time_rounded,
+      onTap: onTap,
     );
   }
 
@@ -58,9 +71,24 @@ class StatusBadge extends StatelessWidget {
     );
   }
 
+  static Widget forLoadStatus(String status) {
+    final s = status.trim();
+    final lower = s.toLowerCase();
+    if (lower == 'enrolled' || lower == 'active' || lower == 'completed') {
+      return StatusBadge.success(label: s.isNotEmpty ? s : 'Enrolled');
+    } else if (lower.contains('pending')) {
+      return StatusBadge.pending(label: s.isNotEmpty ? s : 'Pending');
+    } else if (lower == 'dropped' || lower == 'failed') {
+      return StatusBadge.danger(label: s.isNotEmpty ? s : 'Dropped');
+    } else if (lower == 'withdrawn') {
+      return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Withdrawn');
+    }
+    return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Unknown');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    Widget badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -85,5 +113,17 @@ class StatusBadge extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: badge,
+        ),
+      );
+    }
+
+    return badge;
   }
 }

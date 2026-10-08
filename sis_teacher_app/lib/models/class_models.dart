@@ -173,4 +173,23 @@ class ClassRosterItemModel {
       (studentName != null && studentName!.trim().isNotEmpty)
           ? studentName!.trim()
           : 'Unknown Student';
+
+  int get loadStatusInt {
+    switch (loadStatus.trim().toLowerCase()) {
+      case 'dropped':
+        return 2;
+      case 'withdrawn':
+        return 3;
+      case 'pending':
+        return 4;
+      case 'enrolled':
+      default:
+        return 1;
+    }
+  }
+
+  bool get isEnrolled => loadStatusInt == 1;
+  bool get isDropped => loadStatusInt == 2;
+  bool get isWithdrawn => loadStatusInt == 3;
+  bool get isPending => loadStatusInt == 4;
 }

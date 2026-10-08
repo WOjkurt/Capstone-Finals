@@ -1876,7 +1876,7 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                       ],
                     ),
                   ),
-          StatusBadge.success(label: item.loadStatus),
+                  StatusBadge.forLoadStatus(item.loadStatus),
                 ],
               ),
             );

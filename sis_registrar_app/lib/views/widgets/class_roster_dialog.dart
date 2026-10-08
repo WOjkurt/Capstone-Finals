@@ -4,6 +4,7 @@ import '../../models/class_models.dart';
 import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import 'status_badge.dart';
+import 'edit_lrn_dialog.dart';
 
 class ClassRosterDialog extends StatefulWidget {
   final ClassModel classItem;
@@ -258,21 +259,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
     }
   }
 
-  Widget _buildLoadBadge(String status) {
-    final s = status.trim();
-    final lower = s.toLowerCase();
-    if (lower == 'dropped') {
-      return StatusBadge.danger(label: 'Dropped');
-    } else if (lower == 'withdrawn') {
-      return StatusBadge(
-        label: 'Withdrawn',
-        backgroundColor: const Color(0xFFFEF3C7),
-        textColor: const Color(0xFFB45309),
-        icon: Icons.exit_to_app_rounded,
-      );
-    }
-    return StatusBadge.success(label: s.isNotEmpty ? s : 'Enrolled');
-  }
+  Widget _buildLoadBadge(String status) => StatusBadge.forLoadStatus(status);
 
   @override
   Widget build(BuildContext context) {
@@ -619,13 +606,73 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          item.displayName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                item.displayName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            if (item.hasLrn == false) ...[
+                              const SizedBox(width: 8),
+                              StatusBadge.noLrn(
+                                onTap: item.studentUserId != null
+                                    ? () => EditLrnDialog.showForStudent(
+                                          context,
+                                          userId: item.studentUserId!,
+                                          studentName: item.displayName,
+                                          currentLrn: item.lrn,
+                                          onSaved: (_) => _fetchRoster(),
+                                        )
+                                    : null,
+                              ),
+                            ] else if (item.lrn != null && item.lrn!.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: item.studentUserId != null
+                                    ? () => EditLrnDialog.showForStudent(
+                                          context,
+                                          userId: item.studentUserId!,
+                                          studentName: item.displayName,
+                                          currentLrn: item.lrn,
+                                          onSaved: (_) => _fetchRoster(),
+                                        )
+                                    : null,
+                                borderRadius: BorderRadius.circular(4),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                        color: const Color(0xFFCBD5E1)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'LRN: ${item.lrn}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF334155),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(Icons.edit_outlined,
+                                          size: 11, color: Color(0xFF64748B)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         if (item.studentUserId != null &&
                             item.studentUserId!.isNotEmpty)
@@ -651,7 +698,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
                         color: AppColors.primary,
                       ),
                     )
-                  else
+                  else if (!item.isPending)
                     PopupMenuButton<int>(
                       tooltip: 'Change Status',
                       icon: const Icon(

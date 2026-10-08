@@ -160,5 +160,53 @@ void main() {
       expect(rosterItem.studentName, isNull);
       expect(rosterItem.displayName, 'Unknown Student');
     });
+
+    test('correctly maps status strings to booleans', () {
+      const enrolled = ClassRosterItemModel(
+        studyLoadId: '1',
+        subjectCode: 'IT1',
+        subjectTitle: 'T',
+        className: 'C',
+        loadStatus: 'Enrolled',
+        termLabel: 'L',
+      );
+      expect(enrolled.isEnrolled, isTrue);
+      expect(enrolled.isPending, isFalse);
+      expect(enrolled.isDropped, isFalse);
+      expect(enrolled.isWithdrawn, isFalse);
+
+      const pending = ClassRosterItemModel(
+        studyLoadId: '2',
+        subjectCode: 'IT1',
+        subjectTitle: 'T',
+        className: 'C',
+        loadStatus: 'Pending',
+        termLabel: 'L',
+      );
+      expect(pending.isEnrolled, isFalse);
+      expect(pending.isPending, isTrue);
+
+      const dropped = ClassRosterItemModel(
+        studyLoadId: '3',
+        subjectCode: 'IT1',
+        subjectTitle: 'T',
+        className: 'C',
+        loadStatus: 'Dropped',
+        termLabel: 'L',
+      );
+      expect(dropped.isDropped, isTrue);
+      expect(dropped.isEnrolled, isFalse);
+
+      const withdrawn = ClassRosterItemModel(
+        studyLoadId: '4',
+        subjectCode: 'IT1',
+        subjectTitle: 'T',
+        className: 'C',
+        loadStatus: 'Withdrawn',
+        termLabel: 'L',
+      );
+      expect(withdrawn.isWithdrawn, isTrue);
+      expect(withdrawn.isEnrolled, isFalse);
+    });
   });
 }

@@ -26,7 +26,9 @@ class MockStaffRepository implements StaffRepository {
           ? 'Registrar'
           : request.role == 3
               ? 'Teacher'
-              : 'Program Head',
+              : request.role == 6
+                  ? 'College Head'
+                  : 'Program Head',
       firstname: request.firstname,
       lastname: request.lastname,
       employeeId: request.employeeId,
@@ -107,13 +109,17 @@ class MockStaffRepository implements StaffRepository {
           ? 'Registrar'
           : (request.role ?? current.role) == 3
               ? 'Teacher'
-              : 'Program Head',
+              : (request.role ?? current.role) == 6
+                  ? 'College Head'
+                  : 'Program Head',
       firstname: request.firstname ?? current.firstname,
       lastname: request.lastname ?? current.lastname,
       employeeId: request.employeeId ?? current.employeeId,
       positionId: request.positionId ?? current.positionId,
       positionName: current.positionName,
-      programId: request.programId ?? current.programId,
+      programId: (request.role ?? current.role) == 6
+          ? null
+          : (request.programId ?? current.programId),
       programCode: current.programCode,
       isRegular: request.isRegular ?? current.isRegular,
       isActive: current.isActive,
@@ -379,6 +385,61 @@ void main() {
 
       expect(staffBloc.state.errorMessage, isNotNull);
       expect(staffBloc.state.isSubmitting, false);
+    });
+
+    test('CreateStaffEvent with College Head (role 6) creates staff with roleName College Head', () async {
+      mockRepo.staff = [];
+      mockRepo.shouldThrow = false;
+
+      final req = CreateStaffRequest(
+        email: 'ch@dbtc-cebu.edu.ph',
+        firstname: 'College',
+        lastname: 'Head',
+        role: 6,
+        programId: null,
+      );
+
+      staffBloc.add(CreateStaffEvent(req));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(staffBloc.state.staffList.length, 1);
+      final created = staffBloc.state.staffList.first;
+      expect(created.role, 6);
+      expect(created.roleName, 'College Head');
+      expect(created.programId, isNull);
+    });
+
+    test('UpdateStaffEvent to College Head (role 6) updates role and roleName', () async {
+      final initialStaff = StaffModel(
+        userId: 'u1',
+        firebaseUid: 'fb1',
+        email: 'ph@dbtc-cebu.edu.ph',
+        role: 4,
+        roleName: 'Program Head',
+        firstname: 'Prog',
+        lastname: 'Head',
+        programId: 1,
+        isRegular: true,
+        isActive: true,
+        createdAt: DateTime.now(),
+      );
+      mockRepo.staff = [initialStaff];
+      mockRepo.shouldThrow = false;
+
+      staffBloc.add(LoadStaffList());
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      final updateReq = UpdateStaffRequest(
+        role: 6,
+        programId: null,
+      );
+      staffBloc.add(UpdateStaffEvent('u1', updateReq));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      final updated = staffBloc.state.staffList.first;
+      expect(updated.role, 6);
+      expect(updated.roleName, 'College Head');
+      expect(updated.programId, isNull);
     });
   });
 

@@ -272,6 +272,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                 DropdownMenuItem(value: 2, child: Text('Registrar')),
                                 DropdownMenuItem(value: 3, child: Text('Teacher')),
                                 DropdownMenuItem(value: 4, child: Text('Program Head')),
+                                DropdownMenuItem(value: 6, child: Text('College Head')),
                               ],
                               onChanged: (val) {
                                 if (val != null) {
@@ -506,6 +507,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                 DropdownMenuItem(value: 2, child: Text('Registrar')),
                                 DropdownMenuItem(value: 3, child: Text('Teacher')),
                                 DropdownMenuItem(value: 4, child: Text('Program Head')),
+                                DropdownMenuItem(value: 6, child: Text('College Head')),
                               ],
                               onChanged: (val) {
                                 if (val != null) {
@@ -775,6 +777,10 @@ class _StaffManagementViewState extends State<StaffManagementView> {
         bg = const Color(0xFFE0E7FF);
         fg = const Color(0xFF3730A3);
         break;
+      case 'college head':
+        bg = const Color(0xFFCCFBF1);
+        fg = const Color(0xFF0F766E);
+        break;
       case 'teacher':
         bg = const Color(0xFFFEF3C7);
         fg = const Color(0xFFB45309);
@@ -874,7 +880,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
               PageHeader(
                 title: 'Staff Management',
                 subtitle:
-                    'Create and manage accounts for Registrars, Teachers, and Program Heads.',
+                    'Create and manage accounts for Registrars, Teachers, Program Heads, and College Heads.',
                 action: ElevatedButton.icon(
                   onPressed: () => _openAddStaffDialog(context),
                   style: ElevatedButton.styleFrom(

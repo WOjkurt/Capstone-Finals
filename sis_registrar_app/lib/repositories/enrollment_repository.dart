@@ -8,8 +8,21 @@ import '../utils/error_handler.dart';
 
 String _extractMessage(String body) {
   try {
-    final j = jsonDecode(body) as Map<String, dynamic>;
-    return (j['message'] ?? j['error'] ?? body).toString();
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) {
+      if (decoded['message'] != null) return decoded['message'].toString();
+      if (decoded['error'] != null) return decoded['error'].toString();
+      if (decoded['detail'] != null) return decoded['detail'].toString();
+      if (decoded['title'] != null) return decoded['title'].toString();
+      if (decoded['errors'] != null && decoded['errors'] is Map) {
+        final errMap = decoded['errors'] as Map;
+        final firstList = errMap.values.firstWhere((v) => v is List && v.isNotEmpty, orElse: () => null);
+        if (firstList != null && (firstList as List).isNotEmpty) {
+          return firstList.first.toString();
+        }
+      }
+    }
+    return body;
   } catch (_) {
     return body;
   }
@@ -109,6 +122,16 @@ class EnrollmentRepository {
         body: jsonEncode({'email': email}));
     if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> updateApplicationLrn(String id, String? lrn) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/EnrollmentApplications/$id/lrn'),
+      headers: headers,
+      body: jsonEncode({'lrn': lrn}),
+    );
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 }
 

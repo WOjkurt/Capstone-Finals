@@ -142,6 +142,8 @@ class ClassRosterItemModel {
   final String? teacherName;
   final String loadStatus;
   final String termLabel;
+  final String? lrn;
+  final bool? hasLrn;
 
   const ClassRosterItemModel({
     required this.studyLoadId,
@@ -153,9 +155,14 @@ class ClassRosterItemModel {
     this.teacherName,
     required this.loadStatus,
     required this.termLabel,
+    this.lrn,
+    this.hasLrn,
   });
 
   factory ClassRosterItemModel.fromJson(Map<String, dynamic> json) {
+    final rawLrn = json['lrn'] as String? ?? json['LRN'] as String?;
+    final rawHasLrn = json['hasLrn'] as bool? ?? json['HasLrn'] as bool?;
+
     return ClassRosterItemModel(
       studyLoadId: json['studyLoadId'] as String? ?? json['studyLoadID'] as String? ?? '',
       studentUserId: json['studentUserId'] as String? ?? json['studentUserID'] as String?,
@@ -164,8 +171,10 @@ class ClassRosterItemModel {
       subjectTitle: json['subjectTitle'] as String? ?? '',
       className: json['className'] as String? ?? '',
       teacherName: json['teacherName'] as String?,
-      loadStatus: json['loadStatus'] as String? ?? '',
+      loadStatus: json['loadStatus']?.toString() ?? '',
       termLabel: json['termLabel'] as String? ?? '',
+      lrn: rawLrn,
+      hasLrn: rawHasLrn ?? (rawLrn != null && rawLrn.isNotEmpty),
     );
   }
 
@@ -180,6 +189,8 @@ class ClassRosterItemModel {
         return 2;
       case 'withdrawn':
         return 3;
+      case 'pending':
+        return 4;
       case 'enrolled':
       default:
         return 1;
@@ -189,4 +200,5 @@ class ClassRosterItemModel {
   bool get isEnrolled => loadStatusInt == 1;
   bool get isDropped => loadStatusInt == 2;
   bool get isWithdrawn => loadStatusInt == 3;
+  bool get isPending => loadStatusInt == 4;
 }

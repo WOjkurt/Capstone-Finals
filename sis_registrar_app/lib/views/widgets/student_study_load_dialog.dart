@@ -5,6 +5,7 @@ import '../../models/grading_models.dart';
 import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import 'status_badge.dart';
+import 'edit_lrn_dialog.dart';
 
 class StudentStudyLoadDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -44,10 +45,14 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
   bool _isLoading = true;
   String? _error;
   String? _updatingStudyLoadId;
+  late String? _currentLrn;
+  late bool? _hasLrn;
 
   @override
   void initState() {
     super.initState();
+    _currentLrn = widget.student.lrn;
+    _hasLrn = widget.student.hasLrn;
     _fetchStudyLoads();
   }
 
@@ -255,21 +260,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
     }
   }
 
-  Widget _buildLoadBadge(String status) {
-    final s = status.trim();
-    final lower = s.toLowerCase();
-    if (lower == 'dropped') {
-      return StatusBadge.danger(label: 'Dropped');
-    } else if (lower == 'withdrawn') {
-      return StatusBadge(
-        label: 'Withdrawn',
-        backgroundColor: const Color(0xFFFEF3C7),
-        textColor: const Color(0xFFB45309),
-        icon: Icons.exit_to_app_rounded,
-      );
-    }
-    return StatusBadge.success(label: s.isNotEmpty ? s : 'Enrolled');
-  }
+  Widget _buildLoadBadge(String status) => StatusBadge.forLoadStatus(status);
 
   @override
   Widget build(BuildContext context) {
@@ -305,13 +296,83 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.student.fullName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.student.fullName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (_hasLrn == false) ...[
+                            const SizedBox(width: 8),
+                            StatusBadge.noLrn(
+                              onTap: () {
+                                EditLrnDialog.showForStudent(
+                                  context,
+                                  userId: widget.student.userId,
+                                  studentName: widget.student.fullName,
+                                  currentLrn: _currentLrn,
+                                  onSaved: (newLrn) {
+                                    setState(() {
+                                      _currentLrn = newLrn;
+                                      _hasLrn = newLrn != null && newLrn.isNotEmpty;
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ] else if (_currentLrn != null && _currentLrn!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                EditLrnDialog.showForStudent(
+                                  context,
+                                  userId: widget.student.userId,
+                                  studentName: widget.student.fullName,
+                                  currentLrn: _currentLrn,
+                                  onSaved: (newLrn) {
+                                    setState(() {
+                                      _currentLrn = newLrn;
+                                      _hasLrn = newLrn != null && newLrn.isNotEmpty;
+                                    });
+                                  },
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: const Color(0xFFCBD5E1)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'LRN: $_currentLrn',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.edit_outlined,
+                                        size: 11, color: Color(0xFF64748B)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -529,7 +590,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                         color: AppColors.primary,
                       ),
                     )
-                  else
+                  else if (!load.isPending)
                     PopupMenuButton<int>(
                       tooltip: 'Change Status',
                       icon: const Icon(

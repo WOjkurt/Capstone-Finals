@@ -690,6 +690,8 @@ class _ClassDetailDialogState extends State<_ClassDetailDialog> {
                 BlocBuilder<ClassesBloc, ClassesState>(
                   builder: (context, state) {
                     if (state is ClassesLoaded && !state.isRosterLoading) {
+                      final enrolledCount =
+                          state.roster.where((r) => r.isEnrolled).length;
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
@@ -697,7 +699,7 @@ class _ClassDetailDialogState extends State<_ClassDetailDialog> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '${state.roster.length}',
+                          '$enrolledCount',
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -985,16 +987,6 @@ class _ClassDetailDialogState extends State<_ClassDetailDialog> {
     );
   }
 
-  static Widget _buildLoadStatusBadge(String status) {
-    final s = status.trim();
-    final lower = s.toLowerCase();
-    if (lower == 'enrolled' || lower == 'active' || lower == 'completed') {
-      return StatusBadge.success(label: s.isNotEmpty ? s : 'Enrolled');
-    } else if (lower == 'dropped' || lower == 'failed' || lower == 'withdrawn') {
-      return StatusBadge.danger(label: s);
-    } else if (lower.contains('pending')) {
-      return StatusBadge.pending(label: s);
-    }
-    return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Enrolled');
-  }
+  static Widget _buildLoadStatusBadge(String status) =>
+      StatusBadge.forLoadStatus(status);
 }
