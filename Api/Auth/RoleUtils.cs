@@ -7,10 +7,11 @@ public static class RoleUtils
     public const int Teacher = 3;
     public const int ProgramHead = 4;
     public const int Student = 5;
+    public const int CollegeHead = 6;
 
     public static bool IsValidRole(int role)
     {
-        return role is >= Admin and <= Student;
+        return role is >= Admin and <= CollegeHead;
     }
 
     public static string GetRoleName(int role)
@@ -22,6 +23,7 @@ public static class RoleUtils
             Teacher => "Teacher",
             ProgramHead => "Program Head",
             Student => "Student",
+            CollegeHead => "College Head",
             _ => "Unknown"
         };
     }

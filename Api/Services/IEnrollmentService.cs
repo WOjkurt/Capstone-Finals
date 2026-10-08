@@ -14,4 +14,5 @@ public interface IEnrollmentService
     Task<EnrollmentApplicationResponseDto?> GetApplicationByIdAsync(Guid applicationId);
     Task<List<EnrollmentApplicationResponseDto>> GetApprovedApplicationsAsync();
     Task<List<EnrollmentApplicationResponseDto>> GetApplicationsAsync(int? status = null);
+    Task<EnrollmentApplicationResponseDto> UpdateApplicationLrnAsync(Guid applicationId, string? rawLrn);
 }

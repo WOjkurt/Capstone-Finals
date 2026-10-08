@@ -415,6 +415,9 @@ namespace Api.Migrations
 
                     b.HasIndex("ApplicationID");
 
+                    b.HasIndex("LRN")
+                        .HasDatabaseName("IX_EnrollmentForms_LRN");
+
                     b.ToTable("EnrollmentForms");
                 });
 
@@ -459,6 +462,18 @@ namespace Api.Migrations
                     b.Property<Guid?>("CreatedByUserID")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ForcedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ForcedReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsForced")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("LoadStatus")
                         .HasColumnType("integer");
 
@@ -470,6 +485,8 @@ namespace Api.Migrations
                     b.HasIndex("ClassID");
 
                     b.HasIndex("CreatedByUserID");
+
+                    b.HasIndex("ForcedByUserID");
 
                     b.HasIndex("UserID");
 
@@ -747,6 +764,11 @@ namespace Api.Migrations
 
                     b.HasKey("UserDetailID");
 
+                    b.HasIndex("LRN")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_UserDetails_LRN")
+                        .HasFilter("\"LRN\" IS NOT NULL");
+
                     b.HasIndex("PositionID");
 
                     b.HasIndex("ProgramID");
@@ -885,6 +907,11 @@ namespace Api.Migrations
                         .HasForeignKey("CreatedByUserID")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Api.Domain.IdentityAccess.User", "ForcedByUser")
+                        .WithMany()
+                        .HasForeignKey("ForcedByUserID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Api.Domain.IdentityAccess.User", "User")
                         .WithMany()
                         .HasForeignKey("UserID")
@@ -894,6 +921,8 @@ namespace Api.Migrations
                     b.Navigation("Class");
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("ForcedByUser");
 
                     b.Navigation("User");
                 });

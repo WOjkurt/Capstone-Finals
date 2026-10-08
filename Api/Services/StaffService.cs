@@ -40,7 +40,7 @@ public class StaffService : IStaffService
     {
         if (dto.Role is RoleUtils.Admin or RoleUtils.Student || !RoleUtils.IsValidRole(dto.Role))
         {
-            throw new InvalidOperationException("Invalid role. Only Registrar (2), Teacher (3), or Program Head (4) accounts can be created through staff management.");
+            throw new InvalidOperationException("Invalid role. Only Registrar (2), Teacher (3), Program Head (4), or College Head (6) accounts can be created through staff management.");
         }
 
         var email = dto.Email.Trim().ToLowerInvariant();
@@ -65,12 +65,13 @@ public class StaffService : IStaffService
             }
         }
 
-        if (dto.ProgramID.HasValue)
+        int? effectiveProgramId = dto.Role == RoleUtils.CollegeHead ? null : dto.ProgramID;
+        if (effectiveProgramId.HasValue)
         {
-            var prog = await _academicProgramRepository.GetByIdAsync(dto.ProgramID.Value);
+            var prog = await _academicProgramRepository.GetByIdAsync(effectiveProgramId.Value);
             if (prog == null)
             {
-                throw new KeyNotFoundException($"AcademicProgram with ID '{dto.ProgramID.Value}' was not found.");
+                throw new KeyNotFoundException($"AcademicProgram with ID '{effectiveProgramId.Value}' was not found.");
             }
         }
 
@@ -108,7 +109,7 @@ public class StaffService : IStaffService
             Lastname = dto.Lastname.Trim(),
             EmployeeID = dto.EmployeeID,
             PositionID = dto.PositionID,
-            ProgramID = dto.ProgramID,
+            ProgramID = effectiveProgramId,
             IsRegular = dto.IsRegular ?? true
         };
 
@@ -292,7 +293,7 @@ public class StaffService : IStaffService
         {
             if (dto.Role.Value is RoleUtils.Admin or RoleUtils.Student || !RoleUtils.IsValidRole(dto.Role.Value))
             {
-                throw new InvalidOperationException("Invalid role. Only Registrar (2), Teacher (3), or Program Head (4) roles can be assigned.");
+                throw new InvalidOperationException("Invalid role. Only Registrar (2), Teacher (3), Program Head (4), or College Head (6) roles can be assigned.");
             }
             effectiveRole = dto.Role.Value;
         }
@@ -330,16 +331,16 @@ public class StaffService : IStaffService
             // Program Head requires ProgramID
             var targetProgramId = dto.ProgramID.HasValue
                 ? (dto.ProgramID.Value > 0 ? dto.ProgramID.Value : (int?)null)
-                : userDetails.ProgramID;
+                : (user.Role == RoleUtils.CollegeHead ? (int?)null : userDetails.ProgramID);
             if (!targetProgramId.HasValue || targetProgramId.Value <= 0)
             {
                 throw new InvalidOperationException("Academic program is required for Program Head accounts.");
             }
             userDetails.ProgramID = targetProgramId.Value;
         }
-        else if (effectiveRole == RoleUtils.Registrar)
+        else if (effectiveRole == RoleUtils.Registrar || effectiveRole == RoleUtils.CollegeHead)
         {
-            // Registrar forces ProgramID to null
+            // Registrar and College Head force ProgramID to null
             userDetails.ProgramID = null;
         }
         else if (effectiveRole == RoleUtils.Teacher)
@@ -401,7 +402,7 @@ public class StaffService : IStaffService
 
         // Active-classes advisory warning (not a block) when moving away from a teaching role
         bool wasTeachingRole = user.Role is RoleUtils.Teacher or RoleUtils.ProgramHead;
-        bool isMovingAwayFromTeaching = wasTeachingRole && effectiveRole == RoleUtils.Registrar;
+        bool isMovingAwayFromTeaching = wasTeachingRole && (effectiveRole == RoleUtils.Registrar || effectiveRole == RoleUtils.CollegeHead);
         if (isMovingAwayFromTeaching)
         {
             var assignedClassCount = await _context.Classes.CountAsync(c => c.UserID == user.UserID);

@@ -9,4 +9,8 @@ public class ProposedBlockItemDto
     public string? ClassName { get; set; }
     public required string MatchType { get; set; } // "auto" | "multiple_found" | "no_class_offered"
     public List<ClassOptionDto>? Options { get; set; }
+    public string PrerequisiteStatus { get; set; } = "met"; // "met" | "unmet"
+    public List<string> PrerequisiteMessages { get; set; } = new();
+    public bool AlreadyPassed { get; set; }
+    public bool AlreadyEnrolledThisTerm { get; set; }
 }

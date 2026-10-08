@@ -6,6 +6,7 @@ using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -23,7 +24,8 @@ public class UserDetailsControllerTests
         _scopingServiceMock = new Mock<IProgramScopingService>();
         _controller = new UserDetailsController(
             _userDetailsRepoMock.Object,
-            _scopingServiceMock.Object);
+            _scopingServiceMock.Object,
+            NullLogger<UserDetailsController>.Instance);
     }
 
     private void SetHttpContext(int? role, Guid? userId = null)

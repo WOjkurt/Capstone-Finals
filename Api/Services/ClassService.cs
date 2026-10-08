@@ -92,7 +92,7 @@ public class ClassService : IClassService
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var enrollmentCounts = await _context.StudyLoads
-            .Where(sl => classIds.Contains(sl.ClassID))
+            .Where(sl => classIds.Contains(sl.ClassID) && sl.LoadStatus == StudyLoadStatus.Enrolled)
             .GroupBy(sl => sl.ClassID)
             .Select(g => new { ClassId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ClassId, x => x.Count);
@@ -129,7 +129,7 @@ public class ClassService : IClassService
         }
 
         var schedules = await _scheduleRepository.GetByClassIdAsync(classId);
-        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId);
+        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId && sl.LoadStatus == StudyLoadStatus.Enrolled);
 
         string? teacherName = null;
         if (entity.UserID.HasValue)
@@ -160,7 +160,7 @@ public class ClassService : IClassService
         await _classRepository.UpdateAsync(entity);
 
         var schedules = await _scheduleRepository.GetByClassIdAsync(classId);
-        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId);
+        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId && sl.LoadStatus == StudyLoadStatus.Enrolled);
 
         string? teacherName = null;
         if (entity.UserID.HasValue)
@@ -190,7 +190,7 @@ public class ClassService : IClassService
         await _classRepository.UpdateAsync(entity);
 
         var schedules = await _scheduleRepository.GetByClassIdAsync(classId);
-        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId);
+        int enrolledCount = await _context.StudyLoads.CountAsync(sl => sl.ClassID == classId && sl.LoadStatus == StudyLoadStatus.Enrolled);
 
         string? teacherName = null;
         if (entity.UserID.HasValue)

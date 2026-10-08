@@ -85,11 +85,12 @@ public class GradeClearancesController : ControllerBase
         bool isSelf = authenticatedUserId == userId;
         bool isStaff = authenticatedUserRole == RoleUtils.Registrar ||
                        authenticatedUserRole == RoleUtils.Admin ||
-                       authenticatedUserRole == RoleUtils.ProgramHead;
+                       authenticatedUserRole == RoleUtils.ProgramHead ||
+                       authenticatedUserRole == RoleUtils.CollegeHead;
 
         if (!isSelf && !isStaff)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. You can only view your own grade clearances unless you are a Registrar, Admin, or Program Head." });
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. You can only view your own grade clearances unless you are a Registrar, Admin, Program Head, or College Head." });
         }
 
         if (authenticatedUserRole == RoleUtils.ProgramHead && !isSelf)

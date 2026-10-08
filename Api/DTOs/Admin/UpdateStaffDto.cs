@@ -12,7 +12,7 @@ public class UpdateStaffDto
     [RegularExpression(@"^[\p{L}\p{M}\s\-'’\.]+$")]
     public string? Lastname { get; set; }
 
-    [Range(1, 5)]
+    [Range(1, 6)]
     public int? Role { get; set; }
 
     [Range(1, int.MaxValue)]

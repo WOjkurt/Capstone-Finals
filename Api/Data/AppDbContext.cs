@@ -68,6 +68,11 @@ public class AppDbContext : DbContext
                 .IsUnique()
                 .HasDatabaseName("UQ_UserDetails_UserID");
 
+            entity.HasIndex(ud => ud.LRN)
+                .IsUnique()
+                .HasFilter("\"LRN\" IS NOT NULL")
+                .HasDatabaseName("UQ_UserDetails_LRN");
+
             entity.HasOne(ud => ud.User)
                 .WithOne()
                 .HasForeignKey<UserDetails>(ud => ud.UserID)
@@ -161,6 +166,9 @@ public class AppDbContext : DbContext
                 .HasForeignKey(ef => ef.ApplicationID)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.HasIndex(ef => ef.LRN)
+                .HasDatabaseName("IX_EnrollmentForms_LRN");
+
             // Multi-select checkbox fields stored as jsonb string arrays.
             entity.Property(ef => ef.FamilyMedicalConditionsSelected)
                 .HasColumnType("jsonb");
@@ -239,8 +247,19 @@ public class AppDbContext : DbContext
                 .HasForeignKey(sl => sl.CreatedByUserID)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            entity.HasOne(sl => sl.ForcedByUser)
+                .WithMany()
+                .HasForeignKey(sl => sl.ForcedByUserID)
+                .OnDelete(DeleteBehavior.SetNull);
+
             entity.Property(sl => sl.CreatedAt)
                 .HasDefaultValueSql("NOW()");
+
+            entity.Property(sl => sl.IsForced)
+                .HasDefaultValue(false);
+
+            entity.Property(sl => sl.ForcedReason)
+                .HasMaxLength(Api.Constants.ValidationConstants.NotesMax);
         });
 
         // ── Grade ────────────────────────────────────────────────────

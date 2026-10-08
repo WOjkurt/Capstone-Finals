@@ -93,6 +93,10 @@ public class StudyLoadsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPatch("{id:guid}/status")]
@@ -121,7 +125,7 @@ public class StudyLoadsController : ControllerBase
         }
 
         bool isSelf = authUserId == userId;
-        bool isStaff = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin || authRole == RoleUtils.ProgramHead;
+        bool isStaff = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin || authRole == RoleUtils.ProgramHead || authRole == RoleUtils.CollegeHead;
 
         if (!isSelf && !isStaff)
         {
@@ -143,7 +147,8 @@ public class StudyLoadsController : ControllerBase
 
         try
         {
-            var loads = await _studyLoadService.GetByStudentAsync(userId, termId);
+            bool isStudentCaller = authRole == RoleUtils.Student;
+            var loads = await _studyLoadService.GetByStudentAsync(userId, termId, isStudentCaller, authRole);
             return Ok(loads);
         }
         catch (KeyNotFoundException ex)
@@ -168,11 +173,11 @@ public class StudyLoadsController : ControllerBase
             return NotFound(new { message = $"Class with ID '{classId}' was not found." });
         }
 
-        bool isRegistrarOrAdmin = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
+        bool isRegistrarOrAdminOrCollegeHead = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin || authRole == RoleUtils.CollegeHead;
         bool isTeacher = targetClass.UserID.HasValue && targetClass.UserID.Value == authUserId;
         bool isProgramHead = authRole == RoleUtils.ProgramHead;
 
-        if (!isRegistrarOrAdmin && !isTeacher && !isProgramHead)
+        if (!isRegistrarOrAdminOrCollegeHead && !isTeacher && !isProgramHead)
         {
             return Forbid();
         }
@@ -189,7 +194,8 @@ public class StudyLoadsController : ControllerBase
             }
         }
 
-        var loads = await _studyLoadService.GetByClassAsync(classId);
+        bool excludePending = authRole == RoleUtils.Teacher;
+        var loads = await _studyLoadService.GetByClassAsync(classId, excludePending, authRole);
         return Ok(loads);
     }
 }

@@ -6,6 +6,7 @@ using Api.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Api.Constants;
+using Api.Common;
 
 namespace Api.Services;
 
@@ -126,7 +127,15 @@ public class EnrollmentService : IEnrollmentService
             f.YearGraduated = Truncate(f.YearGraduated, ValidationConstants.DateStringMax, nameof(f.YearGraduated));
             f.PreviousCollege = Truncate(f.PreviousCollege, ValidationConstants.AddressMax, nameof(f.PreviousCollege));
             f.PreviousCourse = Truncate(f.PreviousCourse, ValidationConstants.AddressMax, nameof(f.PreviousCourse));
-            f.LRN = Truncate(f.LRN, ValidationConstants.ShortMax, nameof(f.LRN));
+            var lrnResult = LrnHelper.Normalize(f.LRN);
+            if (lrnResult.IsValid && lrnResult.Lrn != null)
+            {
+                f.LRN = lrnResult.Lrn;
+            }
+            else
+            {
+                f.LRN = Truncate(f.LRN, ValidationConstants.ShortMax, nameof(f.LRN));
+            }
             f.AcademicYear = Truncate(f.AcademicYear, ValidationConstants.DateStringMax, nameof(f.AcademicYear));
             f.IncomingCourse = Truncate(f.IncomingCourse, ValidationConstants.AddressMax, nameof(f.IncomingCourse));
             f.PreviousStudentID = Truncate(f.PreviousStudentID, ValidationConstants.ShortMax, nameof(f.PreviousStudentID));
@@ -296,7 +305,7 @@ public class EnrollmentService : IEnrollmentService
                 // ── Enrollment Metadata ─────────────────────────────────────
                 YearLevel = dto.Form.YearLevel,
                 StudentType = dto.Form.StudentType,
-                LRN = dto.Form.LRN,
+                LRN = LrnHelper.Normalize(dto.Form.LRN).IsValid ? LrnHelper.Normalize(dto.Form.LRN).Lrn : null,
                 AcademicYear = dto.Form.AcademicYear,
                 IncomingCourse = dto.Form.IncomingCourse,
                 PreviousStudentID = dto.Form.PreviousStudentID,
@@ -433,6 +442,21 @@ public class EnrollmentService : IEnrollmentService
             throw new InvalidOperationException($"Linked EnrollmentForm for application '{applicationId}' was not found.");
         }
 
+        string? studentLrn = null;
+        if (!string.IsNullOrWhiteSpace(form.LRN))
+        {
+            var lrnResult = LrnHelper.Normalize(form.LRN);
+            if (lrnResult.IsValid && lrnResult.Lrn != null)
+            {
+                var existingWithLrn = await _userDetailsRepository.GetByLrnAsync(lrnResult.Lrn);
+                if (existingWithLrn != null && existingWithLrn.UserID != user.UserID)
+                {
+                    throw new InvalidOperationException("This LRN is already assigned to another student.");
+                }
+                studentLrn = lrnResult.Lrn;
+            }
+        }
+
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -442,6 +466,7 @@ public class EnrollmentService : IEnrollmentService
                 UserID = user.UserID,
                 Firstname = form.FirstName,
                 Lastname = form.LastName,
+                LRN = studentLrn,
                 ProgramID = application.ProgramID,
                 StudentType = 1,   // New
                 StudentStatus = 1, // Enrolled
@@ -496,6 +521,38 @@ public class EnrollmentService : IEnrollmentService
         }
 
         return result;
+    }
+
+    public async Task<EnrollmentApplicationResponseDto> UpdateApplicationLrnAsync(Guid applicationId, string? rawLrn)
+    {
+        var application = await _applicationRepository.GetByIdAsync(applicationId);
+        if (application == null)
+        {
+            throw new KeyNotFoundException($"EnrollmentApplication with ID '{applicationId}' was not found.");
+        }
+
+        if (application.Status != EnrollmentApplicationStatus.Pending && application.Status != EnrollmentApplicationStatus.Approved)
+        {
+            throw new InvalidOperationException("LRN cannot be edited on an active or rejected application. Please edit the student's profile LRN instead.");
+        }
+
+        var lrnResult = LrnHelper.Normalize(rawLrn);
+        if (!lrnResult.IsValid)
+        {
+            throw new ArgumentException(lrnResult.ErrorMessage);
+        }
+
+        var form = await _formRepository.GetByApplicationIdAsync(applicationId);
+        if (form == null)
+        {
+            throw new InvalidOperationException($"Linked EnrollmentForm for application '{applicationId}' was not found.");
+        }
+
+        form.LRN = lrnResult.Lrn;
+        await _formRepository.UpdateAsync(form);
+
+        var updated = await GetApplicationByIdAsync(applicationId);
+        return updated!;
     }
 
     private async Task<EnrollmentApplicationResponseDto> MapToDtoAsync(EnrollmentApplication application)

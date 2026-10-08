@@ -21,7 +21,7 @@ public class CreateStaffDto
     public required string Lastname { get; set; }
 
     [Required]
-    [Range(1, 5)]
+    [Range(1, 6)]
     public int Role { get; set; }
 
     [Range(1, int.MaxValue)]

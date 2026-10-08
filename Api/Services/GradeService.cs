@@ -134,6 +134,12 @@ public class GradeService : IGradeService
         StudyLoad studyLoad,
         Guid authenticatedUserId)
     {
+        if (studyLoad.LoadStatus != StudyLoadStatus.Enrolled)
+        {
+            var statusText = StudyLoadStatus.GetDisplayText(studyLoad.LoadStatus);
+            throw new InvalidOperationException($"Cannot submit grade: study load is not actively enrolled (current status: {statusText}).");
+        }
+
         if (!midtermGrade.HasValue && !finalGrade.HasValue)
         {
             throw new InvalidOperationException("At least one grade field (MidtermGrade or FinalGrade) must be provided for submission.");
@@ -230,7 +236,8 @@ public class GradeService : IGradeService
         bool isAssignedTeacher = studyLoad.Class?.UserID.HasValue == true &&
                                  studyLoad.Class.UserID!.Value == authenticatedUserId;
         bool isRegistrarOrAdmin = authenticatedUserRole == RoleUtils.Registrar ||
-                                  authenticatedUserRole == RoleUtils.Admin;
+                                  authenticatedUserRole == RoleUtils.Admin ||
+                                  authenticatedUserRole == RoleUtils.CollegeHead;
         bool isProgramHead = authenticatedUserRole == RoleUtils.ProgramHead;
 
         // ── Case (c) — Staff (Registrar / Admin): pass through ──────────────────────────────────
@@ -316,7 +323,8 @@ public class GradeService : IGradeService
 
         bool isStaff = authenticatedUserRole == RoleUtils.Registrar ||
                        authenticatedUserRole == RoleUtils.Admin ||
-                       authenticatedUserRole == RoleUtils.ProgramHead;
+                       authenticatedUserRole == RoleUtils.ProgramHead ||
+                       authenticatedUserRole == RoleUtils.CollegeHead;
         bool isAssignedTeacher = targetClass.UserID.HasValue && targetClass.UserID.Value == authenticatedUserId;
 
         if (!isStaff && !isAssignedTeacher)
@@ -359,7 +367,8 @@ public class GradeService : IGradeService
         bool isSelf = authenticatedUserId == userId;
         bool isStaff = authenticatedUserRole == RoleUtils.Registrar ||
                        authenticatedUserRole == RoleUtils.Admin ||
-                       authenticatedUserRole == RoleUtils.ProgramHead;
+                       authenticatedUserRole == RoleUtils.ProgramHead ||
+                       authenticatedUserRole == RoleUtils.CollegeHead;
 
         if (!isSelf && !isStaff)
         {

@@ -4,6 +4,7 @@ using Api.DTOs.StudyLoad;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Api.Tests;
@@ -34,7 +35,7 @@ public class StudyLoadServiceClearanceTests : IDisposable
         _studyLoadRepo = new StudyLoadRepository(_context);
         _clearanceRepo = new GradeClearanceRepository(_context);
         _clearanceService = new GradeClearanceService(_context, _clearanceRepo);
-        _studyLoadService = new StudyLoadService(_context, _studyLoadRepo, _clearanceService);
+        _studyLoadService = new StudyLoadService(_context, _studyLoadRepo, _clearanceService, NullLogger<StudyLoadService>.Instance);
     }
 
     public void Dispose()

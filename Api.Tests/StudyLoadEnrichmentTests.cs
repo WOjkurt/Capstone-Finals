@@ -3,6 +3,7 @@ using Api.Domain.IdentityAccess;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -24,7 +25,7 @@ public class StudyLoadEnrichmentTests : IDisposable
         _context = new TestAppDbContext(options);
         _repo = new StudyLoadRepository(_context);
         _clearanceServiceMock = new Mock<IGradeClearanceService>();
-        _service = new StudyLoadService(_context, _repo, _clearanceServiceMock.Object);
+        _service = new StudyLoadService(_context, _repo, _clearanceServiceMock.Object, NullLogger<StudyLoadService>.Instance);
     }
 
     public void Dispose()

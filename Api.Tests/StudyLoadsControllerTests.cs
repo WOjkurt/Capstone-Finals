@@ -66,7 +66,7 @@ public class StudyLoadsControllerTests
         _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, bsitProgramId, "class"))
             .Returns(Task.CompletedTask);
 
-        _studyLoadServiceMock.Setup(s => s.GetByClassAsync(classId))
+        _studyLoadServiceMock.Setup(s => s.GetByClassAsync(classId, false, RoleUtils.ProgramHead))
             .ReturnsAsync(new List<StudyLoadResponseDto>());
 
         // Act
@@ -123,7 +123,7 @@ public class StudyLoadsControllerTests
         };
 
         _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(targetClass);
-        _studyLoadServiceMock.Setup(s => s.GetByClassAsync(classId))
+        _studyLoadServiceMock.Setup(s => s.GetByClassAsync(classId, false, RoleUtils.Admin))
             .ReturnsAsync(new List<StudyLoadResponseDto>());
 
         // Act
@@ -214,5 +214,106 @@ public class StudyLoadsControllerTests
         // Assert
         Assert.IsType<OkObjectResult>(result);
         _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetByClass_TeacherViewingRoster_ExcludesPendingLoads()
+    {
+        // Arrange
+        var teacherId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Teacher, teacherId);
+
+        var classId = Guid.NewGuid();
+        var targetClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            UserID = teacherId,
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 1, SubjectCode = "IT101", SubjectTitle = "Intro" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(targetClass);
+        _studyLoadServiceMock.Setup(s => s.GetByClassAsync(classId, true, RoleUtils.Teacher))
+            .ReturnsAsync(new List<StudyLoadResponseDto>());
+
+        // Act
+        var result = await _controller.GetByClass(classId);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+        _studyLoadServiceMock.Verify(s => s.GetByClassAsync(classId, true, RoleUtils.Teacher), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(RoleUtils.Registrar)]
+    [InlineData(RoleUtils.Admin)]
+    [InlineData(RoleUtils.ProgramHead)]
+    public async Task GetByClass_NonTeacherStaff_IncludesPendingLoads(int role)
+    {
+        // Arrange
+        var staffId = Guid.NewGuid();
+        SetHttpContext(role, staffId);
+
+        var classId = Guid.NewGuid();
+        var targetClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = 1, SubjectCode = "IT101", SubjectTitle = "Intro" }
+        };
+
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(targetClass);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(staffId, 1, "class"))
+            .Returns(Task.CompletedTask);
+        _studyLoadServiceMock.Setup(s => s.GetByClassAsync(classId, false, role))
+            .ReturnsAsync(new List<StudyLoadResponseDto>());
+
+        // Act
+        var result = await _controller.GetByClass(classId);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+        _studyLoadServiceMock.Verify(s => s.GetByClassAsync(classId, false, role), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetByStudent_StudentViewingSelf_PassesIsStudentCallerTrue()
+    {
+        // Arrange
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Student, studentId);
+
+        _studyLoadServiceMock.Setup(s => s.GetByStudentAsync(studentId, termId, true, RoleUtils.Student))
+            .ReturnsAsync(new List<StudyLoadResponseDto>());
+
+        // Act
+        var result = await _controller.GetByStudent(studentId, termId);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+        _studyLoadServiceMock.Verify(s => s.GetByStudentAsync(studentId, termId, true, RoleUtils.Student), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetByStudent_RegistrarViewingStudent_PassesIsStudentCallerFalse()
+    {
+        // Arrange
+        var registrarId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        var termId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.Registrar, registrarId);
+
+        _studyLoadServiceMock.Setup(s => s.GetByStudentAsync(studentId, termId, false, RoleUtils.Registrar))
+            .ReturnsAsync(new List<StudyLoadResponseDto>());
+
+        // Act
+        var result = await _controller.GetByStudent(studentId, termId);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result);
+        _studyLoadServiceMock.Verify(s => s.GetByStudentAsync(studentId, termId, false, RoleUtils.Registrar), Times.Once);
     }
 }

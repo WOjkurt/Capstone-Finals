@@ -1,9 +1,11 @@
 using Api.Auth;
+using Api.Common;
 using Api.DTOs.Enrollment;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel.DataAnnotations;
 
 namespace Api.Controllers;
@@ -14,18 +16,21 @@ public class UserDetailsController : ControllerBase
 {
     private readonly IUserDetailsRepository _userDetailsRepository;
     private readonly IProgramScopingService _scopingService;
+    private readonly ILogger<UserDetailsController> _logger;
 
     public UserDetailsController(
         IUserDetailsRepository userDetailsRepository,
-        IProgramScopingService scopingService)
+        IProgramScopingService scopingService,
+        ILogger<UserDetailsController> logger)
     {
         _userDetailsRepository = userDetailsRepository;
         _scopingService = scopingService;
+        _logger = logger;
     }
 
     [HttpGet]
     [EnableRateLimiting("search")]
-    public async Task<IActionResult> Search([FromQuery, StringLength(100)] string? search, [FromQuery, Range(1, 5)] int? role)
+    public async Task<IActionResult> Search([FromQuery, StringLength(100)] string? search, [FromQuery, Range(1, 6)] int? role)
     {
         if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int authRole)
         {
@@ -34,8 +39,9 @@ public class UserDetailsController : ControllerBase
 
         bool isRegistrarOrAdmin = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
         bool isProgramHeadSearchingTeachers = authRole == RoleUtils.ProgramHead && role == RoleUtils.Teacher;
+        bool isCollegeHeadSearchingTeachers = authRole == RoleUtils.CollegeHead && role == RoleUtils.Teacher;
 
-        if (!isRegistrarOrAdmin && !isProgramHeadSearchingTeachers)
+        if (!isRegistrarOrAdmin && !isProgramHeadSearchingTeachers && !isCollegeHeadSearchingTeachers)
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. Registrar or Admin privileges required." });
         }
@@ -58,6 +64,11 @@ public class UserDetailsController : ControllerBase
             }
 
             // Remove the 50 limit for Program Head viewing their department's faculty roster
+            limit = null;
+        }
+        else if (authRole == RoleUtils.CollegeHead)
+        {
+            // Remove limit for College Head viewing all teachers across all programs
             limit = null;
         }
 
@@ -112,5 +123,54 @@ public class UserDetailsController : ControllerBase
         };
 
         return Ok(dto);
+    }
+
+    [HttpPatch("{userId:guid}/lrn")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> UpdateLrn(Guid userId, [FromBody] UpdateLrnRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var callerUserIdObj) || callerUserIdObj is not Guid callerUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        var userDetails = await _userDetailsRepository.GetByUserIdAsync(userId);
+        if (userDetails == null)
+        {
+            return NotFound(new { message = "User details not found." });
+        }
+
+        if (userDetails.User?.Role != RoleUtils.Student)
+        {
+            return BadRequest(new { message = "LRN can only be set for students." });
+        }
+
+        var lrnResult = LrnHelper.Normalize(dto.Lrn);
+        if (!lrnResult.IsValid)
+        {
+            return BadRequest(new { message = lrnResult.ErrorMessage });
+        }
+
+        if (lrnResult.Lrn != null)
+        {
+            var existingWithLrn = await _userDetailsRepository.GetByLrnAsync(lrnResult.Lrn);
+            if (existingWithLrn != null && existingWithLrn.UserID != userId)
+            {
+                return BadRequest(new { message = "This LRN is already assigned to another student." });
+            }
+        }
+
+        userDetails.LRN = lrnResult.Lrn;
+        await _userDetailsRepository.UpdateAsync(userDetails);
+
+        _logger.LogInformation("LRN updated: StudentID={StudentId}, CallerID={CallerId}", userId, callerUserId);
+
+        return Ok(new
+        {
+            message = "LRN updated successfully.",
+            userId = userDetails.UserID,
+            lrn = userDetails.LRN,
+            hasLrn = !string.IsNullOrEmpty(userDetails.LRN)
+        });
     }
 }

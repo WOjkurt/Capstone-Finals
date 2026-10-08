@@ -73,7 +73,9 @@ public class StudyLoadRepository : IStudyLoadRepository
                 .ThenInclude(c => c!.Term)
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.ClassSchedules)
-            .Where(sl => sl.UserID == userId && sl.LoadStatus == 1 && sl.Class != null && sl.Class.TermID == termId)
+            .Where(sl => sl.UserID == userId &&
+                         (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Pending) &&
+                         sl.Class != null && sl.Class.TermID == termId)
             .ToListAsync();
     }
 

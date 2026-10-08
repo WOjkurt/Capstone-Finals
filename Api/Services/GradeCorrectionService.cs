@@ -217,7 +217,7 @@ public class GradeCorrectionService : IGradeCorrectionService
 
         bool isRequester = correction.RequestedByUserID == authenticatedUserId;
         bool isReviewer = correction.ReviewedByUserID.HasValue && correction.ReviewedByUserID.Value == authenticatedUserId;
-        bool isStaff = authenticatedUserRole == RoleUtils.Registrar || authenticatedUserRole == RoleUtils.Admin;
+        bool isStaff = authenticatedUserRole == RoleUtils.Registrar || authenticatedUserRole == RoleUtils.Admin || authenticatedUserRole == RoleUtils.CollegeHead;
 
         if (!isRequester && !isReviewer && !isStaff)
         {
