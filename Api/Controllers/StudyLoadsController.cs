@@ -103,9 +103,10 @@ public class StudyLoadsController : ControllerBase
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStudyLoadStatusDto dto)
     {
+        int? callerRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
         try
         {
-            var result = await _studyLoadService.UpdateStatusAsync(id, dto.LoadStatus);
+            var result = await _studyLoadService.UpdateStatusAsync(id, dto.LoadStatus, callerRole);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

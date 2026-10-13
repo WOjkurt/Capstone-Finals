@@ -1227,7 +1227,7 @@ public class StudyLoadServicePrerequisiteTests : IDisposable
         // Student caller (isStudentCaller = true)
         var studentDtos = await _studyLoadService.GetByStudentAsync(student.UserID, term.TermID, isStudentCaller: true);
         Assert.Single(studentDtos);
-        Assert.True(studentDtos[0].IsForced);
+        Assert.Null(studentDtos[0].IsForced);
         Assert.Null(studentDtos[0].ForcedByUserID);
         Assert.Null(studentDtos[0].ForcedReason);
 

@@ -661,7 +661,7 @@ public class StudyLoadService : IStudyLoadService
         return new SubjectSatisfactionResult { Status = SubjectCompletionStatus.NeverTaken };
     }
 
-    public async Task<StudyLoadResponseDto> UpdateStatusAsync(Guid studyLoadId, int newStatus)
+    public async Task<StudyLoadResponseDto> UpdateStatusAsync(Guid studyLoadId, int newStatus, int? callerRole = null)
     {
         if (!StudyLoadStatus.IsValid(newStatus))
         {
@@ -678,7 +678,8 @@ public class StudyLoadService : IStudyLoadService
         await _studyLoadRepository.UpdateAsync(studyLoad);
 
         var updated = await _studyLoadRepository.GetByIdAsync(studyLoadId);
-        return await MapToDtoAsync(updated!);
+        int effectiveRole = callerRole ?? RoleUtils.Registrar;
+        return await MapToDtoAsync(updated!, callerRole: effectiveRole);
     }
 
     public async Task<List<StudyLoadResponseDto>> GetByStudentAsync(Guid userId, Guid termId, bool isStudentCaller = false, int? callerRole = null)
@@ -721,11 +722,9 @@ public class StudyLoadService : IStudyLoadService
             lrn = null;
         }
 
-        bool maskForceAudit = (effectiveRole == RoleUtils.Student) || isStudentCaller;
-
         foreach (var sl in loads)
         {
-            result.Add(await MapToDtoAsync(sl, isStudentCaller: maskForceAudit, hasLrn: hasLrn, lrn: lrn));
+            result.Add(await MapToDtoAsync(sl, callerRole: effectiveRole, hasLrn: hasLrn, lrn: lrn));
         }
 
         return result;
@@ -795,14 +794,14 @@ public class StudyLoadService : IStudyLoadService
                 studentName = sl.User.Email;
             }
 
-            result.Add(await MapToDtoAsync(sl, studentName, hasLrn: studentHasLrn, lrn: studentLrn));
+            result.Add(await MapToDtoAsync(sl, studentName, callerRole: effectiveRole, hasLrn: studentHasLrn, lrn: studentLrn));
         }
 
         return result;
     }
 
     // ── Helper Methods ─────────────────────────────────────────────────
-    private async Task<StudyLoadResponseDto> MapToDtoAsync(StudyLoad sl, string? studentName = null, bool isStudentCaller = false, bool? hasLrn = null, string? lrn = null)
+    private async Task<StudyLoadResponseDto> MapToDtoAsync(StudyLoad sl, string? studentName = null, int? callerRole = null, bool? hasLrn = null, string? lrn = null)
     {
         string? teacherName = null;
         if (sl.Class != null && sl.Class.UserID.HasValue)
@@ -834,7 +833,7 @@ public class StudyLoadService : IStudyLoadService
             })
             .ToList() ?? new List<ClassScheduleItemDto>();
 
-        return new StudyLoadResponseDto
+        var dto = new StudyLoadResponseDto
         {
             StudyLoadId = sl.StudyLoadID,
             ClassId = sl.ClassID,
@@ -849,11 +848,14 @@ public class StudyLoadService : IStudyLoadService
             TermLabel = termLabel,
             Schedules = schedules,
             IsForced = sl.IsForced,
-            ForcedByUserID = isStudentCaller ? null : sl.ForcedByUserID,
-            ForcedReason = isStudentCaller ? null : sl.ForcedReason,
+            ForcedByUserID = sl.ForcedByUserID,
+            ForcedReason = sl.ForcedReason,
             HasLrn = hasLrn,
             LRN = lrn
         };
+
+        dto.ApplyForceAuditMask(callerRole);
+        return dto;
     }
 
     private async Task<string?> ResolveTeacherNameAsync(Guid? teacherUserId)

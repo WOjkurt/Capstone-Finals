@@ -15,8 +15,8 @@ public class StudyLoadResponseDto
     public required string TermLabel { get; set; }
     public List<ClassScheduleItemDto> Schedules { get; set; } = new();
 
-    // ── Force Enrollment Audit (masked for students) ──
-    public bool IsForced { get; set; }
+    // ── Force Enrollment Audit (masked for students and teachers) ──
+    public bool? IsForced { get; set; }
     public Guid? ForcedByUserID { get; set; }
     public string? ForcedReason { get; set; }
 
