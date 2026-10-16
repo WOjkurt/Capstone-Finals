@@ -101,9 +101,9 @@ class CreateStaffRequest {
     required this.lastname,
     required this.role,
     this.employeeId,
-    this.programId,
+    int? programId,
     this.isRegular = true,
-  });
+  }) : programId = (role == 3 || role == 4) ? programId : null;
 
   Map<String, dynamic> toJson() {
     return {
@@ -112,7 +112,7 @@ class CreateStaffRequest {
       'lastname': lastname.trim(),
       'role': role,
       if (employeeId != null) 'employeeID': employeeId,
-      if (programId != null) 'programID': programId,
+      if (programId != null && (role == 3 || role == 4)) 'programID': programId,
       'isRegular': isRegular,
     };
   }
@@ -133,9 +133,9 @@ class UpdateStaffRequest {
     this.role,
     this.employeeId,
     this.positionId,
-    this.programId,
+    int? programId,
     this.isRegular,
-  });
+  }) : programId = (role != null && role != 3 && role != 4) ? null : programId;
 
   Map<String, dynamic> toJson() {
     return {
@@ -144,7 +144,8 @@ class UpdateStaffRequest {
       if (role != null) 'role': role,
       if (employeeId != null) 'employeeID': employeeId,
       if (positionId != null) 'positionID': positionId,
-      if (programId != null) 'programID': programId,
+      if (programId != null && (role == null || role == 3 || role == 4) && role != 6 && role != 2)
+        'programID': programId,
       if (isRegular != null) 'isRegular': isRegular,
     };
   }

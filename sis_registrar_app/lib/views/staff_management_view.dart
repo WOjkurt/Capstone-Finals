@@ -208,6 +208,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             TextFormField(
+                              key: const ValueKey('staff_email_field'),
                               controller: emailCtrl,
                               decoration: const InputDecoration(
                                 labelText: 'Institutional Email *',
@@ -232,6 +233,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                               children: [
                                 Expanded(
                                   child: TextFormField(
+                                    key: const ValueKey('staff_first_name_field'),
                                     controller: firstCtrl,
                                     decoration: const InputDecoration(
                                       labelText: 'First Name *',
@@ -246,6 +248,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: TextFormField(
+                                    key: const ValueKey('staff_last_name_field'),
                                     controller: lastCtrl,
                                     decoration: const InputDecoration(
                                       labelText: 'Last Name *',
@@ -261,6 +264,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                             ),
                             const SizedBox(height: 14),
                             DropdownButtonFormField<int>(
+                              key: const ValueKey('add_staff_role_dropdown'),
                               initialValue: selectedRole,
                               isExpanded: true,
                               decoration: const InputDecoration(
@@ -414,7 +418,9 @@ class _StaffManagementViewState extends State<StaffManagementView> {
         text: staff.employeeId != null ? staff.employeeId.toString() : '');
     final initialRole = staff.role;
     int selectedRole = staff.role;
-    int? selectedProgramId = staff.programId ?? 0;
+    int? selectedProgramId = (staff.role == 3 || staff.role == 4)
+        ? (staff.programId ?? (staff.role == 3 ? 0 : null))
+        : null;
     bool isRegular = staff.isRegular;
 
     showDialog(
@@ -661,7 +667,9 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                   role: selectedRole,
                                   employeeId: empIdText.isNotEmpty ? int.tryParse(empIdText) : 0,
                                   programId: (selectedRole == 3 || selectedRole == 4)
-                                      ? selectedProgramId
+                                      ? (selectedProgramId != null && selectedProgramId != 0
+                                          ? selectedProgramId
+                                          : null)
                                       : null,
                                   isRegular: isRegular,
                                 );

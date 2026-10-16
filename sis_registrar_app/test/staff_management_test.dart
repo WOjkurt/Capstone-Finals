@@ -1,12 +1,39 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sis_registrar_app/injection.dart';
+import 'package:sis_registrar_app/models/setup_models.dart';
 import 'package:sis_registrar_app/models/staff_model.dart';
 import 'package:sis_registrar_app/blocs/staff_bloc.dart';
+import 'package:sis_registrar_app/repositories/enrollment_repository.dart';
 import 'package:sis_registrar_app/repositories/staff_repository.dart';
 import 'package:sis_registrar_app/views/main_layout_view.dart';
+import 'package:sis_registrar_app/views/staff_management_view.dart';
+
+class FakeAcademicSetupRepository implements AcademicSetupRepository {
+  @override
+  Future<List<AcademicProgramModel>> getPrograms() async => [
+        const AcademicProgramModel(
+          programId: 1,
+          programCode: 'BSIT',
+          programName: 'Information Technology',
+        ),
+        const AcademicProgramModel(
+          programId: 2,
+          programCode: 'BSCS',
+          programName: 'Computer Science',
+        ),
+      ];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class MockStaffRepository implements StaffRepository {
   List<StaffModel> staff = [];
   bool shouldThrow = false;
+  CreateStaffRequest? lastCreateRequest;
+  UpdateStaffRequest? lastUpdateRequest;
 
   @override
   Future<List<StaffModel>> getAllStaff() async {
@@ -16,6 +43,7 @@ class MockStaffRepository implements StaffRepository {
 
   @override
   Future<StaffModel> createStaff(CreateStaffRequest request) async {
+    lastCreateRequest = request;
     if (shouldThrow) throw Exception('Failed to create staff');
     final created = StaffModel(
       userId: 'new-id-123',
@@ -97,6 +125,7 @@ class MockStaffRepository implements StaffRepository {
 
   @override
   Future<StaffModel> updateStaff(String id, UpdateStaffRequest request) async {
+    lastUpdateRequest = request;
     if (shouldThrow) throw Exception('Failed to update staff');
     final index = staff.indexWhere((s) => s.userId == id);
     final current = staff[index];
@@ -239,6 +268,53 @@ void main() {
       expect(json['programID'], 2);
       expect(json['isRegular'], false);
       expect(json.containsKey('email'), false);
+    });
+
+    test('CreateStaffRequest strips programId for College Head (role 6) and omits programID in toJson', () {
+      final req = CreateStaffRequest(
+        email: 'ch@dbtc-cebu.edu.ph',
+        firstname: 'College',
+        lastname: 'Head',
+        role: 6,
+        programId: 1, // should be stripped
+      );
+
+      expect(req.role, 6);
+      expect(req.programId, isNull);
+      final json = req.toJson();
+      expect(json.containsKey('programID'), false);
+      expect(json['role'], 6);
+    });
+
+    test('CreateStaffRequest strips programId for Registrar (role 2) and omits programID in toJson', () {
+      final req = CreateStaffRequest(
+        email: 'reg@dbtc-cebu.edu.ph',
+        firstname: 'Reg',
+        lastname: 'User',
+        role: 2,
+        programId: 1, // should be stripped
+      );
+
+      expect(req.role, 2);
+      expect(req.programId, isNull);
+      final json = req.toJson();
+      expect(json.containsKey('programID'), false);
+      expect(json['role'], 2);
+    });
+
+    test('UpdateStaffRequest strips programId for College Head (role 6) and omits programID in toJson', () {
+      final req = UpdateStaffRequest(
+        firstname: 'College',
+        lastname: 'Head',
+        role: 6,
+        programId: 1, // should be stripped
+      );
+
+      expect(req.role, 6);
+      expect(req.programId, isNull);
+      final json = req.toJson();
+      expect(json.containsKey('programID'), false);
+      expect(json['role'], 6);
     });
   });
 
@@ -460,6 +536,231 @@ void main() {
       );
 
       expect(navItems.any((i) => i['title'] == 'Staff Management'), false);
+    });
+  });
+
+  group('StaffManagementView Widget Tests - Role & Academic Program Picker', () {
+    late MockStaffRepository mockRepo;
+    late StaffBloc staffBloc;
+
+    setUp(() {
+      mockRepo = MockStaffRepository();
+      staffBloc = StaffBloc(mockRepo);
+      if (getIt.isRegistered<AcademicSetupRepository>()) {
+        getIt.unregister<AcademicSetupRepository>();
+      }
+      getIt.registerSingleton<AcademicSetupRepository>(FakeAcademicSetupRepository());
+    });
+
+    tearDown(() {
+      staffBloc.close();
+      if (getIt.isRegistered<AcademicSetupRepository>()) {
+        getIt.unregister<AcademicSetupRepository>();
+      }
+    });
+
+    Widget buildTestWidget() {
+      return MaterialApp(
+        home: BlocProvider<StaffBloc>.value(
+          value: staffBloc,
+          child: const StaffManagementView(),
+        ),
+      );
+    }
+
+    testWidgets('Create Dialog: checks picker visibility, requirement per role, and College Head submission without program', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      // Open Add Staff dialog
+      await tester.tap(find.text('Add Staff'));
+      await tester.pumpAndSettle();
+
+      // 1. Role 2: Registrar (default) -> picker hidden and not required
+      expect(find.text('Academic Program *'), findsNothing);
+      expect(find.text('Academic Program (Optional)'), findsNothing);
+
+      // 2. Role 3: Teacher -> picker visible and optional
+      await tester.tap(find.byKey(const ValueKey('add_staff_role_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'Teacher').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Academic Program (Optional)'), findsOneWidget);
+      expect(find.text('Academic Program *'), findsNothing);
+
+      // 3. Role 4: Program Head -> picker visible and required
+      await tester.tap(find.byKey(const ValueKey('add_staff_role_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'Program Head').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Academic Program *'), findsOneWidget);
+
+      // Fill in text fields
+      await tester.enterText(find.byKey(const ValueKey('staff_email_field')), 'collegehead@dbtc-cebu.edu.ph');
+      await tester.enterText(find.byKey(const ValueKey('staff_first_name_field')), 'Maria');
+      await tester.enterText(find.byKey(const ValueKey('staff_last_name_field')), 'Santos');
+      await tester.pumpAndSettle();
+
+      // Try submitting without program as Program Head -> validation fails
+      await tester.tap(find.text('Create Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Academic program is required for Program Head'), findsOneWidget);
+      expect(mockRepo.lastCreateRequest, isNull);
+
+      // 4. Role 6: College Head -> picker hidden, not required, and submittable without program
+      await tester.tap(find.byKey(const ValueKey('add_staff_role_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'College Head').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Academic Program *'), findsNothing);
+      expect(find.text('Academic Program (Optional)'), findsNothing);
+      expect(find.text('Academic program is required for Program Head'), findsNothing);
+
+      // Submit College Head
+      await tester.tap(find.text('Create Account'));
+      await tester.pumpAndSettle();
+
+      // Verify request payload
+      expect(mockRepo.lastCreateRequest, isNotNull);
+      expect(mockRepo.lastCreateRequest!.role, 6);
+      expect(mockRepo.lastCreateRequest!.programId, isNull);
+
+      final payload = mockRepo.lastCreateRequest!.toJson();
+      expect(payload.containsKey('programID'), false);
+      expect(payload['role'], 6);
+      expect(payload['email'], 'collegehead@dbtc-cebu.edu.ph');
+      expect(payload['firstname'], 'Maria');
+      expect(payload['lastname'], 'Santos');
+
+      // Print payload for output requirement
+      debugPrint('Create College Head Request Payload: $payload');
+    });
+
+    testWidgets('Create Dialog: switching from Program Head to College Head clears program, and switching back requires it', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+
+      // Open Add Staff dialog
+      await tester.tap(find.text('Add Staff'));
+      await tester.pumpAndSettle();
+
+      // Switch to Program Head
+      await tester.tap(find.byKey(const ValueKey('add_staff_role_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'Program Head').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Select program BSIT
+      await tester.tap(find.byKey(const ValueKey('program_dropdown_4')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('BSIT - Information Technology').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text('BSIT - Information Technology'), findsOneWidget);
+
+      // Switch to College Head (role 6)
+      await tester.tap(find.byKey(const ValueKey('add_staff_role_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'College Head').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Picker is hidden
+      expect(find.text('Academic Program *'), findsNothing);
+      expect(find.text('BSIT - Information Technology'), findsNothing);
+
+      // Switch back to Program Head (role 4)
+      await tester.tap(find.byKey(const ValueKey('add_staff_role_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'Program Head').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Picker is visible again and program was cleared
+      expect(find.text('Academic Program *'), findsOneWidget);
+
+      // Fill in text fields
+      await tester.enterText(find.byKey(const ValueKey('staff_email_field')), 'proghead@dbtc-cebu.edu.ph');
+      await tester.enterText(find.byKey(const ValueKey('staff_first_name_field')), 'John');
+      await tester.enterText(find.byKey(const ValueKey('staff_last_name_field')), 'Doe');
+      await tester.pumpAndSettle();
+
+      // Attempt to submit -> should fail because program was cleared
+      await tester.tap(find.text('Create Account'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Academic program is required for Program Head'), findsOneWidget);
+      expect(mockRepo.lastCreateRequest, isNull);
+    });
+
+    testWidgets('Edit Dialog: changing role to College Head hides picker and does not send stale programID', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final staffMember = StaffModel(
+        userId: 'u-ph-1',
+        firebaseUid: 'fb-ph-1',
+        email: 'ph@dbtc-cebu.edu.ph',
+        role: 4,
+        roleName: 'Program Head',
+        firstname: 'Alan',
+        lastname: 'Turing',
+        programId: 1,
+        programCode: 'BSIT',
+        isRegular: true,
+        isActive: true,
+        createdAt: DateTime.now(),
+      );
+      mockRepo.staff = [staffMember];
+
+      await tester.pumpWidget(buildTestWidget());
+      await tester.runAsync(() async {
+        await Future.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+
+      // Open Edit dialog
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+
+      // Currently Program Head with program picker visible
+      expect(find.text('Academic Program *'), findsOneWidget);
+
+      // Change role to College Head (6)
+      await tester.tap(find.byKey(ValueKey('edit_role_${staffMember.userId}')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(DropdownMenuItem<int>, 'College Head').last, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Picker is hidden
+      expect(find.text('Academic Program *'), findsNothing);
+      expect(find.text('Academic Program (Optional)'), findsNothing);
+
+      // Save changes
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      // Verify update request payload
+      expect(mockRepo.lastUpdateRequest, isNotNull);
+      expect(mockRepo.lastUpdateRequest!.role, 6);
+      expect(mockRepo.lastUpdateRequest!.programId, isNull);
+
+      final payload = mockRepo.lastUpdateRequest!.toJson();
+      expect(payload.containsKey('programID'), false);
+      expect(payload['role'], 6);
+      expect(payload['firstname'], 'Alan');
+      expect(payload['lastname'], 'Turing');
+
+      debugPrint('Edit College Head Request Payload: $payload');
     });
   });
 }
