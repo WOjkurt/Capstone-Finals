@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
@@ -228,8 +229,9 @@ public class SecurityHeadersTests : IClassFixture<WebApplicationFactory<Program>
 
         var client = nonDevFactory.CreateClient();
 
-        // 1. Request with X-Forwarded-Proto: https
+        // 1. Request with X-Forwarded-Proto: https and domain host (HstsMiddleware excludes localhost by default)
         var httpsRequest = new HttpRequestMessage(HttpMethod.Get, "/api/Me");
+        httpsRequest.Headers.Host = "api.dbtc-cebu.edu.ph";
         httpsRequest.Headers.Add("X-Forwarded-Proto", "https");
         var httpsResponse = await client.SendAsync(httpsRequest);
 
@@ -241,6 +243,7 @@ public class SecurityHeadersTests : IClassFixture<WebApplicationFactory<Program>
 
         // 2. Request without X-Forwarded-Proto: https (plain HTTP request)
         var httpRequest = new HttpRequestMessage(HttpMethod.Get, "/api/Me");
+        httpRequest.Headers.Host = "api.dbtc-cebu.edu.ph";
         var httpResponse = await client.SendAsync(httpRequest);
 
         Assert.False(httpResponse.Headers.Contains("Strict-Transport-Security"), "Strict-Transport-Security must NOT be returned for non-HTTPS requests");
