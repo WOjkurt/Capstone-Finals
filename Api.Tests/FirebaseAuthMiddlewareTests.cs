@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Api.Auth;
 using Api.Repositories;
+using FirebaseAdmin;
 using FirebaseAdmin.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -57,6 +58,7 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
+                FirebaseApp.DefaultInstance?.Delete();
                 ReplaceDbWithInMemory(services, "NullGuard_" + Guid.NewGuid());
                 // Real FirebaseAuthVerifier — IsInitialized == false because
                 // appsettings.Testing.json has blank Firebase:ProjectId
@@ -89,7 +91,14 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
         var descriptor = services.SingleOrDefault(
             d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
         if (descriptor != null) services.Remove(descriptor);
-        services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(dbName));
+        var dbDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(AppDbContext));
+        if (dbDescriptor != null) services.Remove(dbDescriptor);
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+
+        services.AddScoped<AppDbContext>(_ => new TestAppDbContext(options));
     }
 
     // ─── JWT builder (structurally valid, cryptographically invalid) ─────────
@@ -297,6 +306,105 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
         // by GradesControllerTests and other controller tests that set up HttpContext.Items.
         Assert.True(true, "Domain-rejection path is exercised via controller-level tests " +
             "that populate HttpContext.Items directly. See GradesControllerTests.");
+    }
+
+    private static FirebaseToken CreateFakeFirebaseToken(string uid, string email)
+    {
+        var argsType = typeof(FirebaseToken).GetNestedType("Args", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!;
+        var args = Activator.CreateInstance(argsType, true)!;
+        argsType.GetProperty("Subject", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(args, uid);
+
+        var claims = new Dictionary<string, object>
+        {
+            { "email", email },
+            { "email_verified", true }
+        };
+        argsType.GetProperty("Claims", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(args, claims);
+
+        var ctor = typeof(FirebaseToken).GetConstructor(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null,
+            new[] { argsType },
+            null)!;
+        return (FirebaseToken)ctor.Invoke(new[] { args });
+    }
+
+    [Fact]
+    public async Task Middleware_FirstLogin_ApprovedApplication_CreatesStudentRole_NeverStaffRole()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "first-login-student-uid";
+        var testEmail = "student.firstlogin@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-first-login", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail));
+
+        var dbName = "AutoCreateStudentDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        // Seed approved enrollment application and response matching this email
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            var respId = Guid.NewGuid();
+            db.EnrollmentResponses.Add(new Domain.Enrollment.EnrollmentResponse
+            {
+                ResponseID = respId,
+                EmailAddress = testEmail,
+                IsProcessed = true,
+                Timestamp = DateTime.UtcNow,
+                Data = JsonDocument.Parse("{}")
+            });
+
+            db.EnrollmentApplications.Add(new Domain.Enrollment.EnrollmentApplication
+            {
+                ApplicationID = Guid.NewGuid(),
+                ResponseID = respId,
+                Status = 2, // Approved
+                StudentUserID = null,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/Me")
+        {
+            Headers = { Authorization = new AuthenticationHeaderValue("Bearer", "token-first-login") }
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Verify the created Users row
+        using (var db = new TestAppDbContext(options))
+        {
+            var createdUser = await db.Users.FirstOrDefaultAsync(u => u.FirebaseUID == testUid);
+            Assert.NotNull(createdUser);
+            Assert.Equal(testEmail, createdUser.Email);
+
+            // Confirm it assigns RoleUtils.Student and numeric value is 5
+            Assert.Equal(RoleUtils.Student, createdUser.Role);
+            Assert.Equal(5, createdUser.Role);
+
+            // Confirm it is NEVER any staff role
+            Assert.NotEqual(RoleUtils.Admin, createdUser.Role);        // 1
+            Assert.NotEqual(RoleUtils.Registrar, createdUser.Role);    // 2
+            Assert.NotEqual(RoleUtils.Teacher, createdUser.Role);      // 3
+            Assert.NotEqual(RoleUtils.ProgramHead, createdUser.Role);  // 4
+            Assert.NotEqual(RoleUtils.CollegeHead, createdUser.Role);  // 6
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

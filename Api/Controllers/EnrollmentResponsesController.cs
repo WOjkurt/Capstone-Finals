@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Api.Auth;
 using Api.DTOs.Enrollment;
 using Api.Services;
@@ -27,7 +29,15 @@ public class EnrollmentResponsesController : ControllerBase
         string? secretHeader = Request.Headers["X-Webhook-Secret"].FirstOrDefault();
         string? expectedSecret = _configuration["Webhook:GoogleFormsSecret"];
 
-        if (string.IsNullOrEmpty(expectedSecret) || string.IsNullOrEmpty(secretHeader) || secretHeader != expectedSecret)
+        if (string.IsNullOrEmpty(expectedSecret) || string.IsNullOrEmpty(secretHeader))
+        {
+            return Unauthorized(new { message = "Invalid or missing webhook secret." });
+        }
+
+        var headerBytes = Encoding.UTF8.GetBytes(secretHeader);
+        var expectedBytes = Encoding.UTF8.GetBytes(expectedSecret);
+
+        if (!CryptographicOperations.FixedTimeEquals(headerBytes, expectedBytes))
         {
             return Unauthorized(new { message = "Invalid or missing webhook secret." });
         }

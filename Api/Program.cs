@@ -187,13 +187,31 @@ builder.Services.AddControllers()
         };
     });
 builder.Services.AddOpenApi();
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.AddHsts(options =>
+    {
+        options.MaxAge = TimeSpan.FromDays(180);
+        options.IncludeSubDomains = false;
+        options.Preload = false;
+    });
+}
 
 var app = builder.Build();
+
+var webhookSecret = app.Configuration["Webhook:GoogleFormsSecret"];
+if (string.IsNullOrEmpty(webhookSecret))
+{
+    app.Logger.LogCritical("Webhook GoogleFormsSecret is empty or not configured. All webhook requests will be rejected.");
+}
 
 // Bind to 0.0.0.0 on the port Render assigns (or 5054 for local dev)
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5054";
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{port}");
+
+// 0. Security Headers (must appear on all responses including 401, 403, and 500)
+app.UseMiddleware<Api.Middleware.SecurityHeadersMiddleware>();
 
 // 1. Exception Handler
 if (app.Environment.IsDevelopment())
@@ -228,7 +246,7 @@ else
     });
 }
 
-// 2. Forwarded Headers (MUST be before RateLimiter so the real client IP is used behind Render's reverse proxy)
+// 2. Forwarded Headers (MUST be before HSTS and RateLimiter so the real client IP and HTTPS scheme are used behind Render's reverse proxy)
 var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
@@ -237,7 +255,13 @@ forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
-// 3. HTTPS Redirection
+// 3. HSTS (must come AFTER UseForwardedHeaders so X-Forwarded-Proto: https is recognized behind Render's proxy)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
+// 4. HTTPS Redirection
 app.UseHttpsRedirection();
 
 // 4. Routing
