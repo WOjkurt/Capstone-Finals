@@ -7,6 +7,7 @@ import 'injection.dart';
 import 'services/auth_service.dart';
 import 'views/login_view.dart';
 import 'views/main_layout_view.dart';
+import 'views/verify_email_view.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -51,6 +52,9 @@ class AuthGate extends StatelessWidget {
       builder: (context, state) {
         if (state is AuthenticatedState) {
           return MainLayoutView(auth: state);
+        }
+        if (state is EmailVerificationRequiredState) {
+          return VerifyEmailView(state: state);
         }
         return const LoginView();
       },

@@ -78,13 +78,49 @@ public class FirebaseAuthMiddleware
         string email = decodedToken.Claims.TryGetValue("email", out var rawEmailObj) ? rawEmailObj?.ToString() ?? string.Empty : string.Empty;
 
         // ── Domain Validation (Executed BEFORE DB lookup) ────────────────
-        string allowedDomain = configuration["Auth:AllowedEmailDomain"] ?? "@dbtc-cebu.edu.ph";
-        if (string.IsNullOrWhiteSpace(email) || !email.EndsWith(allowedDomain, StringComparison.OrdinalIgnoreCase))
+        string configuredDomain = (configuration["Auth:AllowedEmailDomain"] ?? "dbtc-cebu.edu.ph").TrimStart('@');
+        int lastAtIndex = email.LastIndexOf('@');
+        string emailDomain = lastAtIndex >= 0 ? email[(lastAtIndex + 1)..] : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email) || !string.Equals(emailDomain, configuredDomain, StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogWarning("Auth rejected: email domain not in allowed list. AllowedDomain={AllowedDomain}", allowedDomain);
+            _logger.LogWarning("Auth rejected: email domain not in allowed list. EmailDomain={EmailDomain}, AllowedDomain={AllowedDomain}", emailDomain, configuredDomain);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new { error = "Only DBTC-Cebu school email addresses are allowed." });
+            return;
+        }
+
+        // ── Email Verification Check (BEFORE user lookup / auto-create) ──
+        bool emailVerified = false;
+        if (decodedToken.Claims.TryGetValue("email_verified", out var rawVerifiedObj))
+        {
+            if (rawVerifiedObj is bool b)
+            {
+                emailVerified = b;
+            }
+            else if (rawVerifiedObj is string s && bool.TryParse(s, out var parsed))
+            {
+                emailVerified = parsed;
+            }
+            else if (rawVerifiedObj is System.Text.Json.JsonElement je &&
+                     (je.ValueKind == System.Text.Json.JsonValueKind.True || je.ValueKind == System.Text.Json.JsonValueKind.False))
+            {
+                emailVerified = je.GetBoolean();
+            }
+        }
+
+        bool requireVerifiedEmail = configuration.GetValue<bool?>("Auth:RequireVerifiedEmail") ?? true;
+        if (requireVerifiedEmail && !emailVerified)
+        {
+            _logger.LogWarning("Auth rejected: email not verified for UID={Uid}", uid);
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "email_not_verified",
+                message = "Please verify your email address, then sign in again."
+            });
             return;
         }
 

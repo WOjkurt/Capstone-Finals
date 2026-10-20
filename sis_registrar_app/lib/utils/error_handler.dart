@@ -26,6 +26,9 @@ String getFriendlyErrorMessage(dynamic error, [StackTrace? stackTrace]) {
       return 'Your session has expired. Please sign in again.';
     }
     if (code == 403) {
+      if (error.message.contains('email_not_verified')) {
+        return 'Please verify your email address, then sign in again.';
+      }
       return 'Access denied — contact your administrator.';
     }
     if (code != null && code >= 500) {

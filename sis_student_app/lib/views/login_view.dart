@@ -15,6 +15,7 @@ class _LoginViewState extends State<LoginView> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
+  bool _isSignUp = false;
 
   @override
   void dispose() {
@@ -25,10 +26,17 @@ class _LoginViewState extends State<LoginView> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      context.read<AuthBloc>().add(LoginRequested(
-            _emailController.text,
-            _passwordController.text,
-          ));
+      if (_isSignUp) {
+        context.read<AuthBloc>().add(SignUpRequested(
+              _emailController.text,
+              _passwordController.text,
+            ));
+      } else {
+        context.read<AuthBloc>().add(LoginRequested(
+              _emailController.text,
+              _passwordController.text,
+            ));
+      }
     }
   }
 
@@ -300,9 +308,9 @@ class _LoginViewState extends State<LoginView> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text(
-                                'Sign In to Portal',
-                                style: TextStyle(
+                            : Text(
+                                _isSignUp ? 'Create Student Account' : 'Sign In to Portal',
+                                style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -310,9 +318,27 @@ class _LoginViewState extends State<LoginView> {
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isSignUp = !_isSignUp;
+                      });
+                    },
+                    child: Text(
+                      _isSignUp
+                          ? 'Already have an account? Sign In'
+                          : "Don't have an account? Sign Up",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   const Text(
-                    'Restricted to Registrar and Admin roles only.',
+                    'Restricted to enrolled DBTC-Cebu students.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,

@@ -13,6 +13,14 @@ void main() {
       expect(getFriendlyErrorMessage(error), 'Access denied — contact your administrator.');
     });
 
+    test('returns verification message for 403 email_not_verified', () {
+      final error = ApiException(
+        statusCode: 403,
+        message: 'Failed to fetch user info: {"error":"email_not_verified","message":"Please verify your email address, then sign in again."}',
+      );
+      expect(getFriendlyErrorMessage(error), 'Please verify your email address, then sign in again.');
+    });
+
     test('returns server error message for 500', () {
       final error = ApiException(statusCode: 500, message: 'Internal Server Error');
       expect(getFriendlyErrorMessage(error), 'Something went wrong on our end. Please try again, or contact support if this keeps happening.');

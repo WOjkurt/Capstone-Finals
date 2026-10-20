@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
@@ -308,7 +309,7 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             "that populate HttpContext.Items directly. See GradesControllerTests.");
     }
 
-    private static FirebaseToken CreateFakeFirebaseToken(string uid, string email)
+    private static FirebaseToken CreateFakeFirebaseToken(string uid, string email, bool? emailVerified = true)
     {
         var argsType = typeof(FirebaseToken).GetNestedType("Args", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!;
         var args = Activator.CreateInstance(argsType, true)!;
@@ -317,9 +318,13 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
 
         var claims = new Dictionary<string, object>
         {
-            { "email", email },
-            { "email_verified", true }
+            { "email", email }
         };
+        if (emailVerified.HasValue)
+        {
+            claims["email_verified"] = emailVerified.Value;
+        }
+
         argsType.GetProperty("Claims", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .SetValue(args, claims);
 
@@ -405,6 +410,280 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             Assert.NotEqual(RoleUtils.ProgramHead, createdUser.Role);  // 4
             Assert.NotEqual(RoleUtils.CollegeHead, createdUser.Role);  // 6
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Stage 2: Email Verification & Domain Check tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Middleware_VerifiedToken_PassesWhenRequireVerifiedEmailIsTrue()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "verified-uid-" + Guid.NewGuid();
+        var testEmail = "student.verified@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-verified", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: true));
+
+        var dbName = "VerifiedPassesDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "true" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            db.Users.Add(new Domain.IdentityAccess.User
+            {
+                UserID = Guid.NewGuid(),
+                FirebaseUID = testUid,
+                Email = testEmail,
+                Role = RoleUtils.Student,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.SendAsync(AuthRequest("token-verified"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Middleware_UnverifiedToken_Rejected403_NoUsersRowCreated()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "unverified-uid-" + Guid.NewGuid();
+        var testEmail = "applicant.unverified@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-unverified", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: false));
+
+        var dbName = "UnverifiedBlockedDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "true" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            var respId = Guid.NewGuid();
+            db.EnrollmentResponses.Add(new Domain.Enrollment.EnrollmentResponse
+            {
+                ResponseID = respId,
+                EmailAddress = testEmail,
+                IsProcessed = true,
+                Timestamp = DateTime.UtcNow,
+                Data = JsonDocument.Parse("{}")
+            });
+            db.EnrollmentApplications.Add(new Domain.Enrollment.EnrollmentApplication
+            {
+                ApplicationID = Guid.NewGuid(),
+                ResponseID = respId,
+                Status = 2, // Approved
+                StudentUserID = null,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.SendAsync(AuthRequest("token-unverified"));
+
+        // Must return 403 with exact JSON error: email_not_verified
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("email_not_verified", body.GetProperty("error").GetString());
+        Assert.Equal("Please verify your email address, then sign in again.", body.GetProperty("message").GetString());
+
+        // CRITICAL: verify NO Users row was created
+        using (var db = new TestAppDbContext(options))
+        {
+            var createdCount = await db.Users.CountAsync(u => u.FirebaseUID == testUid || u.Email == testEmail);
+            Assert.Equal(0, createdCount);
+        }
+    }
+
+    [Fact]
+    public async Task Middleware_MissingClaim_Rejected403()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "missing-claim-uid-" + Guid.NewGuid();
+        var testEmail = "noclaim@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-noclaim", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: null));
+
+        var dbName = "MissingClaimDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "true" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var response = await client.SendAsync(AuthRequest("token-noclaim"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("email_not_verified", body.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Middleware_StaffAccount_EmailVerifiedTrue_Passes()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "staff-uid-" + Guid.NewGuid();
+        var testEmail = "registrar.staff@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-staff", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: true));
+
+        var dbName = "StaffAccountPassesDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "true" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            db.Users.Add(new Domain.IdentityAccess.User
+            {
+                UserID = Guid.NewGuid(),
+                FirebaseUID = testUid,
+                Email = testEmail,
+                Role = RoleUtils.Registrar,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.SendAsync(AuthRequest("token-staff"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Middleware_ConfigFlagFalse_AllowsUnverifiedToken()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "unverified-allowed-uid-" + Guid.NewGuid();
+        var testEmail = "unverified.allowed@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-unverified-allowed", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: false));
+
+        var dbName = "ConfigFalseDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "false" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            db.Users.Add(new Domain.IdentityAccess.User
+            {
+                UserID = Guid.NewGuid(),
+                FirebaseUID = testUid,
+                Email = testEmail,
+                Role = RoleUtils.Student,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.SendAsync(AuthRequest("token-unverified-allowed"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Middleware_DomainCheck_ExactCaseInsensitiveMatch_RejectsSubdomainOrSuffix()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "bad-domain-uid-" + Guid.NewGuid();
+        var testEmail = "attacker@evil-dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-bad-domain", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: true));
+
+        var dbName = "BadDomainDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var response = await client.SendAsync(AuthRequest("token-bad-domain"));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Only DBTC-Cebu school email addresses are allowed.", body);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

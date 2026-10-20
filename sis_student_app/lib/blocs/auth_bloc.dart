@@ -13,6 +13,16 @@ class LoginRequested extends AuthEvent {
   LoginRequested(this.email, this.password);
 }
 
+class SignUpRequested extends AuthEvent {
+  final String email;
+  final String password;
+  SignUpRequested(this.email, this.password);
+}
+
+class SendVerificationEmailRequested extends AuthEvent {}
+
+class CheckEmailVerifiedRequested extends AuthEvent {}
+
 class LogoutRequested extends AuthEvent {}
 
 // States
@@ -42,6 +52,12 @@ class AccessDeniedState extends AuthState {
   AccessDeniedState(this.message, this.email);
 }
 
+class EmailVerificationRequiredState extends AuthState {
+  final String email;
+  final String? message;
+  EmailVerificationRequiredState({required this.email, this.message});
+}
+
 class UnauthenticatedState extends AuthState {
   final String? errorMessage;
   UnauthenticatedState({this.errorMessage});
@@ -54,6 +70,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._authService) : super(AuthInitial()) {
     on<AuthCheckRequested>(_onAuthCheckRequested);
     on<LoginRequested>(_onLoginRequested);
+    on<SignUpRequested>(_onSignUpRequested);
+    on<SendVerificationEmailRequested>(_onSendVerificationEmailRequested);
+    on<CheckEmailVerifiedRequested>(_onCheckEmailVerifiedRequested);
     on<LogoutRequested>(_onLogoutRequested);
   }
 
@@ -61,6 +80,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       AuthCheckRequested event, Emitter<AuthState> emit) async {
     emit(AuthLoading());
     try {
+      final user = _authService.currentUser;
+      if (user != null && !user.emailVerified) {
+        emit(EmailVerificationRequiredState(
+          email: user.email ?? '',
+          message: 'Please verify your email address, then sign in again.',
+        ));
+        return;
+      }
+
       final userInfo = await _authService.fetchCurrentUserInfo();
       if (userInfo == null) {
         emit(UnauthenticatedState());
@@ -88,6 +116,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         userId: userId,
       ));
     } catch (e, st) {
+      if (e is ApiException && e.statusCode == 403 && e.message.contains('email_not_verified')) {
+        emit(EmailVerificationRequiredState(
+          email: _authService.currentUser?.email ?? '',
+          message: 'Please verify your email address, then sign in again.',
+        ));
+        return;
+      }
       final msg = getFriendlyErrorMessage(e, st);
       emit(UnauthenticatedState(errorMessage: msg));
     }
@@ -124,9 +159,109 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         roleName: roleName,
         userId: userId,
       ));
+    } on EmailNotVerifiedException catch (e) {
+      emit(EmailVerificationRequiredState(
+        email: e.email,
+        message: 'Please verify your email address, then sign in again.',
+      ));
+    } catch (e, st) {
+      if (e is ApiException && e.statusCode == 403 && e.message.contains('email_not_verified')) {
+        emit(EmailVerificationRequiredState(
+          email: event.email.trim(),
+          message: 'Please verify your email address, then sign in again.',
+        ));
+        return;
+      }
+      final msg = getFriendlyErrorMessage(e, st);
+      emit(UnauthenticatedState(errorMessage: msg));
+    }
+  }
+
+  Future<void> _onSignUpRequested(
+      SignUpRequested event, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      final cred = await _authService.signUp(event.email.trim(), event.password);
+      emit(EmailVerificationRequiredState(
+        email: cred.user?.email ?? event.email.trim(),
+        message: 'A verification link has been sent to your email. Please verify your email before continuing.',
+      ));
     } catch (e, st) {
       final msg = getFriendlyErrorMessage(e, st);
       emit(UnauthenticatedState(errorMessage: msg));
+    }
+  }
+
+  Future<void> _onSendVerificationEmailRequested(
+      SendVerificationEmailRequested event, Emitter<AuthState> emit) async {
+    final email = _authService.currentUser?.email ?? '';
+    try {
+      await _authService.sendEmailVerification();
+      emit(EmailVerificationRequiredState(
+        email: email,
+        message: 'A fresh verification email has been sent to $email.',
+      ));
+    } catch (e, st) {
+      final msg = getFriendlyErrorMessage(e, st);
+      emit(EmailVerificationRequiredState(
+        email: email,
+        message: msg,
+      ));
+    }
+  }
+
+  Future<void> _onCheckEmailVerifiedRequested(
+      CheckEmailVerifiedRequested event, Emitter<AuthState> emit) async {
+    final email = _authService.currentUser?.email ?? '';
+    emit(AuthLoading());
+    try {
+      final verified = await _authService.reloadUserAndCheckVerified();
+      if (!verified) {
+        emit(EmailVerificationRequiredState(
+          email: email,
+          message: 'Email not verified yet. Please check your inbox and click the verification link.',
+        ));
+        return;
+      }
+
+      final userInfo = await _authService.fetchCurrentUserInfo();
+      if (userInfo == null) {
+        emit(UnauthenticatedState(errorMessage: 'Failed to fetch account after verification.'));
+        return;
+      }
+
+      final role = userInfo['role'] as int? ?? 0;
+      final roleName = userInfo['roleName'] as String? ?? 'User';
+      final userId = (userInfo['userId'] ?? userInfo['userID']) as String? ?? '';
+      final userEmail = userInfo['email'] as String? ?? email;
+
+      if (role != 5) {
+        await _authService.signOut();
+        emit(AccessDeniedState(
+            'Access denied. Your account role ($roleName) is not authorized to access the Student Portal.',
+            userEmail));
+        return;
+      }
+
+      emit(AuthenticatedState(
+        email: userEmail,
+        role: role,
+        roleName: roleName,
+        userId: userId,
+      ));
+    } catch (e, st) {
+      if (e is ApiException && e.statusCode == 403 && e.message.contains('email_not_verified')) {
+        emit(EmailVerificationRequiredState(
+          email: email,
+          message: 'Please verify your email address, then sign in again.',
+        ));
+        return;
+      }
+      final msg = getFriendlyErrorMessage(e, st);
+      emit(EmailVerificationRequiredState(
+        email: email,
+        message: msg,
+      ));
     }
   }
 

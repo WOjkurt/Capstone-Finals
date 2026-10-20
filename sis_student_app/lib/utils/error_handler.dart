@@ -26,6 +26,9 @@ String getFriendlyErrorMessage(dynamic error, [StackTrace? stackTrace]) {
       return 'Your session has expired. Please sign in again.';
     }
     if (code == 403) {
+      if (error.message.contains('email_not_verified')) {
+        return 'Please verify your email address, then sign in again.';
+      }
       return 'Access denied — contact your administrator.';
     }
     if (code != null && code >= 500) {
@@ -68,6 +71,8 @@ String getFriendlyErrorMessage(dynamic error, [StackTrace? stackTrace]) {
       case 'invalid-credential':
       case 'invalid-email':
         return 'Invalid email or password. Please check your credentials and try again.';
+      case 'email-already-in-use':
+        return 'An account already exists with this email address. Please sign in instead.';
       case 'network-request-failed':
         return "Can't connect right now. Please check your internet connection and try again.";
       case 'too-many-requests':
