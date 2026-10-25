@@ -595,6 +595,9 @@ public class CollegeHeadRoleTests : IDisposable
 
         // 11. EnrollmentApplicationsController -> RequireRegistrarOrAdmin (controller-level)
         AssertControllerHasFilter<EnrollmentApplicationsController>(typeof(RequireRegistrarOrAdminAttribute));
+
+        // 12. CurriculumController.Import -> RequireRegistrarOrAdmin
+        AssertActionHasFilter<CurriculumController>("Import", typeof(RequireRegistrarOrAdminAttribute));
     }
 
     private static void AssertActionHasFilter<TController>(string methodName, Type filterType)

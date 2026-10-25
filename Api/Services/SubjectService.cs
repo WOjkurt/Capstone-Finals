@@ -86,7 +86,7 @@ public class SubjectService : ISubjectService
         };
     }
 
-    private static string NormalizeSubjectCode(string? code)
+    public static string NormalizeSubjectCode(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return string.Empty;
         return System.Text.RegularExpressions.Regex.Replace(code.Trim(), @"\s+", " ").ToUpperInvariant();
