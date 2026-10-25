@@ -218,6 +218,9 @@ namespace Api.Migrations
                     b.Property<Guid?>("ReviewedByUserID")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("SchoolEmail")
+                        .HasColumnType("text");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -236,6 +239,11 @@ namespace Api.Migrations
                     b.HasIndex("ResponseID");
 
                     b.HasIndex("ReviewedByUserID");
+
+                    b.HasIndex("SchoolEmail")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_EnrollmentApplications_SchoolEmail")
+                        .HasFilter("\"SchoolEmail\" IS NOT NULL");
 
                     b.HasIndex("StudentUserID");
 

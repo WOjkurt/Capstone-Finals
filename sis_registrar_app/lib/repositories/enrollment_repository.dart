@@ -133,6 +133,17 @@ class EnrollmentRepository {
     );
     if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
+
+  Future<EnrollmentApplicationModel> updateApplicationSchoolEmail(String id, String? schoolEmail) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/EnrollmentApplications/$id/school-email'),
+      headers: headers,
+      body: jsonEncode({'schoolEmail': schoolEmail}),
+    );
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    return EnrollmentApplicationModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
 }
 
 class AcademicSetupRepository {

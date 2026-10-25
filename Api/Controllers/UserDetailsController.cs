@@ -101,7 +101,7 @@ public class UserDetailsController : ControllerBase
         var userDetails = await _userDetailsRepository.GetByUserIdAsync(authenticatedUserId);
         if (userDetails == null)
         {
-            return NotFound(new { message = "No user details found for current user." });
+            return NotFound(new { message = "Your account is waiting for the Registrar to finish linking your student profile." });
         }
 
         var dto = new UserDetailsDto

@@ -160,6 +160,11 @@ public class AppDbContext : DbContext
 
             entity.Property(ea => ea.CreatedAt)
                 .HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(ea => ea.SchoolEmail)
+                .IsUnique()
+                .HasFilter("\"SchoolEmail\" IS NOT NULL")
+                .HasDatabaseName("UQ_EnrollmentApplications_SchoolEmail");
         });
 
         // ── EnrollmentForm ───────────────────────────────────────────

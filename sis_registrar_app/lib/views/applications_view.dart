@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/edit_lrn_dialog.dart';
+import 'widgets/edit_school_email_dialog.dart';
 
 class ApplicationsView extends StatefulWidget {
   const ApplicationsView({super.key});
@@ -342,6 +343,10 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                             style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                       DataColumn(
+                        label: Text('School Email',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                      DataColumn(
                         label: Text('Actions',
                             style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
@@ -369,6 +374,7 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                           DataCell(Text((app.form?.yearLevel != null && app.form!.yearLevel > 0)
                               ? 'Year ${app.form!.yearLevel}'
                               : '—')),
+                          DataCell(_buildSchoolEmailCell(context, app, state)),
                           DataCell(
                             Row(
                               mainAxisSize: MainAxisSize.min,
@@ -446,6 +452,97 @@ class _ApplicationsViewState extends State<ApplicationsView> {
       default:
         return StatusBadge.neutral(label: 'Unknown');
     }
+  }
+
+  Widget _buildSchoolEmailCell(
+    BuildContext context,
+    EnrollmentApplicationModel app,
+    ApplicationsState state,
+  ) {
+    final hasSchoolEmail =
+        app.schoolEmail != null && app.schoolEmail!.trim().isNotEmpty;
+
+    if (hasSchoolEmail) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            app.schoolEmail!,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          if (app.status == 1 || app.status == 2) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 14, color: Color(0xFF64748B)),
+              tooltip: 'Edit School Email',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => _openEditSchoolEmailDialog(context, app, state),
+            ),
+          ],
+        ],
+      );
+    }
+
+    if (app.status == 2) {
+      return ActionChip(
+        avatar: const Icon(Icons.add, size: 13, color: Color(0xFFD97706)),
+        label: const Text(
+          'Not set',
+          style: TextStyle(
+            color: Color(0xFFB45309),
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+        backgroundColor: const Color(0xFFFEF3C7),
+        side: const BorderSide(color: Color(0xFFFDE68A)),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+        visualDensity: VisualDensity.compact,
+        onPressed: () => _openEditSchoolEmailDialog(context, app, state),
+      );
+    }
+
+    if (app.status == 1) {
+      return TextButton.icon(
+        onPressed: () => _openEditSchoolEmailDialog(context, app, state),
+        icon: const Icon(Icons.add, size: 13),
+        label: const Text('Add email', style: TextStyle(fontSize: 11)),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+
+    return const Text('—', style: TextStyle(color: Color(0xFF94A3B8)));
+  }
+
+  void _openEditSchoolEmailDialog(
+    BuildContext context,
+    EnrollmentApplicationModel app,
+    ApplicationsState state,
+  ) {
+    EditSchoolEmailDialog.show(
+      context,
+      applicationId: app.applicationId,
+      applicantName: app.form?.fullName ?? 'Applicant',
+      currentSchoolEmail: app.schoolEmail,
+      onSaved: (_) {
+        context.read<ApplicationsBloc>().add(
+              LoadApplications(
+                statusFilter: (state is ApplicationsLoaded)
+                    ? state.statusFilter
+                    : null,
+              ),
+            );
+      },
+    );
   }
 
   void _openReviewModal(
@@ -818,6 +915,105 @@ class _ApplicationDetailDialog extends StatelessWidget {
                                           message: detail.status == 4
                                               ? 'Application already linked to student. Edit LRN in student profile instead.'
                                               : 'Cannot edit LRN for rejected application.',
+                                          child: Icon(Icons.info_outline, size: 16, color: Colors.grey.shade400),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'School Email (@dbtc-cebu.edu.ph)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      if (detail.schoolEmail != null && detail.schoolEmail!.isNotEmpty)
+                                        Text(
+                                          detail.schoolEmail!,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF0F172A),
+                                          ),
+                                        )
+                                      else if (detail.status == 2)
+                                        ActionChip(
+                                          avatar: const Icon(Icons.add, size: 13, color: Color(0xFFD97706)),
+                                          label: const Text(
+                                            'Not set',
+                                            style: TextStyle(
+                                              color: Color(0xFFB45309),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          backgroundColor: const Color(0xFFFEF3C7),
+                                          side: const BorderSide(color: Color(0xFFFDE68A)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: () {
+                                            EditSchoolEmailDialog.show(
+                                              context,
+                                              applicationId: detail.applicationId,
+                                              applicantName: form?.fullName ?? 'Applicant',
+                                              currentSchoolEmail: detail.schoolEmail,
+                                              onSaved: (_) {
+                                                context.read<ApplicationsBloc>().add(
+                                                      ViewApplicationDetail(detail.applicationId),
+                                                    );
+                                              },
+                                            );
+                                          },
+                                        )
+                                      else
+                                        const Text(
+                                          'No school email set',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                      const SizedBox(width: 8),
+                                      if (detail.status == 1 || detail.status == 2)
+                                        TextButton.icon(
+                                          onPressed: () {
+                                            EditSchoolEmailDialog.show(
+                                              context,
+                                              applicationId: detail.applicationId,
+                                              applicantName: form?.fullName ?? 'Applicant',
+                                              currentSchoolEmail: detail.schoolEmail,
+                                              onSaved: (_) {
+                                                context.read<ApplicationsBloc>().add(
+                                                      ViewApplicationDetail(detail.applicationId),
+                                                    );
+                                              },
+                                            );
+                                          },
+                                          icon: const Icon(Icons.edit_outlined, size: 14),
+                                          label: const Text('Edit Email', style: TextStyle(fontSize: 12)),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        )
+                                      else
+                                        Tooltip(
+                                          message: detail.status == 4
+                                              ? 'Application already linked to student.'
+                                              : 'Cannot edit school email for rejected application.',
                                           child: Icon(Icons.info_outline, size: 16, color: Colors.grey.shade400),
                                         ),
                                     ],

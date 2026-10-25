@@ -365,7 +365,7 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             db.EnrollmentResponses.Add(new Domain.Enrollment.EnrollmentResponse
             {
                 ResponseID = respId,
-                EmailAddress = testEmail,
+                EmailAddress = "student.personal@example.com",
                 IsProcessed = true,
                 Timestamp = DateTime.UtcNow,
                 Data = JsonDocument.Parse("{}")
@@ -375,6 +375,7 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             {
                 ApplicationID = Guid.NewGuid(),
                 ResponseID = respId,
+                SchoolEmail = testEmail,
                 Status = 2, // Approved
                 StudentUserID = null,
                 CreatedAt = DateTime.UtcNow
@@ -498,7 +499,7 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             db.EnrollmentResponses.Add(new Domain.Enrollment.EnrollmentResponse
             {
                 ResponseID = respId,
-                EmailAddress = testEmail,
+                EmailAddress = "student.personal@example.com",
                 IsProcessed = true,
                 Timestamp = DateTime.UtcNow,
                 Data = JsonDocument.Parse("{}")
@@ -507,6 +508,7 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
             {
                 ApplicationID = Guid.NewGuid(),
                 ResponseID = respId,
+                SchoolEmail = testEmail,
                 Status = 2, // Approved
                 StudentUserID = null,
                 CreatedAt = DateTime.UtcNow

@@ -176,4 +176,36 @@ public class EnrollmentApplicationsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpPatch("{id:guid}/school-email")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> UpdateSchoolEmail(Guid id, [FromBody] UpdateSchoolEmailDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid callerUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var result = await _enrollmentService.UpdateSchoolEmailAsync(id, dto?.SchoolEmail, callerUserId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (DuplicateSchoolEmailException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

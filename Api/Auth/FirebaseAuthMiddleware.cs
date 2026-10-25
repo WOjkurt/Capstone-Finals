@@ -78,11 +78,10 @@ public class FirebaseAuthMiddleware
         string email = decodedToken.Claims.TryGetValue("email", out var rawEmailObj) ? rawEmailObj?.ToString() ?? string.Empty : string.Empty;
 
         // ── Domain Validation (Executed BEFORE DB lookup) ────────────────
-        string configuredDomain = (configuration["Auth:AllowedEmailDomain"] ?? "dbtc-cebu.edu.ph").TrimStart('@');
-        int lastAtIndex = email.LastIndexOf('@');
-        string emailDomain = lastAtIndex >= 0 ? email[(lastAtIndex + 1)..] : string.Empty;
+        string configuredDomain = SchoolEmailValidator.GetAllowedDomain(configuration);
+        string emailDomain = SchoolEmailValidator.GetEmailDomain(email);
 
-        if (string.IsNullOrWhiteSpace(email) || !string.Equals(emailDomain, configuredDomain, StringComparison.OrdinalIgnoreCase))
+        if (!SchoolEmailValidator.IsValidDomain(email, configuredDomain))
         {
             _logger.LogWarning("Auth rejected: email domain not in allowed list. EmailDomain={EmailDomain}, AllowedDomain={AllowedDomain}", emailDomain, configuredDomain);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -131,18 +130,16 @@ public class FirebaseAuthMiddleware
         if (user == null)
         {
             // Only auto-create a Users row if there is an approved EnrollmentApplication whose
-            // linked EnrollmentResponse email matches this login email and the account hasn't
+            // SchoolEmail matches this login email (lowercase) and the account hasn't
             // been linked yet (StudentUserID == null). This prevents staff whose accounts haven't
             // been manually provisioned from being silently created as Students.
+            var normalizedEmail = email.ToLowerInvariant();
             bool hasApprovedApplication = await db.EnrollmentApplications
-                .Join(db.EnrollmentResponses,
-                    ea => ea.ResponseID,
-                    er => er.ResponseID,
-                    (ea, er) => new { ea, er })
-                .AnyAsync(x =>
-                    x.ea.Status == 2 &&
-                    x.ea.StudentUserID == null &&
-                    x.er.EmailAddress.ToLower() == email.ToLower());
+                .AnyAsync(ea =>
+                    ea.Status == 2 &&
+                    ea.StudentUserID == null &&
+                    ea.SchoolEmail != null &&
+                    ea.SchoolEmail.ToLower() == normalizedEmail);
 
             if (!hasApprovedApplication)
             {
@@ -151,7 +148,7 @@ public class FirebaseAuthMiddleware
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new
                 {
-                    error = "No account found for this email. If you are a student, ensure your enrollment application has been approved. If you are staff, contact your administrator."
+                    error = "No account found for this email. If you are a student, ensure your enrollment application has been approved and the Registrar must register your school email. If you are staff, contact your administrator."
                 });
                 return;
             }
@@ -160,7 +157,7 @@ public class FirebaseAuthMiddleware
             {
                 UserID = Guid.NewGuid(),
                 FirebaseUID = uid,
-                Email = email,
+                Email = normalizedEmail,
                 Role = RoleUtils.Student,
                 CreatedAt = DateTime.UtcNow
             };

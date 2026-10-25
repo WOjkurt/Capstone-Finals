@@ -25,6 +25,8 @@ public class EnrollmentApplication
     public Guid? StudentUserID { get; set; }
     public User? StudentUser { get; set; }
 
+    public string? SchoolEmail { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public Guid? CreatedByUserID { get; set; }

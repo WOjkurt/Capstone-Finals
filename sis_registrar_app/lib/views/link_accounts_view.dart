@@ -35,8 +35,11 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
     super.dispose();
   }
 
-  TextEditingController _getController(String id) {
-    return _emailControllers.putIfAbsent(id, () => TextEditingController());
+  TextEditingController _getController(String id, String? initialEmail) {
+    return _emailControllers.putIfAbsent(
+      id,
+      () => TextEditingController(text: initialEmail ?? ''),
+    );
   }
 
   @override
@@ -210,7 +213,7 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
                       final prog =
                           programMap[app.programId] ?? 'Program #${app.programId}';
                       final dateStr = dateFormat.format(app.createdAt);
-                      final emailCtrl = _getController(app.applicationId);
+                      final emailCtrl = _getController(app.applicationId, app.schoolEmail);
                       final isLinking = (state is LinkAccountsLoaded) &&
                           state.linkingApplicationId == app.applicationId;
 

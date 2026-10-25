@@ -15,4 +15,5 @@ public interface IEnrollmentService
     Task<List<EnrollmentApplicationResponseDto>> GetApprovedApplicationsAsync();
     Task<List<EnrollmentApplicationResponseDto>> GetApplicationsAsync(int? status = null);
     Task<EnrollmentApplicationResponseDto> UpdateApplicationLrnAsync(Guid applicationId, string? rawLrn);
+    Task<EnrollmentApplicationResponseDto> UpdateSchoolEmailAsync(Guid applicationId, string? rawSchoolEmail, Guid callerUserId);
 }

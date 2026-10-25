@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Api.Constants;
 using Api.Common;
+using Api.Auth;
+using Microsoft.Extensions.Configuration;
 
 namespace Api.Services;
 
@@ -20,6 +22,7 @@ public class EnrollmentService : IEnrollmentService
     private readonly IUserDetailsRepository _userDetailsRepository;
     private readonly IUserRepository _userRepository;
     private readonly ILogger<EnrollmentService> _logger;
+    private readonly IConfiguration? _configuration;
 
     public EnrollmentService(
         AppDbContext context,
@@ -29,7 +32,8 @@ public class EnrollmentService : IEnrollmentService
         IContactRepository contactRepository,
         IUserDetailsRepository userDetailsRepository,
         IUserRepository userRepository,
-        ILogger<EnrollmentService> logger)
+        ILogger<EnrollmentService> logger,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _responseRepository = responseRepository;
@@ -39,6 +43,7 @@ public class EnrollmentService : IEnrollmentService
         _userDetailsRepository = userDetailsRepository;
         _userRepository = userRepository;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<Guid> CreateResponseAsync(CreateEnrollmentResponseDto dto)
@@ -555,6 +560,58 @@ public class EnrollmentService : IEnrollmentService
         return updated!;
     }
 
+    public async Task<EnrollmentApplicationResponseDto> UpdateSchoolEmailAsync(Guid applicationId, string? rawSchoolEmail, Guid callerUserId)
+    {
+        var application = await _applicationRepository.GetByIdAsync(applicationId);
+        if (application == null)
+        {
+            throw new KeyNotFoundException($"EnrollmentApplication with ID '{applicationId}' was not found.");
+        }
+
+        if (application.StudentUserID.HasValue && application.StudentUserID.Value != Guid.Empty)
+        {
+            throw new InvalidOperationException("Cannot update school email on an application that has already been linked to a user account.");
+        }
+
+        if (application.Status != EnrollmentApplicationStatus.Pending && application.Status != EnrollmentApplicationStatus.Approved)
+        {
+            throw new InvalidOperationException($"Cannot update school email on an application with status {application.Status}. Must be Pending or Approved.");
+        }
+
+        string action;
+        if (string.IsNullOrWhiteSpace(rawSchoolEmail))
+        {
+            application.SchoolEmail = null;
+            action = "cleared";
+        }
+        else
+        {
+            string configuredDomain = SchoolEmailValidator.GetAllowedDomain(_configuration);
+            if (!SchoolEmailValidator.TryValidateSchoolEmail(rawSchoolEmail, configuredDomain, out var normalizedEmail, out var errorMessage))
+            {
+                throw new ArgumentException(errorMessage ?? "Invalid school email.");
+            }
+
+            bool duplicateExists = await _context.EnrollmentApplications
+                .AnyAsync(ea => ea.ApplicationID != applicationId && ea.SchoolEmail == normalizedEmail);
+
+            if (duplicateExists)
+            {
+                throw new DuplicateSchoolEmailException(normalizedEmail);
+            }
+
+            application.SchoolEmail = normalizedEmail;
+            action = "set";
+        }
+
+        await _applicationRepository.UpdateAsync(application);
+
+        _logger.LogInformation("School email {Action} for application {ApplicationId} by user {UserId}", action, applicationId, callerUserId);
+
+        var updated = await GetApplicationByIdAsync(applicationId);
+        return updated!;
+    }
+
     private async Task<EnrollmentApplicationResponseDto> MapToDtoAsync(EnrollmentApplication application)
     {
         var form = await _formRepository.GetByApplicationIdAsync(application.ApplicationID);
@@ -599,6 +656,7 @@ public class EnrollmentService : IEnrollmentService
             StudentUserID = application.StudentUserID,
             CreatedAt = application.CreatedAt,
             CreatedByUserID = application.CreatedByUserID,
+            SchoolEmail = application.SchoolEmail,
             UserDetails = userDetailsDto,
             Form = form == null ? null : new EnrollmentFormDto
             {

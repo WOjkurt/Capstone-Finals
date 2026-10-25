@@ -407,6 +407,7 @@ class EnrollmentApplicationModel {
   final String? studentUserId;
   final DateTime createdAt;
   final String? createdByUserId;
+  final String? schoolEmail;
   final EnrollmentFormModel? form;
   final List<ContactModel> contacts;
 
@@ -420,6 +421,7 @@ class EnrollmentApplicationModel {
     this.studentUserId,
     required this.createdAt,
     this.createdByUserId,
+    this.schoolEmail,
     this.form,
     this.contacts = const [],
   });
@@ -436,6 +438,7 @@ class EnrollmentApplicationModel {
       createdAt:
           DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
       createdByUserId: json['createdByUserID'] as String? ?? json['createdByUserId'] as String?,
+      schoolEmail: json['schoolEmail'] as String?,
       form: json['form'] != null
           ? EnrollmentFormModel.fromJson(
               json['form'] as Map<String, dynamic>)
