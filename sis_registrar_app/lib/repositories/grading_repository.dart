@@ -190,4 +190,17 @@ class UserSearchRepository {
           statusCode: res.statusCode, message: _extractMessage(res.body));
     }
   }
+
+  Future<void> updateStudentYearLevel(String userId, int yearLevel) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/UserDetails/$userId/year-level'),
+      headers: headers,
+      body: jsonEncode({'yearLevel': yearLevel}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+  }
 }

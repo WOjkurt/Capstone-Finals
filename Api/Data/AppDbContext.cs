@@ -96,6 +96,10 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(s => s.ProgramID)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(s => new { s.ProgramID, s.SubjectCode })
+                .IsUnique()
+                .HasDatabaseName("UQ_Subjects_ProgramID_SubjectCode");
         });
 
         // ── SubjectPrerequisite ──────────────────────────────────────

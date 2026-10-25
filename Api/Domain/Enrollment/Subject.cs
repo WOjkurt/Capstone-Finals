@@ -18,4 +18,6 @@ public class Subject
 
     public int YearLevel { get; set; }
     public int DefaultSemester { get; set; }
+
+    public int? StandingYear { get; set; }
 }

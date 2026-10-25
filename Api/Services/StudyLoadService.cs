@@ -289,7 +289,7 @@ public class StudyLoadService : IStudyLoadService
         }
     }
 
-    public async Task<EnrollSingleResponseDto> EnrollSingleAsync(EnrollSingleRequestDto dto, Guid createdByUserId)
+    public async Task<EnrollSingleResponseDto> EnrollSingleAsync(EnrollSingleRequestDto dto, Guid createdByUserId, int? callerRole = null)
     {
         var targetClass = await _context.Classes
             .Include(c => c.Subject)
@@ -384,12 +384,42 @@ public class StudyLoadService : IStudyLoadService
             };
         }
 
-        // ── Force Reason Validation ──────────────────────────────────────
+        // ── Force Reason & Authorization Validation ─────────────────────
         bool isForced = warnings.Count > 0 && dto.Force;
         string? trimmedReason = dto.ForceReason?.Trim();
 
         if (isForced)
         {
+            if (findings.Any(f => !f.CanForce))
+            {
+                return new EnrollSingleResponseDto
+                {
+                    Success = false,
+                    StudyLoadId = null,
+                    Warnings = warnings
+                };
+            }
+
+            int? effectiveRole = callerRole;
+            if (!effectiveRole.HasValue)
+            {
+                var callerUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == createdByUserId);
+                effectiveRole = callerUser?.Role;
+            }
+
+            int resolvedRole = effectiveRole ?? Api.Auth.RoleUtils.Registrar;
+            if (resolvedRole != Api.Auth.RoleUtils.Registrar &&
+                resolvedRole != Api.Auth.RoleUtils.CollegeHead &&
+                resolvedRole != Api.Auth.RoleUtils.Admin)
+            {
+                return new EnrollSingleResponseDto
+                {
+                    Success = false,
+                    StudyLoadId = null,
+                    Warnings = new List<string>(warnings) { "Only College Head and Registrar can force enrollment." }
+                };
+            }
+
             if (string.IsNullOrWhiteSpace(trimmedReason))
             {
                 return new EnrollSingleResponseDto
@@ -573,6 +603,37 @@ public class StudyLoadService : IStudyLoadService
                         SubjectCode = pCode
                     });
                     break;
+            }
+        }
+
+        // ── 4. Standing Requirement Check ────────────────────────────────
+        if (targetClass.Subject?.StandingYear.HasValue == true)
+        {
+            var userDetails = await _context.UserDetails
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ud => ud.UserID == userId);
+
+            if (userDetails == null || !userDetails.YearLevel.HasValue)
+            {
+                findings.Add(new EnrollmentValidationFinding
+                {
+                    Code = EnrollmentRuleCodes.YearLevelNotSet,
+                    Message = $"Student year level is not set: {subjectCode} - {subjectTitle} requires Year {targetClass.Subject.StandingYear.Value} standing (YEAR_LEVEL_NOT_SET)",
+                    SubjectId = subjectId,
+                    SubjectCode = subjectCode,
+                    CanForce = false
+                });
+            }
+            else if (userDetails.YearLevel.Value < targetClass.Subject.StandingYear.Value)
+            {
+                findings.Add(new EnrollmentValidationFinding
+                {
+                    Code = EnrollmentRuleCodes.StandingYearRequired,
+                    Message = $"Standing requirement not met: {subjectCode} - {subjectTitle} requires Year {targetClass.Subject.StandingYear.Value} standing (student is Year {userDetails.YearLevel.Value}) (STANDING_YEAR_REQUIRED)",
+                    SubjectId = subjectId,
+                    SubjectCode = subjectCode,
+                    CanForce = true
+                });
             }
         }
 

@@ -517,6 +517,9 @@ namespace Api.Migrations
                     b.Property<int>("ProgramID")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("StandingYear")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SubjectCode")
                         .IsRequired()
                         .HasColumnType("text");
@@ -530,7 +533,9 @@ namespace Api.Migrations
 
                     b.HasKey("SubjectID");
 
-                    b.HasIndex("ProgramID");
+                    b.HasIndex("ProgramID", "SubjectCode")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_Subjects_ProgramID_SubjectCode");
 
                     b.ToTable("Subjects");
                 });

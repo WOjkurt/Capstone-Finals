@@ -60,6 +60,14 @@ public class SubjectsController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+        catch (DuplicateSubjectCodeException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id:guid}")]
@@ -74,6 +82,14 @@ public class SubjectsController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (DuplicateSubjectCodeException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

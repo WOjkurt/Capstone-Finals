@@ -36,6 +36,11 @@ class MockUserSearchRepository implements UserSearchRepository {
     updatedUserId = userId;
     updatedLrn = lrn;
   }
+
+  @override
+  Future<void> updateStudentYearLevel(String userId, int yearLevel) async {
+    // stub – not exercised in LRN tests
+  }
 }
 
 class MockGradeClearanceRepository implements GradeClearanceRepository {

@@ -6,6 +6,7 @@ import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import 'status_badge.dart';
 import 'edit_lrn_dialog.dart';
+import 'edit_year_level_dialog.dart';
 
 class StudentStudyLoadDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -47,12 +48,14 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
   String? _updatingStudyLoadId;
   late String? _currentLrn;
   late bool? _hasLrn;
+  late int? _currentYearLevel;
 
   @override
   void initState() {
     super.initState();
     _currentLrn = widget.student.lrn;
     _hasLrn = widget.student.hasLrn;
+    _currentYearLevel = widget.student.yearLevel;
     _fetchStudyLoads();
   }
 
@@ -381,6 +384,49 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      // ── Year Level row with inline edit ─────────────────
+                      Row(
+                        children: [
+                          const Icon(Icons.bar_chart_rounded,
+                              size: 13, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            _currentYearLevel != null
+                                ? 'Year $_currentYearLevel'
+                                : 'Year level not set',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _currentYearLevel != null
+                                  ? AppColors.textSecondary
+                                  : const Color(0xFFEF4444),
+                              fontWeight: _currentYearLevel != null
+                                  ? FontWeight.normal
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          InkWell(
+                            onTap: () {
+                              EditYearLevelDialog.show(
+                                context,
+                                userId: widget.student.userId,
+                                studentName: widget.student.fullName,
+                                currentYearLevel: _currentYearLevel,
+                                onSaved: (newLevel) {
+                                  setState(() => _currentYearLevel = newLevel);
+                                },
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(4),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(Icons.edit_outlined,
+                                  size: 13, color: Color(0xFF64748B)),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

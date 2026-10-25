@@ -33,10 +33,28 @@ public class SubjectService : ISubjectService
             throw new KeyNotFoundException($"AcademicProgram with ID '{dto.ProgramID}' was not found.");
         }
 
+        if (dto.StandingYear.HasValue && (dto.StandingYear.Value < 1 || dto.StandingYear.Value > 4))
+        {
+            throw new ArgumentException("StandingYear must be between 1 and 4.", nameof(dto.StandingYear));
+        }
+
+        var normalizedCode = NormalizeSubjectCode(dto.SubjectCode);
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            throw new ArgumentException("SubjectCode cannot be empty.", nameof(dto.SubjectCode));
+        }
+
+        var duplicateExists = await _context.Subjects
+            .AnyAsync(s => s.ProgramID == dto.ProgramID && s.SubjectCode == normalizedCode);
+        if (duplicateExists)
+        {
+            throw new DuplicateSubjectCodeException(normalizedCode, program.ProgramCode);
+        }
+
         var subject = new Subject
         {
             SubjectID = Guid.NewGuid(),
-            SubjectCode = dto.SubjectCode,
+            SubjectCode = normalizedCode,
             SubjectTitle = dto.SubjectTitle,
             LecUnits = dto.LecUnits,
             LabUnits = dto.LabUnits,
@@ -44,7 +62,8 @@ public class SubjectService : ISubjectService
             LabHours = dto.LabHours,
             ProgramID = dto.ProgramID,
             YearLevel = dto.YearLevel,
-            DefaultSemester = dto.DefaultSemester
+            DefaultSemester = dto.DefaultSemester,
+            StandingYear = dto.StandingYear
         };
 
         await _subjectRepository.AddAsync(subject);
@@ -62,8 +81,15 @@ public class SubjectService : ISubjectService
             ProgramCode = program.ProgramCode,
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
+            StandingYear = subject.StandingYear,
             Prerequisites = new List<PrerequisiteDto>()
         };
+    }
+
+    private static string NormalizeSubjectCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return string.Empty;
+        return System.Text.RegularExpressions.Regex.Replace(code.Trim(), @"\s+", " ").ToUpperInvariant();
     }
 
     public async Task<List<SubjectDto>> GetAllAsync(int? programId = null, int? yearLevel = null)
@@ -104,6 +130,7 @@ public class SubjectService : ISubjectService
             ProgramCode = s.Program?.ProgramCode,
             YearLevel = s.YearLevel,
             DefaultSemester = s.DefaultSemester,
+            StandingYear = s.StandingYear,
             Prerequisites = prereqMap.TryGetValue(s.SubjectID, out var prereqs)
                 ? prereqs.Select(sp => new PrerequisiteDto
                 {
@@ -141,6 +168,7 @@ public class SubjectService : ISubjectService
             ProgramCode = subject.Program?.ProgramCode,
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
+            StandingYear = subject.StandingYear,
             Prerequisites = prereqs.Select(sp => new PrerequisiteDto
             {
                 PrerequisiteID = sp.PrerequisiteID,
@@ -167,7 +195,25 @@ public class SubjectService : ISubjectService
             throw new KeyNotFoundException($"AcademicProgram with ID '{dto.ProgramID}' was not found.");
         }
 
-        subject.SubjectCode = dto.SubjectCode;
+        if (dto.StandingYear.HasValue && (dto.StandingYear.Value < 1 || dto.StandingYear.Value > 4))
+        {
+            throw new ArgumentException("StandingYear must be between 1 and 4.", nameof(dto.StandingYear));
+        }
+
+        var normalizedCode = NormalizeSubjectCode(dto.SubjectCode);
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            throw new ArgumentException("SubjectCode cannot be empty.", nameof(dto.SubjectCode));
+        }
+
+        var duplicateExists = await _context.Subjects
+            .AnyAsync(s => s.SubjectID != subjectId && s.ProgramID == dto.ProgramID && s.SubjectCode == normalizedCode);
+        if (duplicateExists)
+        {
+            throw new DuplicateSubjectCodeException(normalizedCode, program.ProgramCode);
+        }
+
+        subject.SubjectCode = normalizedCode;
         subject.SubjectTitle = dto.SubjectTitle;
         subject.LecUnits = dto.LecUnits;
         subject.LabUnits = dto.LabUnits;
@@ -176,6 +222,7 @@ public class SubjectService : ISubjectService
         subject.ProgramID = dto.ProgramID;
         subject.YearLevel = dto.YearLevel;
         subject.DefaultSemester = dto.DefaultSemester;
+        subject.StandingYear = dto.StandingYear;
 
         await _subjectRepository.UpdateAsync(subject);
 
@@ -194,6 +241,7 @@ public class SubjectService : ISubjectService
             ProgramCode = program.ProgramCode,
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
+            StandingYear = subject.StandingYear,
             Prerequisites = prereqs.Select(sp => new PrerequisiteDto
             {
                 PrerequisiteID = sp.PrerequisiteID,

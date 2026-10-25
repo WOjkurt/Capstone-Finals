@@ -16,4 +16,8 @@ public class CreateSubjectDto
     /// <summary>1 = 1st Semester, 2 = 2nd Semester, 3 = Summer Term.</summary>
     [Range(1, 3, ErrorMessage = "DefaultSemester must be 1 (1st Semester), 2 (2nd Semester), or 3 (Summer Term).")]
     public int DefaultSemester { get; set; }
+
+    /// <summary>Optional standing requirement (valid values: 1 to 4).</summary>
+    [Range(1, 4, ErrorMessage = "StandingYear must be between 1 and 4.")]
+    public int? StandingYear { get; set; }
 }

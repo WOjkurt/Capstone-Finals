@@ -80,9 +80,11 @@ public class StudyLoadsController : ControllerBase
             return Unauthorized(new { message = "Authentication required." });
         }
 
+        int? callerRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
+
         try
         {
-            var result = await _studyLoadService.EnrollSingleAsync(dto, createdByUserId);
+            var result = await _studyLoadService.EnrollSingleAsync(dto, createdByUserId, callerRole);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

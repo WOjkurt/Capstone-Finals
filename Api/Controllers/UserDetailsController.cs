@@ -173,4 +173,45 @@ public class UserDetailsController : ControllerBase
             hasLrn = !string.IsNullOrEmpty(userDetails.LRN)
         });
     }
+
+    [HttpPatch("{userId:guid}/year-level")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> UpdateYearLevel(Guid userId, [FromBody] UpdateYearLevelRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var callerUserIdObj) || callerUserIdObj is not Guid callerUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        if (dto.YearLevel < 1 || dto.YearLevel > 5)
+        {
+            return BadRequest(new { message = "yearLevel must be between 1 and 5." });
+        }
+
+        var userDetails = await _userDetailsRepository.GetByUserIdAsync(userId);
+        if (userDetails == null)
+        {
+            return NotFound(new { message = "User not found or has no user details." });
+        }
+
+        if (userDetails.User?.Role != RoleUtils.Student)
+        {
+            return NotFound(new { message = "User not found or is not a student." });
+        }
+
+        var oldYearLevel = userDetails.YearLevel;
+        userDetails.YearLevel = dto.YearLevel;
+        await _userDetailsRepository.UpdateAsync(userDetails);
+
+        _logger.LogInformation(
+            "YearLevel updated: TargetUserID={TargetUserId}, CallerID={CallerId}, OldYearLevel={Old}, NewYearLevel={New}",
+            userId, callerUserId, oldYearLevel, dto.YearLevel);
+
+        return Ok(new
+        {
+            message = "Year level updated successfully.",
+            userId = userDetails.UserID,
+            yearLevel = userDetails.YearLevel
+        });
+    }
 }

@@ -6,6 +6,7 @@ public class EnrollmentValidationFinding
     public required string Message { get; set; }
     public Guid? SubjectId { get; set; }
     public string? SubjectCode { get; set; }
+    public bool CanForce { get; set; } = true;
 }
 
 public static class EnrollmentRuleCodes
@@ -16,4 +17,6 @@ public static class EnrollmentRuleCodes
     public const string PrerequisiteDropped = "PREREQUISITE_DROPPED";
     public const string AlreadyPassed = "ALREADY_PASSED";
     public const string SameSubjectThisTerm = "SAME_SUBJECT_THIS_TERM";
+    public const string StandingYearRequired = "STANDING_YEAR_REQUIRED";
+    public const string YearLevelNotSet = "YEAR_LEVEL_NOT_SET";
 }

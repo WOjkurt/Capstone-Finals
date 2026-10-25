@@ -13,6 +13,7 @@ public class SubjectDto
     public string? ProgramCode { get; set; }
     public int YearLevel { get; set; }
     public int DefaultSemester { get; set; }
+    public int? StandingYear { get; set; }
 
     public List<PrerequisiteDto> Prerequisites { get; set; } = new();
 }

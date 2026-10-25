@@ -105,6 +105,7 @@ class SubjectModel {
   final String? programCode;
   final int yearLevel;
   final int defaultSemester;
+  final int? standingYear;
   final List<PrerequisiteModel> prerequisites;
 
   const SubjectModel({
@@ -119,6 +120,7 @@ class SubjectModel {
     this.programCode,
     required this.yearLevel,
     required this.defaultSemester,
+    this.standingYear,
     this.prerequisites = const [],
   });
 
@@ -135,6 +137,7 @@ class SubjectModel {
       programCode: json['programCode'] as String?,
       yearLevel: (json['yearLevel'] as num?)?.toInt() ?? 1,
       defaultSemester: (json['defaultSemester'] as num?)?.toInt() ?? 1,
+      standingYear: (json['standingYear'] as num?)?.toInt(),
       prerequisites: (json['prerequisites'] as List<dynamic>?)
               ?.map((e) =>
                   PrerequisiteModel.fromJson(e as Map<String, dynamic>))

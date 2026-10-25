@@ -1249,6 +1249,10 @@ class _SubjectsTab extends StatelessWidget {
         ? sub.defaultSemester
         : validSems.first;
 
+    int? standingYear = (sub != null && [1, 2, 3, 4].contains(sub.standingYear))
+        ? sub.standingYear
+        : null;
+
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -1429,6 +1433,39 @@ class _SubjectsTab extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int?>(
+                        isExpanded: true,
+                        initialValue: standingYear,
+                        decoration: const InputDecoration(
+                          labelText: 'Standing Year Requirement (Optional)',
+                          hintText: 'None (No standing requirement)',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('None (No standing requirement)'),
+                          ),
+                          DropdownMenuItem<int?>(
+                            value: 1,
+                            child: Text('1st Year Standing'),
+                          ),
+                          DropdownMenuItem<int?>(
+                            value: 2,
+                            child: Text('2nd Year Standing'),
+                          ),
+                          DropdownMenuItem<int?>(
+                            value: 3,
+                            child: Text('3rd Year Standing'),
+                          ),
+                          DropdownMenuItem<int?>(
+                            value: 4,
+                            child: Text('4th Year Standing'),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => standingYear = v),
+                      ),
                     ],
                   ),
                 ),
@@ -1452,6 +1489,7 @@ class _SubjectsTab extends StatelessWidget {
                     'programID': progId,
                     'yearLevel': yearLevel,
                     'defaultSemester': defSem,
+                    'standingYear': standingYear,
                   };
 
                   if (sub == null) {
