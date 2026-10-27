@@ -10,6 +10,7 @@ using Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 namespace Api.Tests;
@@ -45,7 +46,7 @@ public class StandingYearAndUniqueSubjectCodeTests : IDisposable
         _studyLoadService = new StudyLoadService(
             _context, studyLoadRepo, clearanceService, NullLogger<StudyLoadService>.Instance);
 
-        _subjectsController = new SubjectsController(_subjectService);
+        _subjectsController = new SubjectsController(_subjectService, new Mock<IProgramScopingService>().Object);
 
         SeedUsersAndPrograms();
     }

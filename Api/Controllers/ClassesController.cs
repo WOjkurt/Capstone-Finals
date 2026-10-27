@@ -36,44 +36,93 @@ public class ClassesController : ControllerBase
 
     [HttpGet]
     [EnableRateLimiting("search")]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? termId, [FromQuery] Guid? subjectId, [FromQuery] Guid? teacherUserId)
+    public async Task<IActionResult> GetAll([FromQuery] Guid? termId, [FromQuery] Guid? subjectId, [FromQuery] Guid? teacherUserId, [FromQuery] int? yearLevel)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
         {
             return Unauthorized(new { message = "Authentication required." });
         }
 
-        int? programScope = null;
-        if (HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role && role == RoleUtils.ProgramHead)
+        if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
         {
-            // If the Program Head is querying their own classes as a teacher, don't scope by program
-            if (!teacherUserId.HasValue || teacherUserId.Value != authUserId)
-            {
-                programScope = await _scopingService.GetProgramIdAsync(authUserId);
-                if (!programScope.HasValue)
-                {
-                    // Program Head without an assigned program gets an empty list
-                    return Ok(new List<ClassDto>());
-                }
-            }
+            return Forbid();
         }
 
-        var classes = await _classService.GetAllAsync(termId, subjectId, teacherUserId, programScope);
+        int? programScope = null;
+        Guid? studentScope = null;
+        Guid? teacherScope = teacherUserId;
+
+        switch (role)
+        {
+            case RoleUtils.Admin:
+            case RoleUtils.Registrar:
+            case RoleUtils.CollegeHead:
+                // All classes, all filters allowed.
+                break;
+
+            case RoleUtils.ProgramHead:
+                // If querying classes they teach, don't scope by program
+                if (teacherUserId.HasValue && teacherUserId.Value == authUserId)
+                {
+                    teacherScope = authUserId;
+                }
+                else
+                {
+                    programScope = await _scopingService.GetProgramIdAsync(authUserId);
+                    if (!programScope.HasValue)
+                    {
+                        // Program Head without an assigned program gets an empty list
+                        return Ok(new List<ClassDto>());
+                    }
+                }
+                break;
+
+            case RoleUtils.Teacher:
+                // Only classes where Class.UserID == caller.
+                // If teacherUserId is sent and is not caller's id, return 403.
+                if (teacherUserId.HasValue && teacherUserId.Value != authUserId)
+                {
+                    return Forbid();
+                }
+                teacherScope = authUserId;
+                break;
+
+            case RoleUtils.Student:
+                // Only classes where the caller has a StudyLoad.
+                studentScope = authUserId;
+                break;
+
+            default:
+                return Forbid();
+        }
+
+        var classes = await _classService.GetAllAsync(termId, subjectId, teacherScope, programScope, studentScope, yearLevel);
         return Ok(classes);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
         {
             return Unauthorized(new { message = "Authentication required." });
+        }
+
+        if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
+        {
+            return Forbid();
         }
 
         var classDto = await _classService.GetByIdAsync(id);
         if (classDto == null)
         {
             return NotFound(new { message = $"Class with ID '{id}' was not found." });
+        }
+
+        var canAccess = await _classService.CanAccessClassAsync(id, authUserId, role);
+        if (!canAccess)
+        {
+            return Forbid();
         }
 
         return Ok(classDto);

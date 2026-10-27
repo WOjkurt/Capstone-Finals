@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/class_models.dart';
+import '../models/setup_models.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
@@ -49,6 +50,7 @@ class ClassRepository {
   Future<List<ClassModel>> getProgramClasses({
     String? termId,
     String? subjectId,
+    int? yearLevel,
   }) async {
     final headers = await _auth.getAuthHeaders();
     final queryParams = <String, String>{};
@@ -57,6 +59,9 @@ class ClassRepository {
     }
     if (subjectId != null && subjectId.isNotEmpty) {
       queryParams['subjectId'] = subjectId;
+    }
+    if (yearLevel != null) {
+      queryParams['yearLevel'] = yearLevel.toString();
     }
 
     final uri = Uri.parse('$baseUrl/api/classes')
@@ -113,5 +118,38 @@ class ClassRepository {
     // Sort alphabetically by student display name
     list.sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     return list;
+  }
+
+  Future<List<AcademicTermModel>> getTerms() async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/academicterms');
+    final res = await http.get(uri, headers: headers);
+
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+
+    return (jsonDecode(res.body) as List)
+        .map((e) => AcademicTermModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AcademicTermModel?> getActiveTerm() async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/academicterms/active');
+    final res = await http.get(uri, headers: headers);
+
+    if (res.statusCode == 404) return null;
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+
+    return AcademicTermModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 }

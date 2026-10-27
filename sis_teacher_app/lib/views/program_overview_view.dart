@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import '../models/setup_models.dart';
 
 enum _OverviewViewMode { byFaculty, byClass }
 
@@ -25,6 +26,12 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   final TextEditingController _searchController = TextEditingController();
   _OverviewViewMode _viewMode = _OverviewViewMode.byFaculty;
   String _searchQuery = '';
+  int? _selectedYearLevel;
+  List<AcademicTermModel> _terms = [];
+  String? _selectedTermId;
+  bool _filterUnassignedFaculty = false;
+  bool _filterNoSchedule = false;
+  bool _filterZeroEnrolled = false;
   // Cache for the last successfully loaded class list — kept in view state so it
   // stays visible during the transient ProgramOverviewAssigning state.
   List<ClassModel> _lastKnownClasses = [];
@@ -33,7 +40,32 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   @override
   void initState() {
     super.initState();
-    context.read<ProgramOverviewBloc>().add(LoadProgramClassesEvent());
+    _initData();
+  }
+
+  Future<void> _initData() async {
+    try {
+      final repo = getIt<ClassRepository>();
+      final terms = await repo.getTerms();
+      final active = terms.where((t) => t.isActive).firstOrNull ?? terms.firstOrNull;
+      if (mounted) {
+        setState(() {
+          _terms = terms;
+          _selectedTermId = active?.termId;
+        });
+      }
+    } catch (_) {
+      // Proceed without terms if lookup fails
+    }
+
+    if (mounted) {
+      context.read<ProgramOverviewBloc>().add(
+            LoadProgramClassesEvent(
+              termId: _selectedTermId,
+              yearLevel: _selectedYearLevel,
+            ),
+          );
+    }
   }
 
   @override
@@ -58,19 +90,66 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
         PageHeader(
           title: 'Program Overview',
           subtitle: 'Departmental curriculum oversight, faculty course distribution, and class monitoring.',
-          action: OutlinedButton.icon(
-            onPressed: () =>
-                context.read<ProgramOverviewBloc>().add(LoadProgramClassesEvent()),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_terms.isNotEmpty) ...[
+                Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      value: _selectedTermId,
+                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary, size: 20),
+                      style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                      onChanged: (newTermId) {
+                        setState(() => _selectedTermId = newTermId);
+                        context.read<ProgramOverviewBloc>().add(
+                              LoadProgramClassesEvent(
+                                termId: _selectedTermId,
+                                yearLevel: _selectedYearLevel,
+                              ),
+                            );
+                      },
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All Terms'),
+                        ),
+                        ..._terms.map((t) => DropdownMenuItem<String?>(
+                              value: t.termId,
+                              child: Text(t.isActive ? '${t.label} (Active)' : t.label),
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              OutlinedButton.icon(
+                onPressed: () => context.read<ProgramOverviewBloc>().add(
+                      LoadProgramClassesEvent(
+                        termId: _selectedTermId,
+                        yearLevel: _selectedYearLevel,
+                      ),
+                    ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.border),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
-            ),
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.w600)),
+            ],
           ),
         ),
         Expanded(
@@ -186,9 +265,12 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                         ),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
-                          onPressed: () => context
-                              .read<ProgramOverviewBloc>()
-                              .add(LoadProgramClassesEvent()),
+                          onPressed: () => context.read<ProgramOverviewBloc>().add(
+                                LoadProgramClassesEvent(
+                                  termId: _selectedTermId,
+                                  yearLevel: _selectedYearLevel,
+                                ),
+                              ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
@@ -220,6 +302,12 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 final unassignedCount = all.where((c) => c.userId == null).length;
 
                 final filtered = all.where((c) {
+                  if (_viewMode == _OverviewViewMode.byClass) {
+                    if (_filterUnassignedFaculty && c.userId != null) return false;
+                    if (_filterNoSchedule && c.schedules.isNotEmpty) return false;
+                    if (_filterZeroEnrolled && c.enrolledCount > 0) return false;
+                  }
+
                   if (_searchQuery.isEmpty) return true;
                   final q = _searchQuery.toLowerCase();
                   return (c.subjectCode?.toLowerCase().contains(q) ?? false) ||
@@ -344,52 +432,128 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   }
 
   Widget _buildControlBar({required int filteredCount, required int totalCount}) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Search bar
-        Expanded(
-          child: SizedBox(
-            height: 42,
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) => setState(() => _searchQuery = val.trim()),
-              decoration: InputDecoration(
-                hintText: 'Search by subject code, title, section, or faculty name...',
-                hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 16),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        Row(
+          children: [
+            // Search bar
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                  decoration: InputDecoration(
+                    hintText: 'Search by subject code, title, section, or faculty name...',
+                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                  style: const TextStyle(fontSize: 13),
                 ),
               ),
-              style: const TextStyle(fontSize: 13),
             ),
+            const SizedBox(width: 16),
+            // View Toggle (By Faculty vs By Class)
+            Container(
+              height: 42,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ViewToggleButton(
+                    label: 'By Faculty',
+                    icon: Icons.badge_outlined,
+                    isSelected: _viewMode == _OverviewViewMode.byFaculty,
+                    onTap: () {
+                      setState(() => _viewMode = _OverviewViewMode.byFaculty);
+                      if (_selectedYearLevel != null) {
+                        setState(() => _selectedYearLevel = null);
+                        context
+                            .read<ProgramOverviewBloc>()
+                            .add(LoadProgramClassesEvent());
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 2),
+                  _ViewToggleButton(
+                    label: 'By Class',
+                    icon: Icons.grid_view_rounded,
+                    isSelected: _viewMode == _OverviewViewMode.byClass,
+                    onTap: () => setState(() => _viewMode = _OverviewViewMode.byClass),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (_viewMode == _OverviewViewMode.byClass) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _buildYearLevelFilter(),
+              _buildQuickFilterChips(),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildYearLevelFilter() {
+    final levels = [
+      (label: 'All', value: null),
+      (label: '1st Year', value: 1),
+      (label: '2nd Year', value: 2),
+      (label: '3rd Year', value: 3),
+      (label: '4th Year', value: 4),
+    ];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Year Level:',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(width: 16),
-        // View Toggle (By Faculty vs By Class)
+        const SizedBox(width: 8),
         Container(
-          height: 42,
+          height: 38,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: const Color(0xFFF1F5F9),
@@ -398,24 +562,130 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              _ViewToggleButton(
-                label: 'By Faculty',
-                icon: Icons.badge_outlined,
-                isSelected: _viewMode == _OverviewViewMode.byFaculty,
-                onTap: () => setState(() => _viewMode = _OverviewViewMode.byFaculty),
-              ),
-              const SizedBox(width: 2),
-              _ViewToggleButton(
-                label: 'By Class',
-                icon: Icons.grid_view_rounded,
-                isSelected: _viewMode == _OverviewViewMode.byClass,
-                onTap: () => setState(() => _viewMode = _OverviewViewMode.byClass),
-              ),
-            ],
+            children: levels.map((lvl) {
+              final isSelected = _selectedYearLevel == lvl.value;
+              return Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: InkWell(
+                  onTap: () {
+                    if (_selectedYearLevel == lvl.value) return;
+                    setState(() => _selectedYearLevel = lvl.value);
+                    context.read<ProgramOverviewBloc>().add(
+                          LoadProgramClassesEvent(yearLevel: _selectedYearLevel),
+                        );
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.white : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Text(
+                      lvl.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildQuickFilterChips() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Quick Filters:',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        _buildFilterToggleChip(
+          label: 'Unassigned Faculty',
+          icon: Icons.person_off_outlined,
+          isSelected: _filterUnassignedFaculty,
+          onTap: () => setState(() => _filterUnassignedFaculty = !_filterUnassignedFaculty),
+        ),
+        const SizedBox(width: 6),
+        _buildFilterToggleChip(
+          label: 'No Schedule',
+          icon: Icons.schedule_outlined,
+          isSelected: _filterNoSchedule,
+          onTap: () => setState(() => _filterNoSchedule = !_filterNoSchedule),
+        ),
+        const SizedBox(width: 6),
+        _buildFilterToggleChip(
+          label: 'Zero Enrolled',
+          icon: Icons.people_outline,
+          isSelected: _filterZeroEnrolled,
+          onTap: () => setState(() => _filterZeroEnrolled = !_filterZeroEnrolled),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterToggleChip({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : const Color(0xFFE2E8F0),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -457,6 +727,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 AssignTeacherEvent(
                   classId: classItem.classId,
                   teacherUserId: teacherUserId,
+                  termId: _selectedTermId,
+                  yearLevel: _selectedYearLevel,
                 ),
               );
         },
@@ -1154,6 +1426,25 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                       ),
                     ),
                   ),
+                  if (c.yearLevel != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Text(
+                        'Year ${c.yearLevel}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF4B5563),
+                        ),
+                      ),
+                    ),
+                  ],
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1491,6 +1782,27 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                               ),
                             ),
                           ),
+                          if (c.yearLevel != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3F4F6),
+                                borderRadius: BorderRadius.circular(4),
+                                border:
+                                    Border.all(color: const Color(0xFFE5E7EB)),
+                              ),
+                              child: Text(
+                                'Year ${c.yearLevel}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF4B5563),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: 8),
                           if (isUnassigned)
                             Container(

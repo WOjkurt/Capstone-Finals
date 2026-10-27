@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sis_teacher_app/blocs/faculty_bloc.dart';
 import 'package:sis_teacher_app/models/class_models.dart';
 import 'package:sis_teacher_app/models/grading_models.dart';
+import 'package:sis_teacher_app/models/setup_models.dart';
 import 'package:sis_teacher_app/repositories/class_repository.dart';
 import 'package:sis_teacher_app/repositories/grading_repository.dart';
 import 'package:sis_teacher_app/services/auth_service.dart';
@@ -36,7 +37,7 @@ class FakeClassRepository implements ClassRepository {
 
   @override
   Future<List<ClassModel>> getProgramClasses(
-      {String? termId, String? subjectId}) async {
+      {String? termId, String? subjectId, int? yearLevel}) async {
     if (shouldThrow) {
       throw Exception(errorMessage);
     }
@@ -52,6 +53,16 @@ class FakeClassRepository implements ClassRepository {
   @override
   Future<List<ClassRosterItemModel>> getClassRoster(String classId) async {
     return [];
+  }
+
+  @override
+  Future<List<AcademicTermModel>> getTerms() async {
+    return [];
+  }
+
+  @override
+  Future<AcademicTermModel?> getActiveTerm() async {
+    return null;
   }
 
   @override

@@ -118,6 +118,47 @@ void main() {
 
       expect(classModel.enrolledCount, 42);
     });
+
+    test('deserializes yearLevel from JSON when present', () {
+      final json = {
+        'classID': 'class-1',
+        'subjectID': 'sub-1',
+        'className': 'BSIT-2A',
+        'termID': 'term-1',
+        'yearLevel': 2,
+      };
+
+      final classModel = ClassModel.fromJson(json);
+
+      expect(classModel.yearLevel, 2);
+    });
+
+    test('yearLevel is null when absent from JSON', () {
+      final json = {
+        'classID': 'class-1',
+        'subjectID': 'sub-1',
+        'className': 'BSIT-1A',
+        'termID': 'term-1',
+      };
+
+      final classModel = ClassModel.fromJson(json);
+
+      expect(classModel.yearLevel, isNull);
+    });
+
+    test('yearLevel is null when JSON value is null', () {
+      final json = {
+        'classID': 'class-1',
+        'subjectID': 'sub-1',
+        'className': 'BSIT-1A',
+        'termID': 'term-1',
+        'yearLevel': null,
+      };
+
+      final classModel = ClassModel.fromJson(json);
+
+      expect(classModel.yearLevel, isNull);
+    });
   });
 
   group('ClassRosterItemModel tests', () {

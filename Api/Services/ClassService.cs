@@ -1,3 +1,4 @@
+using Api.Auth;
 using Api.Domain.Enrollment;
 using Api.DTOs.Class;
 using Api.Repositories;
@@ -52,7 +53,7 @@ public class ClassService : IClassService
         return MapToDto(created!, new List<ClassSchedule>());
     }
 
-    public async Task<List<ClassDto>> GetAllAsync(Guid? termId = null, Guid? subjectId = null, Guid? teacherUserId = null, int? programId = null)
+    public async Task<List<ClassDto>> GetAllAsync(Guid? termId = null, Guid? subjectId = null, Guid? teacherUserId = null, int? programId = null, Guid? studentUserId = null, int? yearLevel = null)
     {
         var query = _context.Classes
             .Include(c => c.Subject)
@@ -78,6 +79,19 @@ public class ClassService : IClassService
         if (programId.HasValue)
         {
             query = query.Where(c => c.Subject != null && c.Subject.ProgramID == programId.Value);
+        }
+
+        if (studentUserId.HasValue)
+        {
+            var studentClassIds = _context.StudyLoads
+                .Where(sl => sl.UserID == studentUserId.Value)
+                .Select(sl => sl.ClassID);
+            query = query.Where(c => studentClassIds.Contains(c.ClassID));
+        }
+
+        if (yearLevel.HasValue)
+        {
+            query = query.Where(c => c.Subject != null && c.Subject.YearLevel == yearLevel.Value);
         }
 
         var classes = await query.ToListAsync();
@@ -144,6 +158,48 @@ public class ClassService : IClassService
         }
 
         return MapToDto(entity, schedules, teacherName, enrolledCount);
+    }
+
+    public async Task<bool> CanAccessClassAsync(Guid classId, Guid userId, int role)
+    {
+        if (role == RoleUtils.Admin || role == RoleUtils.Registrar || role == RoleUtils.CollegeHead)
+        {
+            return true;
+        }
+
+        if (role == RoleUtils.Teacher)
+        {
+            return await _context.Classes.AnyAsync(c => c.ClassID == classId && c.UserID == userId);
+        }
+
+        if (role == RoleUtils.Student)
+        {
+            return await _context.StudyLoads.AnyAsync(sl => sl.ClassID == classId && sl.UserID == userId);
+        }
+
+        if (role == RoleUtils.ProgramHead)
+        {
+            var isTeacher = await _context.Classes.AnyAsync(c => c.ClassID == classId && c.UserID == userId);
+            if (isTeacher)
+            {
+                return true;
+            }
+
+            var programId = await _context.UserDetails
+                .Where(u => u.UserID == userId)
+                .Select(u => u.ProgramID)
+                .FirstOrDefaultAsync();
+
+            if (!programId.HasValue)
+            {
+                return false;
+            }
+
+            return await _context.Classes
+                .AnyAsync(c => c.ClassID == classId && c.Subject != null && c.Subject.ProgramID == programId.Value);
+        }
+
+        return false;
     }
 
     public async Task<ClassDto> UpdateAsync(Guid classId, UpdateClassDto dto)
@@ -247,6 +303,7 @@ public class ClassService : IClassService
             CreatedAt = entity.CreatedAt,
             CreatedByUserID = entity.CreatedByUserID,
             EnrolledCount = enrolledCount,
+            YearLevel = entity.Subject?.YearLevel,
             Schedules = schedules.Select(s => new ClassScheduleDto
             {
                 ScheduleID = s.ScheduleID,

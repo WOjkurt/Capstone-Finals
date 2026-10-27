@@ -67,11 +67,11 @@ public class ClassesControllerTests
             new() { ClassID = Guid.NewGuid(), ClassName = "BSIT-1A", SubjectID = Guid.NewGuid(), SubjectCode = "IT101", SubjectTitle = "Intro to IT" }
         };
 
-        _classServiceMock.Setup(s => s.GetAllAsync(null, null, null, bsitProgramId))
+        _classServiceMock.Setup(s => s.GetAllAsync(null, null, null, bsitProgramId, null, null))
             .ReturnsAsync(bsitClasses);
 
         // Act
-        var result = await _controller.GetAll(null, null, null);
+        var result = await _controller.GetAll(null, null, null, null);
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
@@ -79,7 +79,7 @@ public class ClassesControllerTests
         Assert.Single(returnedClasses);
 
         // Verify that GetAllAsync was called with the programId parameter
-        _classServiceMock.Verify(s => s.GetAllAsync(null, null, null, bsitProgramId), Times.Once);
+        _classServiceMock.Verify(s => s.GetAllAsync(null, null, null, bsitProgramId, null, null), Times.Once);
     }
 
     [Fact]
@@ -89,15 +89,15 @@ public class ClassesControllerTests
         var adminId = Guid.NewGuid();
         SetHttpContext(RoleUtils.Admin, adminId);
 
-        _classServiceMock.Setup(s => s.GetAllAsync(null, null, null, null))
+        _classServiceMock.Setup(s => s.GetAllAsync(null, null, null, null, null, null))
             .ReturnsAsync(new List<ClassDto>());
 
         // Act
-        var result = await _controller.GetAll(null, null, null);
+        var result = await _controller.GetAll(null, null, null, null);
 
         // Assert
         Assert.IsType<OkObjectResult>(result);
-        _classServiceMock.Verify(s => s.GetAllAsync(null, null, null, null), Times.Once);
+        _classServiceMock.Verify(s => s.GetAllAsync(null, null, null, null, null, null), Times.Once);
         _scopingServiceMock.Verify(s => s.GetProgramIdAsync(It.IsAny<Guid>()), Times.Never);
     }
 
@@ -108,18 +108,18 @@ public class ClassesControllerTests
         var programHeadId = Guid.NewGuid();
         SetHttpContext(RoleUtils.ProgramHead, programHeadId);
 
-        _classServiceMock.Setup(s => s.GetAllAsync(null, null, programHeadId, null))
+        _classServiceMock.Setup(s => s.GetAllAsync(null, null, programHeadId, null, null, null))
             .ReturnsAsync(new List<ClassDto>());
 
         // Act
-        var result = await _controller.GetAll(null, null, programHeadId);
+        var result = await _controller.GetAll(null, null, programHeadId, null);
 
         // Assert
         Assert.IsType<OkObjectResult>(result);
         // Scoping service should NEVER be called since program scope is bypassed for own classes
         _scopingServiceMock.Verify(s => s.GetProgramIdAsync(It.IsAny<Guid>()), Times.Never);
         // GetAllAsync should be called with teacherUserId = programHeadId and programScope = null
-        _classServiceMock.Verify(s => s.GetAllAsync(null, null, programHeadId, null), Times.Once);
+        _classServiceMock.Verify(s => s.GetAllAsync(null, null, programHeadId, null, null, null), Times.Once);
     }
 
     [Fact]

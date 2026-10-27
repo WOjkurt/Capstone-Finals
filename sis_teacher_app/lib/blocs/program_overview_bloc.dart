@@ -12,8 +12,9 @@ abstract class ProgramOverviewEvent {}
 class LoadProgramClassesEvent extends ProgramOverviewEvent {
   final String? termId;
   final String? subjectId;
+  final int? yearLevel;
 
-  LoadProgramClassesEvent({this.termId, this.subjectId});
+  LoadProgramClassesEvent({this.termId, this.subjectId, this.yearLevel});
 }
 
 /// Assigns (or reassigns) a teacher to a class, then refreshes the list.
@@ -21,16 +22,18 @@ class AssignTeacherEvent extends ProgramOverviewEvent {
   final String classId;
   final String? teacherUserId;
 
-  /// The [termId] and [subjectId] are forwarded to the follow-up load so the
+  /// The [termId], [subjectId], and [yearLevel] are forwarded to the follow-up load so the
   /// same filter context is preserved after the assignment.
   final String? termId;
   final String? subjectId;
+  final int? yearLevel;
 
   AssignTeacherEvent({
     required this.classId,
     this.teacherUserId,
     this.termId,
     this.subjectId,
+    this.yearLevel,
   });
 }
 
@@ -99,6 +102,7 @@ class ProgramOverviewBloc
       final classes = await _repo.getProgramClasses(
         termId: event.termId,
         subjectId: event.subjectId,
+        yearLevel: event.yearLevel,
       );
       emit(ProgramOverviewLoaded(classes));
     } catch (e, st) {
@@ -120,6 +124,7 @@ class ProgramOverviewBloc
       final classes = await _repo.getProgramClasses(
         termId: event.termId,
         subjectId: event.subjectId,
+        yearLevel: event.yearLevel,
       );
       emit(ProgramOverviewLoaded(classes));
     } catch (e, st) {

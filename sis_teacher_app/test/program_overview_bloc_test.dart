@@ -1,20 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sis_teacher_app/blocs/program_overview_bloc.dart';
 import 'package:sis_teacher_app/models/class_models.dart';
+import 'package:sis_teacher_app/models/setup_models.dart';
 import 'package:sis_teacher_app/repositories/class_repository.dart';
 
 class FakeClassRepository implements ClassRepository {
   List<ClassModel> mockClasses = [];
+  List<AcademicTermModel> mockTerms = [];
+  AcademicTermModel? mockActiveTerm;
   bool shouldThrow = false;
   bool shouldThrowOnAssign = false;
   String errorMessage = 'Failed to fetch classes';
   String assignError = 'Permission denied';
+  int? lastYearLevel;
 
   @override
   Future<List<ClassModel>> getProgramClasses({
     String? termId,
     String? subjectId,
+    int? yearLevel,
   }) async {
+    lastYearLevel = yearLevel;
     if (shouldThrow) {
       throw Exception(errorMessage);
     }
@@ -32,6 +38,16 @@ class FakeClassRepository implements ClassRepository {
   @override
   Future<List<ClassRosterItemModel>> getClassRoster(String classId) async {
     return [];
+  }
+
+  @override
+  Future<List<AcademicTermModel>> getTerms() async {
+    return mockTerms;
+  }
+
+  @override
+  Future<AcademicTermModel?> getActiveTerm() async {
+    return mockActiveTerm;
   }
 
   @override
@@ -121,9 +137,10 @@ void main() {
         isA<ProgramOverviewLoaded>(),
       ];
 
-      expectLater(bloc.stream, emitsInOrder(expectedStates));
+      final expectation = expectLater(bloc.stream, emitsInOrder(expectedStates));
 
       bloc.add(LoadProgramClassesEvent());
+      await expectation;
     });
 
     test('calculates correct metrics in ProgramOverviewLoaded state', () {
@@ -182,9 +199,10 @@ void main() {
         isA<ProgramOverviewError>(),
       ];
 
-      expectLater(bloc.stream, emitsInOrder(expectedStates));
+      final expectation = expectLater(bloc.stream, emitsInOrder(expectedStates));
 
       bloc.add(LoadProgramClassesEvent());
+      await expectation;
     });
 
     test('emits [Assigning, Loaded] on successful AssignTeacherEvent', () async {
@@ -207,9 +225,10 @@ void main() {
         isA<ProgramOverviewLoaded>(),
       ];
 
-      expectLater(bloc.stream, emitsInOrder(expectedStates));
+      final expectation = expectLater(bloc.stream, emitsInOrder(expectedStates));
 
       bloc.add(AssignTeacherEvent(classId: 'c-1', teacherUserId: 'teacher-99'));
+      await expectation;
     });
 
     test('emits [Assigning, AssignError] when assignTeacher throws', () async {
@@ -233,9 +252,34 @@ void main() {
         isA<ProgramOverviewAssignError>(),
       ];
 
-      expectLater(bloc.stream, emitsInOrder(expectedStates));
+      final expectation = expectLater(bloc.stream, emitsInOrder(expectedStates));
 
       bloc.add(AssignTeacherEvent(classId: 'c-1', teacherUserId: 'teacher-99'));
+      await expectation;
+    });
+
+    test('forwards yearLevel filter to repository on LoadProgramClassesEvent', () async {
+      bloc.add(LoadProgramClassesEvent(yearLevel: 3));
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<ProgramOverviewLoading>(),
+          isA<ProgramOverviewLoaded>(),
+        ]),
+      );
+      expect(fakeRepo.lastYearLevel, 3);
+    });
+
+    test('forwards yearLevel filter to repository on AssignTeacherEvent refresh', () async {
+      bloc.add(AssignTeacherEvent(classId: 'c-1', teacherUserId: 'teacher-1', yearLevel: 2));
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<ProgramOverviewAssigning>(),
+          isA<ProgramOverviewLoaded>(),
+        ]),
+      );
+      expect(fakeRepo.lastYearLevel, 2);
     });
   });
 }

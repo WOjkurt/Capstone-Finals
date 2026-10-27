@@ -22,5 +22,7 @@ public class ClassDto
 
     public int EnrolledCount { get; set; }
 
+    public int? YearLevel { get; set; }
+
     public List<ClassScheduleDto> Schedules { get; set; } = new();
 }

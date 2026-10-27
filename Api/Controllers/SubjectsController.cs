@@ -11,19 +11,32 @@ namespace Api.Controllers;
 public class SubjectsController : ControllerBase
 {
     private readonly ISubjectService _subjectService;
+    private readonly IProgramScopingService _scopingService;
 
-    public SubjectsController(ISubjectService subjectService)
+    public SubjectsController(ISubjectService subjectService, IProgramScopingService scopingService)
     {
         _subjectService = subjectService;
+        _scopingService = scopingService;
     }
 
     [HttpGet]
     [EnableRateLimiting("search")]
     public async Task<IActionResult> GetAll([FromQuery] int? programId, [FromQuery] int? yearLevel)
     {
-        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
         {
             return Unauthorized(new { message = "Authentication required." });
+        }
+
+        // Program Head may only see subjects in their own program; client-supplied programId is ignored.
+        if (HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role && role == RoleUtils.ProgramHead)
+        {
+            var headProgramId = await _scopingService.GetProgramIdAsync(authUserId);
+            if (!headProgramId.HasValue)
+            {
+                return Ok(new List<SubjectDto>());
+            }
+            programId = headProgramId.Value;
         }
 
         var subjects = await _subjectService.GetAllAsync(programId, yearLevel);
@@ -33,7 +46,7 @@ public class SubjectsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
         {
             return Unauthorized(new { message = "Authentication required." });
         }
@@ -42,6 +55,16 @@ public class SubjectsController : ControllerBase
         if (subject == null)
         {
             return NotFound(new { message = $"Subject with ID '{id}' was not found." });
+        }
+
+        // Program Head may not access subjects outside their program.
+        if (HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role && role == RoleUtils.ProgramHead)
+        {
+            var headProgramId = await _scopingService.GetProgramIdAsync(authUserId);
+            if (!headProgramId.HasValue || subject.ProgramID != headProgramId.Value)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. This subject belongs to a different program." });
+            }
         }
 
         return Ok(subject);
