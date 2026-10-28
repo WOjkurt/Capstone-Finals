@@ -1,8 +1,10 @@
 using Api.Auth;
+using Api.Common;
 using Api.Domain.Enrollment;
 using Api.DTOs.Class;
 using Api.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Api.Services;
 
@@ -11,15 +13,18 @@ public class ClassService : IClassService
     private readonly AppDbContext _context;
     private readonly IClassRepository _classRepository;
     private readonly IClassScheduleRepository _scheduleRepository;
+    private readonly ILogger<ClassService> _logger;
 
     public ClassService(
         AppDbContext context,
         IClassRepository classRepository,
-        IClassScheduleRepository scheduleRepository)
+        IClassScheduleRepository scheduleRepository,
+        ILogger<ClassService>? logger = null)
     {
         _context = context;
         _classRepository = classRepository;
         _scheduleRepository = scheduleRepository;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ClassService>.Instance;
     }
 
     public async Task<ClassDto> CreateAsync(CreateClassDto dto, Guid createdByUserId)
@@ -313,6 +318,193 @@ public class ClassService : IClassService
                 EndTime = s.EndTime,
                 Room = s.Room
             }).ToList()
+        };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bulk: Open classes for an entire term
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public async Task<OpenTermResultDto> OpenTermAsync(OpenTermRequestDto request, bool dryRun, Guid callerUserId)
+    {
+        const int MaxClasses = 500;
+        const int SampleLimit = 50;
+
+        // ── Validate sections range ─────────────────────────────────────────
+        if (request.Sections < 1 || request.Sections > 6)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.Sections),
+                "Sections must be between 1 and 6.");
+        }
+
+        // ── Resolve program ─────────────────────────────────────────────────
+        var program = await _context.AcademicPrograms.FindAsync(request.ProgramId);
+        if (program == null)
+        {
+            throw new KeyNotFoundException(
+                $"Academic program with ID {request.ProgramId} was not found.");
+        }
+
+        // ── Resolve term ────────────────────────────────────────────────────
+        var term = await _context.AcademicTerms.FindAsync(request.TermId);
+        if (term == null)
+        {
+            throw new KeyNotFoundException(
+                $"Academic term with ID '{request.TermId}' was not found.");
+        }
+
+        // ── Fetch subjects in this program (optionally filtered by year level)
+        var subjectsQuery = _context.Subjects
+            .Where(s => s.ProgramID == request.ProgramId);
+
+        if (request.YearLevel.HasValue)
+        {
+            subjectsQuery = subjectsQuery.Where(s => s.YearLevel == request.YearLevel.Value);
+        }
+
+        var allSubjects = await subjectsQuery.AsNoTracking().ToListAsync();
+
+        // ── Split: no-default-semester subjects are always skipped ──────────
+        // DefaultSemester == 0 means not set
+        var toProcess = allSubjects.Where(s => s.DefaultSemester != 0).ToList();
+        var noSemesterSubjects = allSubjects.Where(s => s.DefaultSemester == 0).ToList();
+
+        // ── Filter by matching semester ──────────────────────────────────────
+        toProcess = toProcess.Where(s => s.DefaultSemester == term.Semester).ToList();
+        // Subjects with a non-zero DefaultSemester that don't match the term's semester
+        // are neither processed nor counted as skipped-no-semester — they simply
+        // don't belong to this term. Only subjects with DefaultSemester == 0 are skipped.
+
+        // ── Safety limit check ──────────────────────────────────────────────
+        int totalWouldCreate = toProcess.Count * request.Sections;
+        if (totalWouldCreate > MaxClasses)
+        {
+            throw new InvalidOperationException(
+                $"This request would create {totalWouldCreate} classes, which exceeds the safety limit of {MaxClasses}. " +
+                $"Reduce the scope by filtering by year level or reducing sections.");
+        }
+
+        // ── Build section letters A, B, C… ──────────────────────────────────
+        var sectionLetters = Enumerable.Range(0, request.Sections)
+            .Select(i => ((char)('A' + i)).ToString())
+            .ToArray();
+
+        // ── Load existing class names for this term to check idempotency ─────
+        var existingNamesInTerm = await _context.Classes
+            .Where(c => c.TermID == request.TermId)
+            .Select(c => new { c.SubjectID, c.ClassName })
+            .AsNoTracking()
+            .ToListAsync();
+
+        var existingSet = existingNamesInTerm
+            .Select(x => (x.SubjectID, x.ClassName))
+            .ToHashSet();
+
+        // ── Build plan ──────────────────────────────────────────────────────
+        var toCreate = new List<(Subject subject, string className)>();
+        int totalSkippedExisting = 0;
+
+        foreach (var subject in toProcess)
+        {
+            foreach (var section in sectionLetters)
+            {
+                var className = ClassNameHelper.Format(program.ProgramCode, subject.YearLevel, section);
+
+                if (existingSet.Contains((subject.SubjectID, className)))
+                {
+                    totalSkippedExisting++;
+                }
+                else
+                {
+                    toCreate.Add((subject, className));
+                }
+            }
+        }
+
+        int totalSkippedNoSem = noSemesterSubjects.Count;
+
+        // Sample class names (first 50 from toCreate)
+        var sampleNames = toCreate
+            .Take(SampleLimit)
+            .Select(x => x.className)
+            .ToList();
+
+        // perYear: year level -> count of classes
+        var perYear = toCreate
+            .GroupBy(x => x.subject.YearLevel)
+            .OrderBy(g => g.Key)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // ── Dry run: return plan without writing ─────────────────────────────
+        if (dryRun)
+        {
+            return new OpenTermResultDto
+            {
+                DryRun = true,
+                TermId = request.TermId,
+                ProgramId = request.ProgramId,
+                PlannedCount = toCreate.Count,
+                CreatedCount = 0,
+                SkippedExisting = totalSkippedExisting,
+                SkippedNoDefaultSemester = totalSkippedNoSem,
+                PerYear = perYear,
+                TermIsActive = term.IsActive,
+                SampleClassNames = sampleNames
+            };
+        }
+
+        // ── Real run: create inside a transaction ────────────────────────────
+        int created = 0;
+        using var txn = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var (subject, className) in toCreate)
+            {
+                var entity = new Class
+                {
+                    ClassID = Guid.NewGuid(),
+                    SubjectID = subject.SubjectID,
+                    UserID = null,
+                    TermID = request.TermId,
+                    ClassName = className,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedByUserID = callerUserId
+                };
+                _context.Classes.Add(entity);
+                created++;
+            }
+
+            await _context.SaveChangesAsync();
+            await txn.CommitAsync();
+        }
+        catch
+        {
+            await txn.RollbackAsync();
+            throw;
+        }
+
+        // ── Audit log ────────────────────────────────────────────────────────
+        var termLabel = TermLabel.Format(term.SchoolYear, term.Semester);
+        _logger.LogInformation(
+            "BulkOpenTerm: callerUserId={CallerUserId} program={ProgramCode} ({ProgramId}) " +
+            "term={TermLabel} ({TermId}) created={Created} skippedExisting={SkippedExisting} " +
+            "skippedNoSemester={SkippedNoSemester}",
+            callerUserId, program.ProgramCode, request.ProgramId,
+            termLabel, request.TermId,
+            created, totalSkippedExisting, totalSkippedNoSem);
+
+        return new OpenTermResultDto
+        {
+            DryRun = false,
+            TermId = request.TermId,
+            ProgramId = request.ProgramId,
+            PlannedCount = toCreate.Count,
+            CreatedCount = created,
+            SkippedExisting = totalSkippedExisting,
+            SkippedNoDefaultSemester = totalSkippedNoSem,
+            PerYear = perYear,
+            TermIsActive = term.IsActive,
+            SampleClassNames = sampleNames
         };
     }
 }

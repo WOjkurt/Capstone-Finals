@@ -102,4 +102,33 @@ class ClassRepository {
     return ClassRosterItemModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
+
+  Future<OpenTermResultModel> openTerm({
+    required int programId,
+    required String termId,
+    int? yearLevel,
+    int sections = 1,
+    required bool dryRun,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final uri = Uri.parse('$baseUrl/api/Classes/open-term').replace(
+      queryParameters: {'dryRun': dryRun.toString()},
+    );
+    final body = jsonEncode({
+      'programId': programId,
+      'termId': termId,
+      'yearLevel': ?yearLevel,
+      'sections': sections,
+    });
+    final res = await _client.post(uri, headers: headers, body: body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    return OpenTermResultModel.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
 }

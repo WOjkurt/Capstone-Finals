@@ -202,3 +202,60 @@ class ClassRosterItemModel {
   bool get isWithdrawn => loadStatusInt == 3;
   bool get isPending => loadStatusInt == 4;
 }
+
+class OpenTermResultModel {
+  final bool dryRun;
+  final String termId;
+  final int programId;
+  final int plannedCount;
+  final int createdCount;
+  final int skippedExisting;
+  final int skippedNoDefaultSemester;
+  final Map<int, int> perYear;
+  final bool termIsActive;
+  final List<String> sampleClassNames;
+
+  OpenTermResultModel({
+    required this.dryRun,
+    required this.termId,
+    required this.programId,
+    required this.plannedCount,
+    required this.createdCount,
+    required this.skippedExisting,
+    required this.skippedNoDefaultSemester,
+    required this.perYear,
+    required this.termIsActive,
+    required this.sampleClassNames,
+  });
+
+  int get skippedCount => skippedExisting + skippedNoDefaultSemester;
+
+  factory OpenTermResultModel.fromJson(Map<String, dynamic> json) {
+    final rawPerYear = json['perYear'] as Map<String, dynamic>? ?? {};
+    final perYearMap = <int, int>{};
+    for (final entry in rawPerYear.entries) {
+      final y = int.tryParse(entry.key);
+      if (y != null) {
+        perYearMap[y] = (entry.value as num?)?.toInt() ?? 0;
+      }
+    }
+
+    return OpenTermResultModel(
+      dryRun: json['dryRun'] as bool? ?? false,
+      termId: json['termId'] as String? ?? '',
+      programId: (json['programId'] as num?)?.toInt() ?? 0,
+      plannedCount: (json['plannedCount'] as num?)?.toInt() ?? 0,
+      createdCount: (json['createdCount'] as num?)?.toInt() ?? 0,
+      skippedExisting: (json['skippedExisting'] as num?)?.toInt() ?? 0,
+      skippedNoDefaultSemester:
+          (json['skippedNoDefaultSemester'] as num?)?.toInt() ?? 0,
+      perYear: perYearMap,
+      termIsActive: json['termIsActive'] as bool? ?? false,
+      sampleClassNames: (json['sampleClassNames'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+    );
+  }
+}
+

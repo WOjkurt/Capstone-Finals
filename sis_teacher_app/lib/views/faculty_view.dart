@@ -226,6 +226,9 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                       facultyList.where((f) => f.hasClasses).length;
                   final zeroClassesCount =
                       facultyList.where((f) => !f.hasClasses).length;
+                  final totalTermClasses = unassignedClasses.length +
+                      facultyList.fold<int>(
+                          0, (sum, f) => sum + f.assignedClasses.length);
 
                   // Apply search and filter
                   final filtered = facultyList.where((member) {
@@ -291,6 +294,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                                     isExpanded: isExpanded,
                                     isAssigning: isCurrentlyAssigning,
                                     unassignedClasses: unassignedClasses,
+                                    hasTermClasses: totalTermClasses > 0,
                                     onToggleExpand: () =>
                                         _toggleExpanded(member.userId),
                                     onAssignClass: (classId) {
@@ -584,6 +588,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
     required bool isExpanded,
     required bool isAssigning,
     required List<ClassModel> unassignedClasses,
+    required bool hasTermClasses,
     required VoidCallback onToggleExpand,
     required ValueChanged<String> onAssignClass,
   }) {
@@ -781,6 +786,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                       context: context,
                       member: member,
                       unassignedClasses: unassignedClasses,
+                      hasTermClasses: hasTermClasses,
                       onAssignClass: onAssignClass,
                     ),
             ),
@@ -969,6 +975,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
     required BuildContext context,
     required FacultyMember member,
     required List<ClassModel> unassignedClasses,
+    required bool hasTermClasses,
     required ValueChanged<String> onAssignClass,
   }) {
     return Container(
@@ -1035,7 +1042,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
             )
-          else
+          else if (hasTermClasses)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -1045,6 +1052,23 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
               ),
               child: const Text(
                 'All classes staffed',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: const Text(
+                'No classes opened for this term yet',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

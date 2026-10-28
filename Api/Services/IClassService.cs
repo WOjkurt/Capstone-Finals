@@ -11,4 +11,5 @@ public interface IClassService
     Task<ClassDto> UpdateAsync(Guid classId, UpdateClassDto dto);
     Task<ClassDto> AssignTeacherAsync(Guid classId, Guid? userId);
     Task DeleteAsync(Guid classId);
+    Task<OpenTermResultDto> OpenTermAsync(OpenTermRequestDto request, bool dryRun, Guid callerUserId);
 }

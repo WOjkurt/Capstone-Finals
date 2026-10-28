@@ -359,4 +359,57 @@ public class ClassesController : ControllerBase
             return Conflict(new { message = ex.Message });
         }
     }
+
+    // ── POST /api/classes/open-term?dryRun=true|false ─────────────────────────
+
+    [HttpPost("open-term")]
+    public async Task<IActionResult> OpenTerm([FromQuery] bool dryRun, [FromBody] OpenTermRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid callerUserId || callerUserId == Guid.Empty)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
+        {
+            return Forbid();
+        }
+
+        // Only Admin(1), Registrar(2), Program Head(4) allowed
+        if (role != RoleUtils.Admin && role != RoleUtils.Registrar && role != RoleUtils.ProgramHead)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. Admin, Registrar, or Program Head privileges required." });
+        }
+
+        // Program Head: enforce own program (server-side; ignore client-supplied programId for scoping)
+        if (role == RoleUtils.ProgramHead)
+        {
+            try
+            {
+                await _scopingService.EnsureProgramHeadAccessAsync(callerUserId, dto.ProgramId, "program");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+        }
+
+        try
+        {
+            var result = await _classService.OpenTermAsync(dto, dryRun, callerUserId);
+            return Ok(result);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
 }

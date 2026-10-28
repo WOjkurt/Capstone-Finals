@@ -7,6 +7,7 @@ import '../models/setup_models.dart';
 import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/class_roster_dialog.dart';
+import 'widgets/open_term_dialog.dart';
 import 'widgets/page_header.dart';
 
 class SetupView extends StatefulWidget {
@@ -1866,6 +1867,41 @@ class _ClassesTabState extends State<_ClassesTab> {
                   ),
                 ),
               const SizedBox(width: 12),
+              // Open Classes for Term Button
+              ElevatedButton.icon(
+                key: const Key('open_classes_term_button'),
+                icon: const Icon(Icons.auto_mode_rounded, size: 16),
+                label: const Text('Open Classes for Term...'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final result = await OpenTermDialog.show(
+                    context,
+                    terms: widget.state.terms,
+                    programs: widget.state.programs,
+                    initialTermId: _selectedTermId,
+                  );
+                  if (result != null && mounted) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Successfully opened ${result.createdCount} classes (${result.skippedExisting} skipped).',
+                        ),
+                        backgroundColor: AppColors.accentGreenDark,
+                      ),
+                    );
+                    _fetchClasses();
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
               // Refresh Button
               IconButton(
                 icon: const Icon(Icons.refresh, color: AppColors.primary),

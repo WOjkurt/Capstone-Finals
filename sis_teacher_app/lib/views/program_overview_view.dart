@@ -335,7 +335,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                               totalCount: totalClasses),
                           const SizedBox(height: 20),
                           if (filtered.isEmpty)
-                            _buildEmptyResults()
+                            _buildEmptyResults(
+                                hasZeroClassesInTerm: totalClasses == 0)
                           else if (_viewMode == _OverviewViewMode.byFaculty)
                             _buildByFacultyView(filtered,
                                 assigningClassId: assigningClassId)
@@ -689,7 +690,34 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
-  Widget _buildEmptyResults() {
+  Widget _buildEmptyResults({required bool hasZeroClassesInTerm}) {
+    if (hasZeroClassesInTerm) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar_today_outlined,
+                size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text(
+              'No classes have been opened for this term yet.',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Classes will appear here once the registrar opens them for this term.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 48),
       alignment: Alignment.center,
@@ -711,9 +739,42 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             'Try adjusting your search criteria',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            key: const Key('program_overview_clear_filters_button'),
+            onPressed: _clearFilters,
+            icon: const Icon(Icons.clear_rounded, size: 16),
+            label: const Text('Clear Filters'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _filterUnassignedFaculty = false;
+      _filterNoSchedule = false;
+      _filterZeroEnrolled = false;
+      if (_selectedYearLevel != null) {
+        _selectedYearLevel = null;
+        context.read<ProgramOverviewBloc>().add(
+              LoadProgramClassesEvent(
+                termId: _selectedTermId,
+                yearLevel: null,
+              ),
+            );
+      }
+    });
   }
 
   void _openAssignDialog(BuildContext context, ClassModel classItem) {
@@ -1047,8 +1108,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
