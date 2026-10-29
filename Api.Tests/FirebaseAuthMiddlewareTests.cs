@@ -413,6 +413,110 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
         }
     }
 
+    /// <summary>
+    /// Case (f): verified token, school-domain email, but no Users row AND no approved
+    /// EnrollmentApplication with a matching SchoolEmail. Must return 403 with
+    /// {"error": "account_not_registered"} — not 401, never "session expired".
+    /// </summary>
+    [Fact]
+    public async Task Middleware_VerifiedToken_NoMatchingApplication_Returns403_AccountNotRegistered()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "no-app-uid-" + Guid.NewGuid();
+        var testEmail = "ghost@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-no-app", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: true));
+
+        var dbName = "NoAppDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "true" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        // No approved application seeded — database is empty.
+
+        var response = await client.SendAsync(AuthRequest("token-no-app"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("account_not_registered", body.GetProperty("error").GetString());
+
+        // Confirm no Users row was accidentally created
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            var count = await db.Users.CountAsync(u => u.FirebaseUID == testUid);
+            Assert.Equal(0, count);
+        }
+    }
+
+    /// <summary>
+    /// Case (g): verified token, user exists, but IsActive = false. Must return
+    /// 403 with {"error": "account_inactive"}.
+    /// </summary>
+    [Fact]
+    public async Task Middleware_InactiveUser_Returns403_AccountInactive()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        var testUid = "inactive-uid-" + Guid.NewGuid();
+        var testEmail = "inactive.user@dbtc-cebu.edu.ph";
+        mock.Setup(v => v.VerifyIdTokenAsync("token-inactive", true))
+            .ReturnsAsync(CreateFakeFirebaseToken(testUid, testEmail, emailVerified: true));
+
+        var dbName = "InactiveDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "Auth:RequireVerifiedEmail", "true" }
+                });
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        using (var db = new TestAppDbContext(options))
+        {
+            db.Users.Add(new Domain.IdentityAccess.User
+            {
+                UserID = Guid.NewGuid(),
+                FirebaseUID = testUid,
+                Email = testEmail,
+                Role = RoleUtils.Student,
+                IsActive = false, // disabled
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.SendAsync(AuthRequest("token-inactive"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("account_inactive", body.GetProperty("error").GetString());
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //  Stage 2: Email Verification & Domain Check tests
     // ═══════════════════════════════════════════════════════════════════════════

@@ -143,12 +143,15 @@ public class FirebaseAuthMiddleware
 
             if (!hasApprovedApplication)
             {
-                _logger.LogInformation("Auth denied: no approved application found for this email. Auto-creation skipped.");
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                // The token is valid (authenticated) but this email has no registered account.
+                // Use 403 (not 401) so clients do NOT trigger a re-login loop on 401.
+                // Generic message: we do not reveal whether an application exists.
+                _logger.LogInformation("Auth denied: no registered account found for this email. Auto-creation skipped.");
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new
                 {
-                    error = "No account found for this email. If you are a student, ensure your enrollment application has been approved and the Registrar must register your school email. If you are staff, contact your administrator."
+                    error = "account_not_registered"
                 });
                 return;
             }
@@ -173,6 +176,7 @@ public class FirebaseAuthMiddleware
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsJsonAsync(new
             {
+                error = "account_inactive",
                 message = "This account has been disabled. Please contact an administrator."
             });
             return;
@@ -181,7 +185,12 @@ public class FirebaseAuthMiddleware
         if (!RoleUtils.IsValidRole(user.Role))
         {
             _logger.LogError("Invalid or missing role for user. UserID={UserID}, Role={Role}", user.UserID, user.Role);
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "account_inactive"
+            });
             return;
         }
 

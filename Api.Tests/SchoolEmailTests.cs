@@ -507,9 +507,9 @@ public class SchoolEmailTests : IDisposable
         };
 
         var response = await client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Registrar must register your school email", body);
+        Assert.Contains("account_not_registered", body);
 
         // Verify NO Users row was created
         using (var db = new TestAppDbContext(options))
@@ -520,7 +520,7 @@ public class SchoolEmailTests : IDisposable
     }
 
     [Fact]
-    public async Task Middleware_ApplicationNotApproved_Returns401()
+    public async Task Middleware_ApplicationNotApproved_Returns403()
     {
         var testUid = "not-approved-uid-" + Guid.NewGuid();
         var tokenEmail = "pending.student@dbtc-cebu.edu.ph";
@@ -564,7 +564,7 @@ public class SchoolEmailTests : IDisposable
         };
 
         var response = await client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
         using (var db = new TestAppDbContext(options))
         {
@@ -574,7 +574,7 @@ public class SchoolEmailTests : IDisposable
     }
 
     [Fact]
-    public async Task Middleware_ApplicationAlreadyLinked_Returns401()
+    public async Task Middleware_ApplicationAlreadyLinked_Returns403()
     {
         var testUid = "already-linked-uid-" + Guid.NewGuid();
         var tokenEmail = "linked.student@dbtc-cebu.edu.ph";
@@ -618,7 +618,7 @@ public class SchoolEmailTests : IDisposable
         };
 
         var response = await client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
         using (var db = new TestAppDbContext(options))
         {

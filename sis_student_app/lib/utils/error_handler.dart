@@ -22,25 +22,44 @@ String getFriendlyErrorMessage(dynamic error, [StackTrace? stackTrace]) {
   // 1. ApiException (HTTP status based)
   if (error is ApiException) {
     final code = error.statusCode;
+    final body = error.message;
+
     if (code == 401) {
-      return 'Your session has expired. Please sign in again.';
+      // 401 is only for token problems (expired, revoked, invalid, missing).
+      // Anything that slips through as a raw 401 without a recognised code
+      // should NOT say "session expired" — fall through to generic.
+      if (body.contains('token_expired')) {
+        return 'Your session has expired. Please sign in again.';
+      }
+      // Unrecognised 401 — do not mislead the user.
+      return 'Something went wrong. Please try again.';
     }
+
     if (code == 403) {
-      if (error.message.contains('email_not_verified')) {
+      if (body.contains('email_not_verified')) {
         return 'Please verify your email address, then sign in again.';
       }
+      if (body.contains('account_not_registered')) {
+        // Student-specific: tell them exactly what to do.
+        return 'Your school email is not registered yet. Please ask the Registrar to register it on your application, then sign in again.';
+      }
+      if (body.contains('account_inactive')) {
+        return 'This account is inactive. Please contact the school administrator.';
+      }
+      // Generic 403 (e.g. wrong role — handled via AccessDeniedState in the bloc).
       return 'Access denied — contact your administrator.';
     }
+
     if (code != null && code >= 500) {
       return 'Something went wrong on our end. Please try again, or contact support if this keeps happening.';
     }
     // Specific client error (400, 404, 409, 422) with a clean validation message
-    if (error.message.isNotEmpty &&
-        !error.message.contains('<html') &&
-        !error.message.contains('ClientException') &&
-        !error.message.contains('SocketException') &&
-        !error.message.contains('Failed to fetch')) {
-      return error.message;
+    if (body.isNotEmpty &&
+        !body.contains('<html') &&
+        !body.contains('ClientException') &&
+        !body.contains('SocketException') &&
+        !body.contains('Failed to fetch')) {
+      return body;
     }
     return 'Something went wrong. Please try again.';
   }
