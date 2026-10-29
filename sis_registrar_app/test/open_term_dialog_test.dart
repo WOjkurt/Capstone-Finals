@@ -240,5 +240,117 @@ void main() {
     expect(find.text('Open Classes for Term'), findsNothing);
     expect(completedResult, isNotNull);
     expect(completedResult!.createdCount, 2);
+    // Success snackbar is shown
+    expect(find.text('Opened 2 classes'), findsOneWidget);
+    expect(find.text('No new classes were created. They already exist.'), findsNothing);
+  });
+
+  testWidgets('Preview with plannedCount 0 and skippedExisting 34 shows all classes already open message and Confirm is disabled', (tester) async {
+    fakeClassRepo.nextResult = OpenTermResultModel(
+      dryRun: true,
+      termId: 'term-1',
+      programId: 1,
+      plannedCount: 0,
+      createdCount: 0,
+      skippedExisting: 34,
+      skippedNoDefaultSemester: 0,
+      perYear: const {},
+      termIsActive: true,
+      sampleClassNames: const [],
+    );
+
+    await tester.pumpWidget(buildTestDialog());
+    await tester.tap(find.text('Show Dialog'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('open_term_btn_preview')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('All classes for this term are already open (34 existing). Nothing to create.'),
+      findsOneWidget,
+    );
+    final confirmBtn = tester.widget<ElevatedButton>(find.byKey(const Key('open_term_btn_confirm')));
+    expect(confirmBtn.onPressed, isNull, reason: 'Confirm button must be disabled when plannedCount is 0');
+  });
+
+  testWidgets('Preview with plannedCount 0 and skippedExisting 0 shows no subjects match message and Confirm is disabled', (tester) async {
+    fakeClassRepo.nextResult = OpenTermResultModel(
+      dryRun: true,
+      termId: 'term-1',
+      programId: 1,
+      plannedCount: 0,
+      createdCount: 0,
+      skippedExisting: 0,
+      skippedNoDefaultSemester: 3,
+      perYear: const {},
+      termIsActive: true,
+      sampleClassNames: const [],
+    );
+
+    await tester.pumpWidget(buildTestDialog());
+    await tester.tap(find.text('Show Dialog'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('open_term_btn_preview')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('No subjects match this program, term and year level.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('3 subjects have no default semester set.'),
+      findsOneWidget,
+    );
+    final confirmBtn = tester.widget<ElevatedButton>(find.byKey(const Key('open_term_btn_confirm')));
+    expect(confirmBtn.onPressed, isNull, reason: 'Confirm button must be disabled when plannedCount is 0');
+  });
+
+  testWidgets('Confirm with createdCount 0 shows the neutral message, not the success one', (tester) async {
+    fakeClassRepo.nextResult = OpenTermResultModel(
+      dryRun: true,
+      termId: 'term-1',
+      programId: 1,
+      plannedCount: 2,
+      createdCount: 0,
+      skippedExisting: 0,
+      skippedNoDefaultSemester: 0,
+      perYear: const {1: 2},
+      termIsActive: true,
+      sampleClassNames: const ['BSIT 1A', 'BSIT 1B'],
+    );
+
+    await tester.pumpWidget(buildTestDialog());
+    await tester.tap(find.text('Show Dialog'));
+    await tester.pumpAndSettle();
+
+    // 1. Run preview
+    await tester.tap(find.byKey(const Key('open_term_btn_preview')));
+    await tester.pumpAndSettle();
+
+    // Set result for confirm with createdCount 0
+    fakeClassRepo.nextResult = OpenTermResultModel(
+      dryRun: false,
+      termId: 'term-1',
+      programId: 1,
+      plannedCount: 2,
+      createdCount: 0,
+      skippedExisting: 2,
+      skippedNoDefaultSemester: 0,
+      perYear: const {1: 2},
+      termIsActive: true,
+      sampleClassNames: const [],
+    );
+
+    // 2. Run confirm
+    await tester.tap(find.byKey(const Key('open_term_btn_confirm')));
+    await tester.pumpAndSettle();
+
+    // Dialog is dismissed
+    expect(find.text('Open Classes for Term'), findsNothing);
+    // Neutral message is shown, NOT success message
+    expect(find.text('No new classes were created. They already exist.'), findsOneWidget);
+    expect(find.textContaining('Opened'), findsNothing);
   });
 }

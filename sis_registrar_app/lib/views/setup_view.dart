@@ -1881,7 +1881,6 @@ class _ClassesTabState extends State<_ClassesTab> {
                   ),
                 ),
                 onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
                   final result = await OpenTermDialog.show(
                     context,
                     terms: widget.state.terms,
@@ -1889,14 +1888,6 @@ class _ClassesTabState extends State<_ClassesTab> {
                     initialTermId: _selectedTermId,
                   );
                   if (result != null && mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Successfully opened ${result.createdCount} classes (${result.skippedExisting} skipped).',
-                        ),
-                        backgroundColor: AppColors.accentGreenDark,
-                      ),
-                    );
                     _fetchClasses();
                   }
                 },

@@ -158,6 +158,22 @@ class _OpenTermDialogState extends State<OpenTermDialog> {
 
       if (mounted) {
         setState(() => _isConfirmLoading = false);
+        final messenger = ScaffoldMessenger.of(context);
+        if (result.createdCount > 0) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Opened ${result.createdCount} classes'),
+              backgroundColor: AppColors.accentGreenDark,
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('No new classes were created. They already exist.'),
+              backgroundColor: Color(0xFF475569),
+            ),
+          );
+        }
         widget.onComplete?.call(result);
         Navigator.of(context).pop(result);
       }
@@ -482,122 +498,190 @@ class _OpenTermDialogState extends State<OpenTermDialog> {
                           const SizedBox(height: 12),
                         ],
 
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.info_outline, size: 18, color: AppColors.primary),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${_previewResult!.plannedCount} classes will be created, ${_previewResult!.skippedExisting} will be skipped (already exist).',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: AppColors.textPrimary,
-                                      ),
+                        if (_previewResult!.plannedCount == 0 && _previewResult!.skippedExisting > 0)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline, size: 20, color: AppColors.primary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'All classes for this term are already open (${_previewResult!.skippedExisting} existing). Nothing to create.',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1E3A8A),
                                     ),
                                   ),
-                                ],
-                              ),
-                              if (_previewResult!.skippedNoDefaultSemester > 0) ...[
-                                const SizedBox(height: 8),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (_previewResult!.plannedCount == 0 && _previewResult!.skippedExisting == 0)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.info_outline, size: 20, color: Color(0xFF64748B)),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'No subjects match this program, term and year level.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      if (_previewResult!.skippedNoDefaultSemester > 0) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          '${_previewResult!.skippedNoDefaultSemester} subjects have no default semester set.',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF64748B),
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.remove_circle_outline, size: 16, color: Color(0xFF64748B)),
-                                    const SizedBox(width: 6),
+                                    const Icon(Icons.info_outline, size: 18, color: AppColors.primary),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        '${_previewResult!.skippedNoDefaultSemester} curriculum subjects skipped (no default semester assigned).',
+                                        '${_previewResult!.plannedCount} classes will be created, ${_previewResult!.skippedExisting} will be skipped (already exist).',
                                         style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF64748B),
-                                          fontStyle: FontStyle.italic,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                          color: AppColors.textPrimary,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ],
-                              if (_previewResult!.perYear.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                const Text(
-                                  'Classes by Year Level:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 6,
-                                  children: _previewResult!.perYear.entries.map((e) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: const Color(0xFFCBD5E1)),
-                                      ),
-                                      child: Text(
-                                        'Year ${e.key}: ${e.value} classes',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
+                                if (_previewResult!.skippedNoDefaultSemester > 0) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.remove_circle_outline, size: 16, color: Color(0xFF64748B)),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          '${_previewResult!.skippedNoDefaultSemester} curriculum subjects skipped (no default semester assigned).',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF64748B),
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
                                       ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                              if (_previewResult!.sampleClassNames.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Preview of class sections to be created:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: _previewResult!.sampleClassNames.map((name) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryLight,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: const Color(0xFFB9D7F2)),
-                                      ),
-                                      child: Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.primaryDark,
+                                ],
+                                if (_previewResult!.perYear.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'Classes by Year Level:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 6,
+                                    children: _previewResult!.perYear.entries.map((e) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFCBD5E1)),
                                         ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
+                                        child: Text(
+                                          'Year ${e.key}: ${e.value} classes',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                                if (_previewResult!.sampleClassNames.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Preview of class sections to be created:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: _previewResult!.sampleClassNames.map((name) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryLight,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFFB9D7F2)),
+                                        ),
+                                        child: Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primaryDark,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 14),
                       ],
                     ],
@@ -644,7 +728,10 @@ class _OpenTermDialogState extends State<OpenTermDialog> {
                   // Confirm & Open Classes Button
                   ElevatedButton.icon(
                     key: const Key('open_term_btn_confirm'),
-                    onPressed: (_previewResult == null || _isConfirmLoading || _isPreviewLoading)
+                    onPressed: (_previewResult == null ||
+                            _previewResult!.plannedCount == 0 ||
+                            _isConfirmLoading ||
+                            _isPreviewLoading)
                         ? null
                         : _runConfirm,
                     icon: _isConfirmLoading
