@@ -60,7 +60,7 @@ class _ScheduleViewState extends State<ScheduleView> {
 
     if (state is ScheduleLoaded) {
       term = state.activeTerm;
-      enrolledCount = state.items.length;
+      enrolledCount = state.enrolledItems.length;
       totalUnits = state.totalUnits;
     }
 
@@ -350,7 +350,10 @@ class _ScheduleViewState extends State<ScheduleView> {
         ];
       }
 
-      if (state.items.isEmpty) {
+      final enrolled = state.enrolledItems;
+      final pending = state.pendingItems;
+
+      if (state.items.isEmpty || (enrolled.isEmpty && pending.isEmpty)) {
         return [
           SliverFillRemaining(
             hasScrollBody: false,
@@ -426,25 +429,180 @@ class _ScheduleViewState extends State<ScheduleView> {
       }
 
       return [
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final item = state.items[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _StudentClassCard(item: item),
-                );
-              },
-              childCount: state.items.length,
+        if (pending.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: _buildPendingSection(pending),
             ),
           ),
-        ),
+        if (enrolled.isEmpty && pending.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Center(
+                  child: Text(
+                    'No enrolled classes yet. Your proposed classes are pending Registrar approval above.',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          )
+        else if (enrolled.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final item = enrolled[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _StudentClassCard(item: item),
+                  );
+                },
+                childCount: enrolled.length,
+              ),
+            ),
+          ),
       ];
     }
 
     return const [];
+  }
+
+  Widget _buildPendingSection(List<StudentScheduleItemModel> pending) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.pending_actions_rounded,
+                    size: 20, color: Color(0xFFD97706)),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Waiting for Registrar approval',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE68A),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${pending.length} pending',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFFDE68A)),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: pending.length,
+            separatorBuilder: (ctx, i) =>
+                const Divider(height: 1, color: Color(0xFFFDE68A)),
+            itemBuilder: (ctx, i) {
+              final item = pending[i];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD97706),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        item.subjectCode,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.subjectTitle,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Section: ${item.className} · ${item.unitsLabel}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFFF59E0B)),
+                      ),
+                      child: const Text(
+                        'Pending',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 }
 

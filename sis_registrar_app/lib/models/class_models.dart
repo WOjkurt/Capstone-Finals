@@ -144,6 +144,9 @@ class ClassRosterItemModel {
   final String termLabel;
   final String? lrn;
   final bool? hasLrn;
+  final bool isForced;
+  final String? forcedReason;
+  final String? forcedByUserId;
 
   const ClassRosterItemModel({
     required this.studyLoadId,
@@ -157,6 +160,9 @@ class ClassRosterItemModel {
     required this.termLabel,
     this.lrn,
     this.hasLrn,
+    this.isForced = false,
+    this.forcedReason,
+    this.forcedByUserId,
   });
 
   factory ClassRosterItemModel.fromJson(Map<String, dynamic> json) {
@@ -175,6 +181,9 @@ class ClassRosterItemModel {
       termLabel: json['termLabel'] as String? ?? '',
       lrn: rawLrn,
       hasLrn: rawHasLrn ?? (rawLrn != null && rawLrn.isNotEmpty),
+      isForced: json['isForced'] as bool? ?? false,
+      forcedReason: json['forcedReason'] as String?,
+      forcedByUserId: json['forcedByUserID'] as String? ?? json['forcedByUserId'] as String?,
     );
   }
 
@@ -191,6 +200,8 @@ class ClassRosterItemModel {
         return 3;
       case 'pending':
         return 4;
+      case 'rejected':
+        return 5;
       case 'enrolled':
       default:
         return 1;
@@ -201,6 +212,42 @@ class ClassRosterItemModel {
   bool get isDropped => loadStatusInt == 2;
   bool get isWithdrawn => loadStatusInt == 3;
   bool get isPending => loadStatusInt == 4;
+  bool get isRejected => loadStatusInt == 5;
+}
+
+class PendingStudyLoadSummaryModel {
+  final String userId;
+  final String fullName;
+  final String? lrn;
+  final String? programCode;
+  final String? programName;
+  final int? yearLevel;
+  final int pendingCount;
+  final double pendingUnits;
+
+  const PendingStudyLoadSummaryModel({
+    required this.userId,
+    required this.fullName,
+    this.lrn,
+    this.programCode,
+    this.programName,
+    this.yearLevel,
+    required this.pendingCount,
+    required this.pendingUnits,
+  });
+
+  factory PendingStudyLoadSummaryModel.fromJson(Map<String, dynamic> json) {
+    return PendingStudyLoadSummaryModel(
+      userId: json['userId'] as String? ?? json['studentUserId'] as String? ?? '',
+      fullName: json['fullName'] as String? ?? json['studentName'] as String? ?? 'Unknown Student',
+      lrn: json['lrn'] as String? ?? json['LRN'] as String?,
+      programCode: json['programCode'] as String?,
+      programName: json['programName'] as String?,
+      yearLevel: (json['yearLevel'] as num?)?.toInt(),
+      pendingCount: (json['pendingCount'] as num?)?.toInt() ?? 0,
+      pendingUnits: (json['pendingUnits'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
 }
 
 class OpenTermResultModel {

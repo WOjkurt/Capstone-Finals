@@ -248,4 +248,5 @@ class StudentScheduleItemModel {
 
   bool get isEnrolled => loadStatus.trim().toLowerCase() == 'enrolled';
   bool get isPending  => loadStatus.trim().toLowerCase() == 'pending';
+  bool get isRejected => loadStatus.trim().toLowerCase() == 'rejected';
 }

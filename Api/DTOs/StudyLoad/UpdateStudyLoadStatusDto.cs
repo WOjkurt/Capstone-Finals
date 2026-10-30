@@ -1,10 +1,29 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Api.Domain.Enrollment;
 
 namespace Api.DTOs.StudyLoad;
 
-public class UpdateStudyLoadStatusDto
+public class UpdateStudyLoadStatusDto : IValidatableObject
 {
-    [Range(StudyLoadStatus.Enrolled, StudyLoadStatus.Withdrawn, ErrorMessage = "LoadStatus must be between Enrolled (1) and Withdrawn (3). Pending (4) cannot be set via this endpoint.")]
     public int LoadStatus { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (LoadStatus == StudyLoadStatus.Pending)
+        {
+            yield return new ValidationResult(
+                "LoadStatus must be between Enrolled (1) and Withdrawn (3) or Rejected (5). Pending (4) cannot be set via this endpoint.",
+                new[] { nameof(LoadStatus) });
+        }
+        else if (LoadStatus != StudyLoadStatus.Enrolled &&
+                 LoadStatus != StudyLoadStatus.Dropped &&
+                 LoadStatus != StudyLoadStatus.Withdrawn &&
+                 LoadStatus != StudyLoadStatus.Rejected)
+        {
+            yield return new ValidationResult(
+                "LoadStatus must be Enrolled (1), Dropped (2), Withdrawn (3), or Rejected (5).",
+                new[] { nameof(LoadStatus) });
+        }
+    }
 }

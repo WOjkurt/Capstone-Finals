@@ -32,7 +32,13 @@ class ScheduleLoaded extends ScheduleState {
   ScheduleLoaded({
     required this.activeTerm,
     required this.items,
-  }) : totalUnits = items.fold(0.0, (sum, i) => sum + i.units);
+  }) : totalUnits = items.where((i) => i.isEnrolled).fold(0.0, (sum, i) => sum + i.units);
+
+  List<StudentScheduleItemModel> get enrolledItems =>
+      items.where((i) => i.isEnrolled).toList();
+
+  List<StudentScheduleItemModel> get pendingItems =>
+      items.where((i) => i.isPending).toList();
 }
 
 class ScheduleError extends ScheduleState {

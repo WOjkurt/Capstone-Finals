@@ -8,6 +8,23 @@ import '../utils/error_handler.dart';
 String _extractMessage(String body) {
   try {
     final j = jsonDecode(body) as Map<String, dynamic>;
+    if (j['findings'] is List && (j['findings'] as List).isNotEmpty) {
+      final list = (j['findings'] as List);
+      final details = list.map((f) {
+        if (f is Map) {
+          final msg = f['message']?.toString();
+          final code = f['code']?.toString();
+          final sc = f['subjectCode']?.toString();
+          if (sc != null && sc.isNotEmpty) {
+            return '$sc: ${msg ?? code}';
+          }
+          return msg ?? code ?? '';
+        }
+        return f.toString();
+      }).where((s) => s.isNotEmpty).join('; ');
+      final mainMsg = j['message'] ?? j['error'];
+      return mainMsg != null ? '$mainMsg: $details' : details;
+    }
     return (j['message'] ?? j['error'] ?? body).toString();
   } catch (_) {
     return body;
@@ -130,5 +147,49 @@ class ClassRepository {
     }
     return OpenTermResultModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> finalizeStudyLoads({
+    required String userId,
+    required String termId,
+    List<String>? studyLoadIds,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final uri = Uri.parse('$baseUrl/api/studyloads/finalize');
+    final body = jsonEncode({
+      'userId': userId,
+      'termId': termId,
+      'studyLoadIds': studyLoadIds,
+    });
+    final res = await _client.post(uri, headers: headers, body: body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<PendingStudyLoadSummaryModel>> getPendingSummary({String? termId}) async {
+    final headers = await _auth.getAuthHeaders();
+    final queryParams = <String, String>{};
+    if (termId != null && termId.isNotEmpty) {
+      queryParams['termId'] = termId;
+    }
+    final uri = Uri.parse('$baseUrl/api/studyloads/pending-summary')
+        .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+    final res = await _client.get(uri, headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    final list = (jsonDecode(res.body) as List)
+        .map((e) => PendingStudyLoadSummaryModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return list;
   }
 }

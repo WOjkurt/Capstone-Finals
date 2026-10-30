@@ -445,9 +445,9 @@ public class StudyLoadServiceStage2Tests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateStatusAsync_ServiceAllowsPending_CanBeSetProgrammatically()
+    public async Task UpdateStatusAsync_ServiceRejectsPending_CannotBeSetViaEndpoint()
     {
-        // Only the PATCH *endpoint* restricts Pending via DTO. The service itself accepts it.
+        // Service now throws when newStatus == Pending so the endpoint is guarded at service level too.
         var (_, classId, _) = await SeedClassAsync();
         var studentId = Guid.NewGuid();
         _context.Users.Add(new User
@@ -461,8 +461,8 @@ public class StudyLoadServiceStage2Tests : IDisposable
         var sl = await SeedStudyLoadAsync(studentId, classId, StudyLoadStatus.Enrolled);
         await _context.SaveChangesAsync();
 
-        var result = await _studyLoadService.UpdateStatusAsync(sl.StudyLoadID, StudyLoadStatus.Pending);
-        Assert.Equal("Pending", result.LoadStatus);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _studyLoadService.UpdateStatusAsync(sl.StudyLoadID, StudyLoadStatus.Pending));
     }
 
     // ── 7. StudyLoadStatus display text for all four values ───────────────────
@@ -490,8 +490,9 @@ public class StudyLoadServiceStage2Tests : IDisposable
         Assert.True(StudyLoadStatus.IsValid(StudyLoadStatus.Dropped));
         Assert.True(StudyLoadStatus.IsValid(StudyLoadStatus.Withdrawn));
         Assert.True(StudyLoadStatus.IsValid(StudyLoadStatus.Pending));
+        Assert.True(StudyLoadStatus.IsValid(StudyLoadStatus.Rejected));  // now valid
         Assert.False(StudyLoadStatus.IsValid(0));
-        Assert.False(StudyLoadStatus.IsValid(5));
+        Assert.False(StudyLoadStatus.IsValid(6));
     }
 
     // ── 8. Roster retrieval by class: Teacher vs Staff pending visibility ──────

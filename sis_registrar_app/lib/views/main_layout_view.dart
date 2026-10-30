@@ -7,6 +7,7 @@ import 'clearance_view.dart';
 import 'corrections_view.dart';
 import 'dashboard_view.dart';
 import 'link_accounts_view.dart';
+import 'pending_loads_view.dart';
 import 'responses_view.dart';
 import 'setup_view.dart';
 import 'staff_management_view.dart';
@@ -29,6 +30,7 @@ class MainLayoutView extends StatefulWidget {
       {'title': 'Clearance', 'icon': Icons.verified_user_outlined, 'activeIcon': Icons.verified_user_rounded},
       {'title': 'Setup', 'icon': Icons.settings_outlined, 'activeIcon': Icons.settings_rounded},
       {'title': 'Corrections', 'icon': Icons.assignment_late_outlined, 'activeIcon': Icons.assignment_late_rounded},
+      {'title': 'Pending loads', 'icon': Icons.pending_actions_outlined, 'activeIcon': Icons.pending_actions_rounded},
     ];
 
     if (isAdmin) {
@@ -123,6 +125,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                 const ClearanceView(),
                 const SetupView(),
                 const CorrectionsView(),
+                const PendingLoadsView(),
                 if (_isAdmin) const StaffManagementView(),
               ],
             ),

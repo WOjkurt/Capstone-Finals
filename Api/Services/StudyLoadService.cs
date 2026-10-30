@@ -190,7 +190,7 @@ public class StudyLoadService : IStudyLoadService
         return result;
     }
 
-    public async Task<List<EnrollBatchResponseDto>> EnrollBatchAsync(EnrollBatchRequestDto dto, Guid createdByUserId)
+    public async Task<List<EnrollBatchResponseDto>> EnrollBatchAsync(EnrollBatchRequestDto dto, Guid createdByUserId, int? callerRole = null)
     {
         var user = await _context.Users.FindAsync(dto.UserId);
         if (user == null)
@@ -203,6 +203,10 @@ public class StudyLoadService : IStudyLoadService
         {
             throw new KeyNotFoundException($"AcademicTerm with ID '{dto.TermId}' was not found.");
         }
+
+        int targetStatus = (callerRole == RoleUtils.CollegeHead || dto.AsPending)
+            ? StudyLoadStatus.Pending
+            : StudyLoadStatus.Enrolled;
 
         await ValidatePriorTermClearanceAsync(dto.UserId, dto.TermId);
 
@@ -255,7 +259,7 @@ public class StudyLoadService : IStudyLoadService
                     StudyLoadID = Guid.NewGuid(),
                     UserID = dto.UserId,
                     ClassID = classId,
-                    LoadStatus = StudyLoadStatus.Enrolled,
+                    LoadStatus = targetStatus,
                     CreatedAt = DateTime.UtcNow,
                     CreatedByUserID = createdByUserId
                 };
@@ -274,7 +278,8 @@ public class StudyLoadService : IStudyLoadService
             }
 
             // Ensure exactly one GradeClearance row exists for this student + term (idempotent)
-            if (newlyEnrolledCount > 0)
+            // Only create clearance if loads are enrolled directly
+            if (newlyEnrolledCount > 0 && targetStatus == StudyLoadStatus.Enrolled)
             {
                 await _clearanceService.EnsureClearanceAsync(dto.UserId, dto.TermId);
             }
@@ -441,12 +446,16 @@ public class StudyLoadService : IStudyLoadService
             }
         }
 
+        int targetStatus = (callerRole == RoleUtils.CollegeHead || dto.AsPending)
+            ? StudyLoadStatus.Pending
+            : StudyLoadStatus.Enrolled;
+
         var studyLoad = new StudyLoad
         {
             StudyLoadID = Guid.NewGuid(),
             UserID = dto.UserId,
             ClassID = dto.ClassId,
-            LoadStatus = StudyLoadStatus.Enrolled,
+            LoadStatus = targetStatus,
             CreatedAt = DateTime.UtcNow,
             CreatedByUserID = createdByUserId,
             IsForced = isForced,
@@ -465,7 +474,11 @@ public class StudyLoadService : IStudyLoadService
         }
 
         // Ensure exactly one GradeClearance row exists for this student + term (idempotent)
-        await _clearanceService.EnsureClearanceAsync(dto.UserId, termId);
+        // Only if creating Enrolled loads
+        if (targetStatus == StudyLoadStatus.Enrolled)
+        {
+            await _clearanceService.EnsureClearanceAsync(dto.UserId, termId);
+        }
 
         return new EnrollSingleResponseDto
         {
@@ -663,7 +676,8 @@ public class StudyLoadService : IStudyLoadService
 
         // Only StudyLoads with LoadStatus == Enrolled count as evidence.
         // A Pending load is NOT evidence. Dropped and Withdrawn loads are NOT evidence.
-        var nonPendingLoads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Pending).ToList();
+        // A Rejected proposal is NOT evidence anywhere (must not count as dropped, failed, or taken).
+        var nonPendingLoads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Pending && sl.LoadStatus != StudyLoadStatus.Rejected).ToList();
         if (nonPendingLoads.Count == 0)
         {
             return new SubjectSatisfactionResult { Status = SubjectCompletionStatus.NeverTaken };
@@ -729,14 +743,35 @@ public class StudyLoadService : IStudyLoadService
             throw new ArgumentException($"Invalid LoadStatus '{newStatus}'.");
         }
 
+        if (newStatus == StudyLoadStatus.Pending)
+        {
+            throw new InvalidOperationException("Pending status cannot be set via this endpoint.");
+        }
+
         var studyLoad = await _studyLoadRepository.GetByIdAsync(studyLoadId);
         if (studyLoad == null)
         {
             throw new KeyNotFoundException($"StudyLoad with ID '{studyLoadId}' was not found.");
         }
 
+        var oldStatus = studyLoad.LoadStatus;
+
+        if (newStatus == StudyLoadStatus.Rejected && oldStatus != StudyLoadStatus.Pending)
+        {
+            throw new InvalidOperationException($"Only Pending study loads can be marked as Rejected. Current status is '{StudyLoadStatus.GetDisplayText(oldStatus)}'.");
+        }
+
         studyLoad.LoadStatus = newStatus;
         await _studyLoadRepository.UpdateAsync(studyLoad);
+
+        if (oldStatus == StudyLoadStatus.Pending && newStatus == StudyLoadStatus.Enrolled)
+        {
+            var termId = studyLoad.Class?.TermID;
+            if (termId.HasValue)
+            {
+                await _clearanceService.EnsureClearanceAsync(studyLoad.UserID, termId.Value);
+            }
+        }
 
         var updated = await _studyLoadRepository.GetByIdAsync(studyLoadId);
         int effectiveRole = callerRole ?? RoleUtils.Registrar;
@@ -796,7 +831,7 @@ public class StudyLoadService : IStudyLoadService
         var loads = await _studyLoadRepository.GetByClassIdAsync(classId);
         if (excludePending)
         {
-            loads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Pending).ToList();
+            loads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Pending && sl.LoadStatus != StudyLoadStatus.Rejected).ToList();
         }
         var result = new List<StudyLoadResponseDto>();
 
@@ -988,4 +1023,263 @@ public class StudyLoadService : IStudyLoadService
             .Select(d => d.ToUpperInvariant())
             .ToHashSet();
     }
+
+    public async Task<FinalizeStudyLoadsResponseDto> FinalizeBatchAsync(FinalizeStudyLoadsRequestDto dto, Guid callerUserId, int? callerRole = null)
+    {
+        int effectiveRole = callerRole ?? RoleUtils.Registrar;
+        if (effectiveRole != RoleUtils.Registrar && effectiveRole != RoleUtils.Admin)
+        {
+            throw new UnauthorizedAccessException("Access denied. Only Registrar and Admin can finalize study loads.");
+        }
+
+        var user = await _context.Users.FindAsync(dto.UserId);
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"User with ID '{dto.UserId}' was not found.");
+        }
+
+        var term = await _context.AcademicTerms.FindAsync(dto.TermId);
+        if (term == null)
+        {
+            throw new KeyNotFoundException($"AcademicTerm with ID '{dto.TermId}' was not found.");
+        }
+
+        List<StudyLoad> selectedLoads;
+        if (dto.StudyLoadIds != null && dto.StudyLoadIds.Count > 0)
+        {
+            selectedLoads = await _context.StudyLoads
+                .Include(sl => sl.Class)
+                    .ThenInclude(c => c!.Subject)
+                .Include(sl => sl.Class)
+                    .ThenInclude(c => c!.Term)
+                .Include(sl => sl.Class)
+                    .ThenInclude(c => c!.ClassSchedules)
+                .Where(sl => dto.StudyLoadIds.Contains(sl.StudyLoadID) && sl.UserID == dto.UserId)
+                .ToListAsync();
+
+            if (selectedLoads.Count != dto.StudyLoadIds.Count)
+            {
+                throw new KeyNotFoundException("One or more specified study loads were not found for this student.");
+            }
+
+            foreach (var sl in selectedLoads)
+            {
+                if (sl.Class?.TermID != dto.TermId)
+                {
+                    throw new ArgumentException($"Study load '{sl.StudyLoadID}' belongs to a different term.");
+                }
+                if (sl.LoadStatus != StudyLoadStatus.Pending)
+                {
+                    throw new InvalidOperationException($"Only Pending study loads can be finalized. StudyLoad '{sl.StudyLoadID}' has status '{StudyLoadStatus.GetDisplayText(sl.LoadStatus)}'.");
+                }
+            }
+        }
+        else
+        {
+            selectedLoads = await _context.StudyLoads
+                .Include(sl => sl.Class)
+                    .ThenInclude(c => c!.Subject)
+                .Include(sl => sl.Class)
+                    .ThenInclude(c => c!.Term)
+                .Include(sl => sl.Class)
+                    .ThenInclude(c => c!.ClassSchedules)
+                .Where(sl => sl.UserID == dto.UserId && sl.Class != null && sl.Class.TermID == dto.TermId && sl.LoadStatus == StudyLoadStatus.Pending)
+                .ToListAsync();
+        }
+
+        if (selectedLoads.Count == 0)
+        {
+            return new FinalizeStudyLoadsResponseDto
+            {
+                Success = true,
+                FinalizedLoads = new List<StudyLoadResponseDto>(),
+                Message = "No pending study loads to finalize."
+            };
+        }
+
+        // Validate prior term clearance
+        await ValidatePriorTermClearanceAsync(dto.UserId, dto.TermId);
+
+        var allFindings = new List<EnrollmentValidationFinding>();
+        var selectedIds = selectedLoads.Select(sl => sl.StudyLoadID).ToHashSet();
+
+        foreach (var sl in selectedLoads)
+        {
+            if (sl.Class == null)
+            {
+                allFindings.Add(new EnrollmentValidationFinding
+                {
+                    Code = "CLASS_NOT_FOUND",
+                    Message = "The class associated with this study load no longer exists.",
+                    CanForce = false
+                });
+                continue;
+            }
+
+            // 1. ALREADY_PASSED check
+            var subjectResult = await HasSatisfiedSubjectAsync(dto.UserId, sl.Class.SubjectID);
+            if (subjectResult.Status == SubjectCompletionStatus.Passed)
+            {
+                allFindings.Add(new EnrollmentValidationFinding
+                {
+                    Code = EnrollmentRuleCodes.AlreadyPassed,
+                    Message = $"Student has already passed this subject: {sl.Class.Subject?.SubjectCode ?? "Unknown"} - {sl.Class.Subject?.SubjectTitle ?? "Unknown"} (ALREADY_PASSED)",
+                    SubjectId = sl.Class.SubjectID,
+                    SubjectCode = sl.Class.Subject?.SubjectCode,
+                    CanForce = false
+                });
+            }
+
+            // 2. SAME_SUBJECT_THIS_TERM check (excluding loads currently being finalized)
+            bool otherSameSubject = await _context.StudyLoads
+                .AsNoTracking()
+                .AnyAsync(other => other.UserID == dto.UserId &&
+                                   !selectedIds.Contains(other.StudyLoadID) &&
+                                   other.Class != null &&
+                                   other.Class.TermID == dto.TermId &&
+                                   other.Class.SubjectID == sl.Class.SubjectID &&
+                                   (other.LoadStatus == StudyLoadStatus.Enrolled || other.LoadStatus == StudyLoadStatus.Pending));
+
+            if (otherSameSubject)
+            {
+                allFindings.Add(new EnrollmentValidationFinding
+                {
+                    Code = EnrollmentRuleCodes.SameSubjectThisTerm,
+                    Message = $"Student already has an active or pending enrollment for this subject in the current term: {sl.Class.Subject?.SubjectCode ?? "Unknown"} - {sl.Class.Subject?.SubjectTitle ?? "Unknown"} (SAME_SUBJECT_THIS_TERM)",
+                    SubjectId = sl.Class.SubjectID,
+                    SubjectCode = sl.Class.Subject?.SubjectCode,
+                    CanForce = false
+                });
+            }
+
+            // 3. Re-run rules for non-forced loads
+            if (!sl.IsForced)
+            {
+                var loadFindings = await ValidateEnrollmentRulesAsync(dto.UserId, sl.ClassID, dto.TermId);
+                foreach (var f in loadFindings)
+                {
+                    // Exclude ALREADY_PASSED and SAME_SUBJECT_THIS_TERM because evaluated without self-conflict above
+                    if (f.Code == EnrollmentRuleCodes.AlreadyPassed || f.Code == EnrollmentRuleCodes.SameSubjectThisTerm)
+                    {
+                        continue;
+                    }
+                    allFindings.Add(f);
+                }
+            }
+        }
+
+        if (allFindings.Count > 0)
+        {
+            return new FinalizeStudyLoadsResponseDto
+            {
+                Success = false,
+                Findings = allFindings,
+                Message = "Finalization blocked by enrollment rules."
+            };
+        }
+
+        // All-or-nothing transaction
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var sl in selectedLoads)
+            {
+                sl.LoadStatus = StudyLoadStatus.Enrolled;
+                _context.StudyLoads.Update(sl);
+            }
+            await _context.SaveChangesAsync();
+
+            // Call EnsureClearanceAsync once for the term
+            await _clearanceService.EnsureClearanceAsync(dto.UserId, dto.TermId);
+
+            await transaction.CommitAsync();
+
+            _logger.LogInformation(
+                "Study loads finalized: FinalizedBy={FinalizedBy}, StudentID={StudentId}, TermID={TermId}, Count={Count}",
+                callerUserId, dto.UserId, dto.TermId, selectedLoads.Count);
+
+            var finalizedDtos = new List<StudyLoadResponseDto>();
+            foreach (var sl in selectedLoads)
+            {
+                finalizedDtos.Add(await MapToDtoAsync(sl, callerRole: effectiveRole));
+            }
+
+            return new FinalizeStudyLoadsResponseDto
+            {
+                Success = true,
+                FinalizedLoads = finalizedDtos,
+                Message = $"Successfully finalized {selectedLoads.Count} study load(s)."
+            };
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<List<PendingStudyLoadSummaryDto>> GetPendingSummaryAsync(Guid? termId = null)
+    {
+        Guid resolvedTermId;
+        if (termId.HasValue && termId.Value != Guid.Empty)
+        {
+            resolvedTermId = termId.Value;
+        }
+        else
+        {
+            var activeTerm = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.IsActive);
+            if (activeTerm == null)
+            {
+                return new List<PendingStudyLoadSummaryDto>();
+            }
+            resolvedTermId = activeTerm.TermID;
+        }
+
+        var pendingLoads = await _context.StudyLoads
+            .AsNoTracking()
+            .Include(sl => sl.Class)
+                .ThenInclude(c => c!.Subject)
+            .Where(sl => sl.LoadStatus == StudyLoadStatus.Pending &&
+                         sl.Class != null &&
+                         sl.Class.TermID == resolvedTermId)
+            .ToListAsync();
+
+        if (pendingLoads.Count == 0)
+        {
+            return new List<PendingStudyLoadSummaryDto>();
+        }
+
+        var userIds = pendingLoads.Select(sl => sl.UserID).Distinct().ToList();
+        var userDetailsList = await _context.UserDetails
+            .AsNoTracking()
+            .Include(ud => ud.Program)
+            .Where(ud => userIds.Contains(ud.UserID))
+            .ToListAsync();
+        var userDetailsMap = userDetailsList.ToDictionary(ud => ud.UserID);
+
+        var grouped = pendingLoads.GroupBy(sl => sl.UserID);
+        var result = new List<PendingStudyLoadSummaryDto>();
+
+        foreach (var g in grouped)
+        {
+            userDetailsMap.TryGetValue(g.Key, out var ud);
+            string fullName = ud != null ? $"{ud.Firstname} {ud.Lastname}".Trim() : "Unknown Student";
+            decimal totalUnits = g.Sum(sl => (sl.Class?.Subject?.LecUnits ?? 0m) + (sl.Class?.Subject?.LabUnits ?? 0m));
+
+            result.Add(new PendingStudyLoadSummaryDto
+            {
+                UserId = g.Key,
+                FullName = fullName,
+                Lrn = ud?.LRN,
+                ProgramCode = ud?.Program?.ProgramCode,
+                ProgramName = ud?.Program?.ProgramName,
+                YearLevel = ud?.YearLevel,
+                PendingCount = g.Count(),
+                PendingUnits = totalUnits
+            });
+        }
+
+        return result.OrderBy(r => r.FullName).ToList();
+    }
 }
+

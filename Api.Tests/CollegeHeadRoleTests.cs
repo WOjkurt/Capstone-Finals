@@ -557,10 +557,15 @@ public class CollegeHeadRoleTests : IDisposable
         AssertActionHasFilter<ClassSchedulesController>("Update", typeof(RequireProgramHeadOrAdminAttribute));
         AssertActionHasFilter<ClassSchedulesController>("Delete", typeof(RequireProgramHeadOrAdminAttribute));
 
-        // 3. StudyLoadsController write actions -> RequireRegistrarOrAdmin
-        AssertActionHasFilter<StudyLoadsController>("EnrollSingle", typeof(RequireRegistrarOrAdminAttribute));
-        AssertActionHasFilter<StudyLoadsController>("EnrollBatch", typeof(RequireRegistrarOrAdminAttribute));
+        // 3. StudyLoadsController write actions
+        // EnrollSingle + EnrollBatch -> RequireRegistrarCollegeHeadOrAdmin (College Head CAN call these)
+        AssertActionHasFilter<StudyLoadsController>("EnrollSingle", typeof(RequireRegistrarCollegeHeadOrAdminAttribute));
+        AssertActionHasFilter<StudyLoadsController>("EnrollBatch", typeof(RequireRegistrarCollegeHeadOrAdminAttribute));
+        // UpdateStatus + FinalizeBatch -> RequireRegistrarOrAdmin (College Head CANNOT call these)
         AssertActionHasFilter<StudyLoadsController>("UpdateStatus", typeof(RequireRegistrarOrAdminAttribute));
+        AssertActionHasFilter<StudyLoadsController>("FinalizeBatch", typeof(RequireRegistrarOrAdminAttribute));
+        // GetPendingSummary -> RequireRegistrarCollegeHeadOrAdmin (College Head CAN read)
+        AssertActionHasFilter<StudyLoadsController>("GetPendingSummary", typeof(RequireRegistrarCollegeHeadOrAdminAttribute));
 
         // 4. GradesController write actions -> RequireTeacher
         AssertActionHasFilter<GradesController>("SubmitGrade", typeof(RequireTeacherAttribute));

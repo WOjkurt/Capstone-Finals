@@ -29,7 +29,7 @@ public class StudyLoadsController : ControllerBase
     }
 
     [HttpGet("proposed-block")]
-    [RequireRegistrarOrAdmin]
+    [RequireRegistrarCollegeHeadOrAdmin]
     public async Task<IActionResult> GetProposedBlock([FromQuery] Guid userId, [FromQuery] Guid termId)
     {
         try
@@ -48,7 +48,7 @@ public class StudyLoadsController : ControllerBase
     }
 
     [HttpPost("enroll-batch")]
-    [RequireRegistrarOrAdmin]
+    [RequireRegistrarCollegeHeadOrAdmin]
     public async Task<IActionResult> EnrollBatch([FromBody] EnrollBatchRequestDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid createdByUserId)
@@ -56,9 +56,11 @@ public class StudyLoadsController : ControllerBase
             return Unauthorized(new { message = "Authentication required." });
         }
 
+        int? callerRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
+
         try
         {
-            var result = await _studyLoadService.EnrollBatchAsync(dto, createdByUserId);
+            var result = await _studyLoadService.EnrollBatchAsync(dto, createdByUserId, callerRole);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -72,7 +74,7 @@ public class StudyLoadsController : ControllerBase
     }
 
     [HttpPost("enroll-single")]
-    [RequireRegistrarOrAdmin]
+    [RequireRegistrarCollegeHeadOrAdmin]
     public async Task<IActionResult> EnrollSingle([FromBody] EnrollSingleRequestDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid createdByUserId)
@@ -101,6 +103,55 @@ public class StudyLoadsController : ControllerBase
         }
     }
 
+    [HttpPost("finalize")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> FinalizeBatch([FromBody] FinalizeStudyLoadsRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid callerUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        int? callerRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
+
+        try
+        {
+            var result = await _studyLoadService.FinalizeBatchAsync(dto, callerUserId, callerRole);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("pending-summary")]
+    [RequireRegistrarCollegeHeadOrAdmin]
+    public async Task<IActionResult> GetPendingSummary([FromQuery] Guid? termId)
+    {
+        try
+        {
+            var summary = await _studyLoadService.GetPendingSummaryAsync(termId);
+            return Ok(summary);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPatch("{id:guid}/status")]
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStudyLoadStatusDto dto)
@@ -114,6 +165,14 @@ public class StudyLoadsController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

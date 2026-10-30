@@ -6,4 +6,5 @@ public class EnrollSingleRequestDto
     public Guid ClassId { get; set; }
     public bool Force { get; set; } = false;
     public string? ForceReason { get; set; }
+    public bool AsPending { get; set; } = false;
 }

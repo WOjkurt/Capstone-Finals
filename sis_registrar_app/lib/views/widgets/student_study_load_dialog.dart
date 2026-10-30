@@ -46,6 +46,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
   bool _isLoading = true;
   String? _error;
   String? _updatingStudyLoadId;
+  bool _isFinalizingAll = false;
   late String? _currentLrn;
   late bool? _hasLrn;
   late int? _currentYearLevel;
@@ -263,6 +264,170 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
     }
   }
 
+  Future<void> _finalizeAll() async {
+    final pending = _studyLoads?.where((l) => l.isPending).toList() ?? [];
+    if (pending.isEmpty) return;
+
+    setState(() {
+      _isFinalizingAll = true;
+    });
+
+    try {
+      final repo = getIt<ClassRepository>();
+      final result = await repo.finalizeStudyLoads(
+        userId: widget.student.userId,
+        termId: widget.termId,
+        studyLoadIds: pending.map((l) => l.studyLoadId).toList(),
+      );
+
+      await _fetchStudyLoads();
+
+      if (mounted) {
+        final count = (result['finalizedLoads'] as List?)?.length ?? pending.length;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully finalized $count study load(s).'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to finalize: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFinalizingAll = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _finalizeSingle(ClassRosterItemModel load) async {
+    setState(() {
+      _updatingStudyLoadId = load.studyLoadId;
+    });
+
+    try {
+      final repo = getIt<ClassRepository>();
+      await repo.finalizeStudyLoads(
+        userId: widget.student.userId,
+        termId: widget.termId,
+        studyLoadIds: [load.studyLoadId],
+      );
+
+      await _fetchStudyLoads();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${load.subjectCode} finalized and enrolled.'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to finalize ${load.subjectCode}: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingStudyLoadId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _rejectPending(ClassRosterItemModel load) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Reject Pending Load?'),
+        content: Text(
+          'Are you sure you want to reject ${load.subjectCode} - ${load.subjectTitle}? This will reject the load.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _updatingStudyLoadId = load.studyLoadId;
+    });
+
+    try {
+      final repo = getIt<ClassRepository>();
+      final updated = await repo.updateStudyLoadStatus(load.studyLoadId, 5);
+
+      if (mounted) {
+        setState(() {
+          if (_studyLoads != null) {
+            final idx = _studyLoads!.indexWhere((s) => s.studyLoadId == load.studyLoadId);
+            if (idx != -1) {
+              _studyLoads![idx] = updated;
+            }
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${load.subjectCode} rejected and marked Dropped.'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to reject: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingStudyLoadId = null;
+        });
+      }
+    }
+  }
+
   Widget _buildLoadBadge(String status) => StatusBadge.forLoadStatus(status);
 
   @override
@@ -445,12 +610,12 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
             // Study Load Header & Count
             Row(
               children: [
-                const Icon(Icons.menu_book_rounded, size: 16, color: AppColors.primary),
+                const Icon(Icons.menu_book_rounded, size: 18, color: AppColors.primary),
                 const SizedBox(width: 8),
                 const Text(
-                  'Enrolled Study Load (Classes)',
+                  'Study Load & Enrollment',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
@@ -464,7 +629,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${_studyLoads!.length} classes',
+                      '${_studyLoads!.length} total classes',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -494,7 +659,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
               children: [
                 Expanded(
                   child: Text(
-                    'Registrar student status governance • Use actions menu to Drop, Withdraw, or Re-enroll.',
+                    'Registrar student status governance • Finalize pending loads, or Drop, Withdraw, and Re-enroll classes.',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -565,162 +730,485 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
       );
     }
 
+    final pendingLoads = _studyLoads!.where((l) => l.isPending).toList();
+    final otherLoads = _studyLoads!.where((l) => !l.isPending).toList();
+
+    return ListView(
+      children: [
+        if (pendingLoads.isNotEmpty) ...[
+          _buildPendingSection(pendingLoads),
+          const SizedBox(height: 16),
+        ],
+        _buildEnrolledSection(otherLoads),
+      ],
+    );
+  }
+
+  Widget _buildPendingSection(List<ClassRosterItemModel> pendingLoads) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFFDE68A))),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.pending_actions_rounded, size: 20, color: Color(0xFFD97706)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Flexible(
+                        child: Text(
+                          'Pending Study Load',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF92400E),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDE68A),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${pendingLoads.length} pending',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF92400E),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _isFinalizingAll ? null : _finalizeAll,
+                  icon: _isFinalizingAll
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.check_circle_outline_rounded, size: 16),
+                  label: const Text('Finalize all'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: pendingLoads.length,
+            separatorBuilder: (ctx, i) => const Divider(height: 1, color: Color(0xFFFDE68A)),
+            itemBuilder: (ctx, index) {
+              final load = pendingLoads[index];
+              return _buildPendingLoadRow(load);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingLoadRow(ClassRosterItemModel load) {
+    final isUpdatingThis = _updatingStudyLoadId == load.studyLoadId;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD97706),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              load.subjectCode,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        load.subjectTitle,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (load.isForced) ...[
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Forced enrollment: ${load.forcedReason ?? "No reason specified"}',
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            border: Border.all(color: const Color(0xFFF59E0B)),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.lock_open_rounded, size: 12, color: Color(0xFFB45309)),
+                              SizedBox(width: 4),
+                              Text(
+                                'Forced',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Section: ${load.className} • Instructor: ${load.teacherName ?? "Unassigned"}${load.isForced && load.forcedReason != null ? " • Reason: ${load.forcedReason}" : ""}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _buildLoadBadge(load.loadStatus),
+          const SizedBox(width: 16),
+          if (isUpdatingThis)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton(
+                  onPressed: () => _finalizeSingle(load),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF059669),
+                    side: const BorderSide(color: Color(0xFF059669)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Finalize', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () => _rejectPending(load),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFDC2626),
+                    side: const BorderSide(color: Color(0xFFDC2626)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Reject', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnrolledSection(List<ClassRosterItemModel> enrolledLoads) {
+    if (enrolledLoads.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Center(
+          child: Text(
+            'No enrolled classes found for this student in this term.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: ListView.separated(
-          itemCount: _studyLoads!.length,
-          separatorBuilder: (ctx, i) =>
-              const Divider(height: 1, color: AppColors.border),
-          itemBuilder: (ctx, index) {
-            final load = _studyLoads![index];
-            final isUpdatingThis = _updatingStudyLoadId == load.studyLoadId;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.border)),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'Enrolled & Term Classes',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${enrolledLoads.length} classes',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      load.subjectCode,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          load.subjectTitle,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Section: ${load.className} • Instructor: ${load.teacherName ?? "Unassigned"}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildLoadBadge(load.loadStatus),
-                  const SizedBox(width: 16),
-                  if (isUpdatingThis)
-                    const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                ),
+              ],
+            ),
+          ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: enrolledLoads.length,
+            separatorBuilder: (ctx, i) =>
+                const Divider(height: 1, color: AppColors.border),
+            itemBuilder: (ctx, index) {
+              final load = enrolledLoads[index];
+              final isUpdatingThis = _updatingStudyLoadId == load.studyLoadId;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
                         color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                    )
-                  else if (!load.isPending)
-                    PopupMenuButton<int>(
-                      tooltip: 'Change Status',
-                      icon: const Icon(
-                        Icons.more_vert_rounded,
-                        size: 20,
-                        color: Color(0xFF64748B),
+                      child: Text(
+                        load.subjectCode,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                      onSelected: (targetStatus) {
-                        _confirmAndUpdateStatus(load, targetStatus);
-                      },
-                      itemBuilder: (ctx) {
-                        final currentStatus = load.loadStatusInt;
-                        return [
-                          if (currentStatus != 1)
-                            const PopupMenuItem<int>(
-                              value: 1,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.undo_rounded,
-                                      size: 18, color: Color(0xFF059669)),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Re-enroll Student',
-                                      style: TextStyle(
-                                        color: Color(0xFF059669),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (currentStatus != 2)
-                            const PopupMenuItem<int>(
-                              value: 2,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.person_remove_outlined,
-                                      size: 18, color: Color(0xFFDC2626)),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Drop Student',
-                                      style: TextStyle(
-                                        color: Color(0xFFDC2626),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (currentStatus != 3)
-                            const PopupMenuItem<int>(
-                              value: 3,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.exit_to_app_rounded,
-                                      size: 18, color: Color(0xFFD97706)),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Withdraw Student',
-                                      style: TextStyle(
-                                        color: Color(0xFFD97706),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ];
-                      },
                     ),
-                ],
-              ),
-            );
-          },
-        ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  load.subjectTitle,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              if (load.isForced) ...[
+                                const SizedBox(width: 8),
+                                Tooltip(
+                                  message: 'Forced enrollment: ${load.forcedReason ?? "No reason specified"}',
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFEF3C7),
+                                      border: Border.all(color: const Color(0xFFF59E0B)),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.lock_open_rounded, size: 12, color: Color(0xFFB45309)),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Forced',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFFB45309),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Section: ${load.className} • Instructor: ${load.teacherName ?? "Unassigned"}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildLoadBadge(load.loadStatus),
+                    const SizedBox(width: 16),
+                    if (isUpdatingThis)
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    else if (!load.isPending && !load.isRejected)
+                      PopupMenuButton<int>(
+                        tooltip: 'Change Status',
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          size: 20,
+                          color: Color(0xFF64748B),
+                        ),
+                        onSelected: (targetStatus) {
+                          _confirmAndUpdateStatus(load, targetStatus);
+                        },
+                        itemBuilder: (ctx) {
+                          final currentStatus = load.loadStatusInt;
+                          return [
+                            if (currentStatus != 1)
+                              const PopupMenuItem<int>(
+                                value: 1,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.undo_rounded,
+                                        size: 18, color: Color(0xFF059669)),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Re-enroll Student',
+                                        style: TextStyle(
+                                          color: Color(0xFF059669),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (currentStatus != 2)
+                              const PopupMenuItem<int>(
+                                value: 2,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.person_remove_outlined,
+                                        size: 18, color: Color(0xFFDC2626)),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Drop Student',
+                                        style: TextStyle(
+                                          color: Color(0xFFDC2626),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (currentStatus != 3)
+                              const PopupMenuItem<int>(
+                                value: 3,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.exit_to_app_rounded,
+                                        size: 18, color: Color(0xFFD97706)),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Withdraw Student',
+                                        style: TextStyle(
+                                          color: Color(0xFFD97706),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ];
+                        },
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -431,5 +431,119 @@ void main() {
 
       bloc.close();
     });
+
+    testWidgets('renders separate Waiting for Registrar approval section and header excludes pending units',
+        (tester) async {
+      final term = const AcademicTermModel(
+        termId: 'term-pending',
+        schoolYear: '2026-2027',
+        semester: 1,
+        isActive: true,
+      );
+
+      final enrolledItem = const StudentScheduleItemModel(
+        studyLoadId: 'sl-enrolled-1',
+        classId: 'c-1',
+        subjectCode: 'CS 101',
+        subjectTitle: 'Intro to CS',
+        units: 3.0,
+        className: 'BSCS 1A',
+        teacherName: 'Prof. Turing',
+        loadStatus: 'Enrolled',
+        termLabel: '2026-2027 — 1st Sem',
+      );
+
+      final pendingItem = const StudentScheduleItemModel(
+        studyLoadId: 'sl-pending-1',
+        classId: 'c-2',
+        subjectCode: 'MATH 102',
+        subjectTitle: 'Calculus I',
+        units: 4.0,
+        className: 'BSCS 1B',
+        teacherName: 'Prof. Gauss',
+        loadStatus: 'Pending',
+        termLabel: '2026-2027 — 1st Sem',
+      );
+
+      repository.activeTerm = term;
+      repository.scheduleItems = [enrolledItem, pendingItem];
+
+      final bloc = ScheduleBloc(repository);
+
+      await tester.pumpWidget(createTestWidget(bloc: bloc));
+      await tester.pumpAndSettle();
+
+      // Enrolled header pill reflects only enrolled items (1 Class · 3 Units), excluding pending 4 units
+      expect(find.text('1 Class · 3 Units'), findsOneWidget);
+
+      // Pending section is rendered with "Waiting for Registrar approval"
+      expect(find.text('Waiting for Registrar approval'), findsOneWidget);
+      expect(find.text('1 pending'), findsOneWidget);
+      expect(find.text('MATH 102'), findsOneWidget);
+      expect(find.text('Calculus I'), findsOneWidget);
+
+      // Enrolled item rendered in main list
+      expect(find.text('CS 101'), findsOneWidget);
+      expect(find.text('Intro to CS'), findsOneWidget);
+
+      bloc.close();
+    });
+
+    testWidgets('Rejected study loads do not appear in schedule or pending card', (tester) async {
+      final repository = FakeStudentRepository();
+      const term = AcademicTermModel(
+        termId: 'term-1',
+        schoolYear: '2026-2027',
+        semester: 1,
+        isActive: true,
+      );
+
+      final enrolledItem = const StudentScheduleItemModel(
+        studyLoadId: 'sl-enrolled-1',
+        classId: 'c-1',
+        subjectCode: 'CS 101',
+        subjectTitle: 'Intro to CS',
+        units: 3.0,
+        className: 'BSCS 1A',
+        teacherName: 'Prof. Turing',
+        loadStatus: 'Enrolled',
+        termLabel: '2026-2027 — 1st Sem',
+      );
+
+      final rejectedItem = const StudentScheduleItemModel(
+        studyLoadId: 'sl-rejected-1',
+        classId: 'c-3',
+        subjectCode: 'PHYS 101',
+        subjectTitle: 'University Physics',
+        units: 4.0,
+        className: 'BSCS 1C',
+        teacherName: 'Prof. Newton',
+        loadStatus: 'Rejected',
+        termLabel: '2026-2027 — 1st Sem',
+      );
+
+      expect(rejectedItem.isRejected, isTrue);
+      expect(rejectedItem.isEnrolled, isFalse);
+      expect(rejectedItem.isPending, isFalse);
+
+      repository.activeTerm = term;
+      repository.scheduleItems = [enrolledItem, rejectedItem];
+
+      final bloc = ScheduleBloc(repository);
+
+      await tester.pumpWidget(createTestWidget(bloc: bloc));
+      await tester.pumpAndSettle();
+
+      // Enrolled item is shown
+      expect(find.text('CS 101'), findsOneWidget);
+      expect(find.text('Intro to CS'), findsOneWidget);
+
+      // Rejected item is NOT shown in schedule or pending
+      expect(find.text('PHYS 101'), findsNothing);
+      expect(find.text('University Physics'), findsNothing);
+      expect(find.text('Waiting for Registrar approval'), findsNothing);
+
+      bloc.close();
+    });
   });
 }

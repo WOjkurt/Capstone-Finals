@@ -85,6 +85,7 @@ public class StudyLoadRepository : IStudyLoadRepository
             .Include(sl => sl.User)
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.ClassSchedules)
+            .OrderByDescending(sl => sl.CreatedAt)
             .FirstOrDefaultAsync(sl => sl.UserID == userId && sl.ClassID == classId);
     }
 

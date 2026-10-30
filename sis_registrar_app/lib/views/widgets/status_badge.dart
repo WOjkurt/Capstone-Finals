@@ -82,6 +82,8 @@ class StatusBadge extends StatelessWidget {
       return StatusBadge.danger(label: s.isNotEmpty ? s : 'Dropped');
     } else if (lower == 'withdrawn') {
       return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Withdrawn');
+    } else if (lower == 'rejected') {
+      return StatusBadge.neutral(label: 'Rejected');
     }
     return StatusBadge.neutral(label: s.isNotEmpty ? s : 'Unknown');
   }
