@@ -1,0 +1,105 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:sis_college_head_app/blocs/auth_bloc.dart';
+import 'package:sis_college_head_app/views/main_layout_view.dart';
+
+class TestAuthBloc extends Bloc<AuthEvent, AuthState> implements AuthBloc {
+  final List<AuthEvent> recordedEvents = [];
+  TestAuthBloc(super.initialState) {
+    on<AuthEvent>((event, emit) {
+      recordedEvents.add(event);
+    });
+  }
+}
+
+void main() {
+  group('Role gate', () {
+    test('allows Admin (1) and College Head (6)', () {
+      expect(isAllowedRole(1), isTrue);
+      expect(isAllowedRole(6), isTrue);
+    });
+
+    test('rejects Registrar, Teacher, Program Head, Student and unknown roles', () {
+      for (final role in [0, 2, 3, 4, 5, 7]) {
+        expect(isAllowedRole(role), isFalse, reason: 'role $role');
+      }
+    });
+  });
+
+  group('MainLayoutView', () {
+    late TestAuthBloc authBloc;
+
+    setUp(() {
+      authBloc = TestAuthBloc(
+        AuthenticatedState(
+          email: 'test.collegehead@dbtc-cebu.edu.ph',
+          role: 6,
+          roleName: 'College Head',
+          userId: 'test-uid-6',
+        ),
+      );
+    });
+
+    tearDown(() => authBloc.close());
+
+    Widget buildSubject() {
+      return MaterialApp(
+        home: BlocProvider<AuthBloc>.value(
+          value: authBloc,
+          child: MainLayoutView(auth: authBloc.state as AuthenticatedState),
+        ),
+      );
+    }
+
+    void setDesktopSize(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+    }
+
+    testWidgets('shows only the Students and Faculty tabs', (tester) async {
+      setDesktopSize(tester);
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(MainLayoutView.buildNavItems().map((i) => i['title']),
+          ['Students', 'Faculty']);
+      expect(find.text('College Head'), findsWidgets);
+      expect(find.text('Pending loads'), findsNothing);
+      expect(find.text('Setup'), findsNothing);
+    });
+
+    testWidgets('switching to Faculty shows the faculty page', (tester) async {
+      setDesktopSize(tester);
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Faculty').first);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Faculty overview across all programs will appear here.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Log out confirmation mentions the College Head portal and dispatches LogoutRequested',
+        (tester) async {
+      setDesktopSize(tester);
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Sign Out'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text("You'll need to sign in again to access the College Head portal."),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+      expect(authBloc.recordedEvents.whereType<LogoutRequested>(), hasLength(1));
+    });
+  });
+}
