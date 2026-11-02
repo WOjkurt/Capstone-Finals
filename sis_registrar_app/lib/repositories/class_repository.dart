@@ -192,4 +192,83 @@ class ClassRepository {
         .toList();
     return list;
   }
+
+  Future<List<ProposedBlockItemModel>> getProposedBlock(
+      String userId, String termId) async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/studyloads/proposed-block').replace(
+      queryParameters: {
+        'userId': userId,
+        'termId': termId,
+      },
+    );
+    final res = await _client.get(uri, headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    final list = (jsonDecode(res.body) as List)
+        .map((e) => ProposedBlockItemModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return list;
+  }
+
+  Future<List<EnrollBatchResponseModel>> enrollBatch({
+    required String userId,
+    required String termId,
+    required List<String> classIds,
+    bool asPending = false,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final uri = Uri.parse('$baseUrl/api/studyloads/enroll-batch');
+    final body = jsonEncode({
+      'userId': userId,
+      'termId': termId,
+      'classIds': classIds,
+      'asPending': asPending,
+    });
+    final res = await _client.post(uri, headers: headers, body: body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    final list = (jsonDecode(res.body) as List)
+        .map((e) => EnrollBatchResponseModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return list;
+  }
+
+  Future<EnrollSingleResponseModel> enrollSingle({
+    required String userId,
+    required String classId,
+    bool force = false,
+    String? forceReason,
+    bool asPending = false,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final uri = Uri.parse('$baseUrl/api/studyloads/enroll-single');
+    final body = jsonEncode({
+      'userId': userId,
+      'classId': classId,
+      'force': force,
+      'forceReason': forceReason,
+      'asPending': asPending,
+    });
+    final res = await _client.post(uri, headers: headers, body: body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    return EnrollSingleResponseModel.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
 }
+

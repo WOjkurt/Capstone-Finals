@@ -50,16 +50,56 @@ public class StudyLoadService : IStudyLoadService
             throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
         }
 
-        var subjects = await _context.Subjects
+        var programSubjects = await _context.Subjects
             .AsNoTracking()
-            .Where(s => s.ProgramID == userDetails.ProgramID.Value &&
-                        s.YearLevel == userDetails.YearLevel.Value &&
-                        s.DefaultSemester == term.Semester)
+            .Where(s => s.ProgramID == userDetails.ProgramID.Value)
+            .ToListAsync();
+
+        var candidates = new List<(Subject Subject, string Category, decimal? LastGrade, string? LastGradeTerm)>();
+
+        foreach (var s in programSubjects)
+        {
+            var satisfaction = await HasSatisfiedSubjectAsync(userId, s.SubjectID);
+
+            bool isEarlierYear = s.YearLevel < userDetails.YearLevel.Value;
+            bool isEarlierSemesterOfSameYear = s.YearLevel == userDetails.YearLevel.Value &&
+                                               s.DefaultSemester < term.Semester;
+
+            // 1. retake: latest attempt is Failed and never passed later (reuse HasSatisfiedSubjectAsync, status Failed). Any year level.
+            if (satisfaction.Status == SubjectCompletionStatus.Failed)
+            {
+                candidates.Add((s, "retake", satisfaction.LastGrade, satisfaction.LastGradeTerm));
+            }
+            // 2. back_subject: earlier year level OR earlier semester of student's own year level,
+            //    AND never taken (NeverTaken) or only dropped/withdrawn, and not in-progress or passed. Rejected loads are ignored.
+            else if (isEarlierYear || isEarlierSemesterOfSameYear)
+            {
+                if (satisfaction.Status == SubjectCompletionStatus.NeverTaken || satisfaction.Status == SubjectCompletionStatus.DroppedOrWithdrawn)
+                {
+                    candidates.Add((s, "back_subject", null, null));
+                }
+            }
+            // 3. regular: Subject.YearLevel == student year level AND DefaultSemester == term.Semester
+            else if (s.YearLevel == userDetails.YearLevel.Value && s.DefaultSemester == term.Semester)
+            {
+                candidates.Add((s, "regular", null, null));
+            }
+        }
+
+        var candidateSubjectIds = candidates.Select(c => c.Subject.SubjectID).ToHashSet();
+        var allCandidateIdsList = candidates.Select(c => c.Subject.SubjectID).ToList();
+
+        var allCoreqLinks = await _context.SubjectPrerequisites
+            .AsNoTracking()
+            .Include(sp => sp.Subject)
+            .Include(sp => sp.PrerequisiteSubject)
+            .Where(sp => sp.RequisiteType == RequisiteTypeConstants.Corequisite &&
+                         (allCandidateIdsList.Contains(sp.SubjectID) || allCandidateIdsList.Contains(sp.PrerequisiteSubjectID)))
             .ToListAsync();
 
         var result = new List<ProposedBlockItemDto>();
 
-        foreach (var subject in subjects)
+        foreach (var (subject, category, lastGrade, lastGradeTerm) in candidates)
         {
             var prereqs = await _context.SubjectPrerequisites
                 .AsNoTracking()
@@ -100,6 +140,37 @@ public class StudyLoadService : IStudyLoadService
 
             string prereqStatus = prereqMessages.Count > 0 ? "unmet" : "met";
 
+            string standingStatus = "not_required";
+            if (subject.StandingYear.HasValue)
+            {
+                standingStatus = userDetails.YearLevel.Value >= subject.StandingYear.Value ? "met" : "unmet";
+            }
+
+            var coreqDtos = new List<ProposedBlockCorequisiteDto>();
+            var seenCoreqIds = new HashSet<Guid>();
+            foreach (var link in allCoreqLinks)
+            {
+                Subject? other = null;
+                if (link.SubjectID == subject.SubjectID && link.PrerequisiteSubject != null)
+                {
+                    other = link.PrerequisiteSubject;
+                }
+                else if (link.PrerequisiteSubjectID == subject.SubjectID && link.Subject != null)
+                {
+                    other = link.Subject;
+                }
+
+                if (other != null && seenCoreqIds.Add(other.SubjectID))
+                {
+                    coreqDtos.Add(new ProposedBlockCorequisiteDto
+                    {
+                        SubjectId = other.SubjectID,
+                        SubjectCode = other.SubjectCode,
+                        IncludedInProposal = candidateSubjectIds.Contains(other.SubjectID)
+                    });
+                }
+            }
+
             // ── Proposed Block Flags ──────────────────────────────────────────
             var subjectSatisfaction = await HasSatisfiedSubjectAsync(userId, subject.SubjectID);
             bool alreadyPassed = subjectSatisfaction.Status == SubjectCompletionStatus.Passed;
@@ -118,6 +189,8 @@ public class StudyLoadService : IStudyLoadService
                 .Where(c => c.SubjectID == subject.SubjectID && c.TermID == termId)
                 .ToListAsync();
 
+            decimal units = subject.LecUnits + subject.LabUnits;
+
             if (classes.Count == 0)
             {
                 result.Add(new ProposedBlockItemDto
@@ -132,7 +205,14 @@ public class StudyLoadService : IStudyLoadService
                     PrerequisiteStatus = prereqStatus,
                     PrerequisiteMessages = prereqMessages,
                     AlreadyPassed = alreadyPassed,
-                    AlreadyEnrolledThisTerm = alreadyEnrolledThisTerm
+                    AlreadyEnrolledThisTerm = alreadyEnrolledThisTerm,
+                    Category = category,
+                    SubjectYearLevel = subject.YearLevel,
+                    Units = units,
+                    LastGrade = lastGrade,
+                    LastGradeTerm = lastGradeTerm,
+                    StandingStatus = standingStatus,
+                    Corequisites = coreqDtos
                 });
             }
             else if (classes.Count == 1)
@@ -150,7 +230,14 @@ public class StudyLoadService : IStudyLoadService
                     PrerequisiteStatus = prereqStatus,
                     PrerequisiteMessages = prereqMessages,
                     AlreadyPassed = alreadyPassed,
-                    AlreadyEnrolledThisTerm = alreadyEnrolledThisTerm
+                    AlreadyEnrolledThisTerm = alreadyEnrolledThisTerm,
+                    Category = category,
+                    SubjectYearLevel = subject.YearLevel,
+                    Units = units,
+                    LastGrade = lastGrade,
+                    LastGradeTerm = lastGradeTerm,
+                    StandingStatus = standingStatus,
+                    Corequisites = coreqDtos
                 });
             }
             else
@@ -182,12 +269,31 @@ public class StudyLoadService : IStudyLoadService
                     PrerequisiteStatus = prereqStatus,
                     PrerequisiteMessages = prereqMessages,
                     AlreadyPassed = alreadyPassed,
-                    AlreadyEnrolledThisTerm = alreadyEnrolledThisTerm
+                    AlreadyEnrolledThisTerm = alreadyEnrolledThisTerm,
+                    Category = category,
+                    SubjectYearLevel = subject.YearLevel,
+                    Units = units,
+                    LastGrade = lastGrade,
+                    LastGradeTerm = lastGradeTerm,
+                    StandingStatus = standingStatus,
+                    Corequisites = coreqDtos
                 });
             }
         }
 
-        return result;
+        int CategoryRank(string cat) => cat switch
+        {
+            "regular" => 1,
+            "retake" => 2,
+            "back_subject" => 3,
+            _ => 4
+        };
+
+        return result
+            .OrderBy(r => CategoryRank(r.Category))
+            .ThenBy(r => r.SubjectYearLevel)
+            .ThenBy(r => r.SubjectCode, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<List<EnrollBatchResponseDto>> EnrollBatchAsync(EnrollBatchRequestDto dto, Guid createdByUserId, int? callerRole = null)
@@ -501,6 +607,7 @@ public class StudyLoadService : IStudyLoadService
     {
         public SubjectCompletionStatus Status { get; set; }
         public decimal? LastGrade { get; set; }
+        public string? LastGradeTerm { get; set; }
     }
 
     public async Task<List<EnrollmentValidationFinding>> ValidateEnrollmentRulesAsync(Guid userId, Guid classId, Guid termId)
@@ -716,11 +823,17 @@ public class StudyLoadService : IStudyLoadService
 
         if (failedLoads.Count > 0)
         {
-            var latestGrade = gradeMap[failedLoads[0].StudyLoadID];
+            var latestLoad = failedLoads[0];
+            var latestGrade = gradeMap[latestLoad.StudyLoadID];
+            string? termLabel = latestLoad.Class?.Term != null
+                ? TermLabel.Format(latestLoad.Class.Term.SchoolYear, latestLoad.Class.Term.Semester)
+                : null;
+
             return new SubjectSatisfactionResult
             {
                 Status = SubjectCompletionStatus.Failed,
-                LastGrade = latestGrade.FinalGrade
+                LastGrade = latestGrade.FinalGrade,
+                LastGradeTerm = termLabel
             };
         }
 
@@ -829,9 +942,11 @@ public class StudyLoadService : IStudyLoadService
     public async Task<List<StudyLoadResponseDto>> GetByClassAsync(Guid classId, bool excludePending = false, int? callerRole = null)
     {
         var loads = await _studyLoadRepository.GetByClassIdAsync(classId);
+        // Rosters hide Rejected loads by default across all views (Teacher, Registrar, Program Head, etc.)
+        loads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Rejected).ToList();
         if (excludePending)
         {
-            loads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Pending && sl.LoadStatus != StudyLoadStatus.Rejected).ToList();
+            loads = loads.Where(sl => sl.LoadStatus != StudyLoadStatus.Pending).ToList();
         }
         var result = new List<StudyLoadResponseDto>();
 

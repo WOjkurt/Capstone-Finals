@@ -265,6 +265,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
   Widget build(BuildContext context) {
     final c = widget.classItem;
     final displayedRoster = (_roster ?? []).where((item) {
+      if (item.isRejected) return false;
       if (_filter.isEmpty) return true;
       return item.displayName.toLowerCase().contains(_filter) ||
           (item.studentUserId?.toLowerCase().contains(_filter) ?? false);
@@ -416,7 +417,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${_roster!.length}',
+                      '${_roster!.where((item) => !item.isRejected).length}',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,

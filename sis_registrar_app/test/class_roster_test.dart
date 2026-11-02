@@ -572,6 +572,68 @@ void main() {
       // Verify badge updated to Enrolled
       expect(find.text('Enrolled'), findsOneWidget);
     });
+
+    testWidgets('Class rosters hide Rejected loads by default', (tester) async {
+      final mockClient = MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode([
+              {
+                'studyLoadId': enrolledStudent.studyLoadId,
+                'studentUserId': enrolledStudent.studentUserId,
+                'studentName': enrolledStudent.studentName,
+                'subjectCode': enrolledStudent.subjectCode,
+                'subjectTitle': enrolledStudent.subjectTitle,
+                'className': enrolledStudent.className,
+                'loadStatus': 'Enrolled',
+                'termLabel': enrolledStudent.termLabel,
+              },
+              {
+                'studyLoadId': 'sl-rejected-3',
+                'studentUserId': 'usr-3',
+                'studentName': 'Charlie Rejected',
+                'subjectCode': 'CS101',
+                'subjectTitle': 'Intro to CS',
+                'className': 'BSCS 1-A',
+                'loadStatus': 'Rejected',
+                'termLabel': '2026-2027',
+              },
+            ]),
+            200,
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      if (getIt.isRegistered<ClassRepository>()) {
+        getIt.unregister<ClassRepository>();
+      }
+      getIt.registerSingleton<ClassRepository>(ClassRepository(MockAuthService(), mockClient));
+
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ClassRosterDialog(classItem: testClass),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Alice Developer should be displayed
+      expect(find.text('Alice Developer'), findsOneWidget);
+      expect(find.text('Enrolled'), findsOneWidget);
+
+      // Charlie Rejected should be hidden by default
+      expect(find.text('Charlie Rejected'), findsNothing);
+
+      // Header badge shows count 1 (excluding rejected)
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsNothing);
+    });
   });
 
   group('StudentStudyLoadDialog Widget Tests', () {

@@ -306,3 +306,178 @@ class OpenTermResultModel {
   }
 }
 
+class ClassOptionModel {
+  final String classId;
+  final String className;
+  final String? teacherName;
+  final String schedule;
+
+  const ClassOptionModel({
+    required this.classId,
+    required this.className,
+    this.teacherName,
+    required this.schedule,
+  });
+
+  factory ClassOptionModel.fromJson(Map<String, dynamic> json) {
+    return ClassOptionModel(
+      classId: json['classId']?.toString() ?? '',
+      className: json['className']?.toString() ?? '',
+      teacherName: json['teacherName']?.toString(),
+      schedule: json['schedule']?.toString() ?? '',
+    );
+  }
+}
+
+class ProposedBlockCorequisiteModel {
+  final String subjectId;
+  final String subjectCode;
+  final bool includedInProposal;
+
+  const ProposedBlockCorequisiteModel({
+    required this.subjectId,
+    required this.subjectCode,
+    required this.includedInProposal,
+  });
+
+  factory ProposedBlockCorequisiteModel.fromJson(Map<String, dynamic> json) {
+    return ProposedBlockCorequisiteModel(
+      subjectId: json['subjectId']?.toString() ?? '',
+      subjectCode: json['subjectCode']?.toString() ?? '',
+      includedInProposal: json['includedInProposal'] as bool? ?? false,
+    );
+  }
+}
+
+class ProposedBlockItemModel {
+  final String subjectId;
+  final String subjectCode;
+  final String subjectTitle;
+  final String? classId;
+  final String? className;
+  final String matchType; // 'auto' | 'multiple_found' | 'no_class_offered'
+  final List<ClassOptionModel> options;
+  final String prerequisiteStatus; // 'met' | 'unmet'
+  final List<String> prerequisiteMessages;
+  final bool alreadyPassed;
+  final bool alreadyEnrolledThisTerm;
+  final String category; // 'regular' | 'retake' | 'back_subject'
+  final int subjectYearLevel;
+  final double units;
+  final double? lastGrade;
+  final String? lastGradeTerm;
+  final String standingStatus; // 'not_required' | 'met' | 'unmet'
+  final List<ProposedBlockCorequisiteModel> corequisites;
+
+  const ProposedBlockItemModel({
+    required this.subjectId,
+    required this.subjectCode,
+    required this.subjectTitle,
+    this.classId,
+    this.className,
+    required this.matchType,
+    this.options = const [],
+    this.prerequisiteStatus = 'met',
+    this.prerequisiteMessages = const [],
+    this.alreadyPassed = false,
+    this.alreadyEnrolledThisTerm = false,
+    required this.category,
+    required this.subjectYearLevel,
+    required this.units,
+    this.lastGrade,
+    this.lastGradeTerm,
+    this.standingStatus = 'not_required',
+    this.corequisites = const [],
+  });
+
+  bool get isRegular => category == 'regular';
+  bool get isRetake => category == 'retake';
+  bool get isBackSubject => category == 'back_subject';
+  bool get isNoClassOffered => matchType == 'no_class_offered';
+  bool get isPrereqUnmet => prerequisiteStatus == 'unmet';
+  bool get isStandingUnmet => standingStatus == 'unmet';
+  bool get isBlocked => isPrereqUnmet || isStandingUnmet;
+
+  factory ProposedBlockItemModel.fromJson(Map<String, dynamic> json) {
+    return ProposedBlockItemModel(
+      subjectId: json['subjectId']?.toString() ?? '',
+      subjectCode: json['subjectCode']?.toString() ?? '',
+      subjectTitle: json['subjectTitle']?.toString() ?? '',
+      classId: json['classId']?.toString(),
+      className: json['className']?.toString(),
+      matchType: json['matchType']?.toString() ?? 'auto',
+      options: (json['options'] as List<dynamic>?)
+              ?.map((e) => ClassOptionModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      prerequisiteStatus: json['prerequisiteStatus']?.toString() ?? 'met',
+      prerequisiteMessages: (json['prerequisiteMessages'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      alreadyPassed: json['alreadyPassed'] as bool? ?? false,
+      alreadyEnrolledThisTerm: json['alreadyEnrolledThisTerm'] as bool? ?? false,
+      category: json['category']?.toString() ?? 'regular',
+      subjectYearLevel: (json['subjectYearLevel'] as num?)?.toInt() ?? 1,
+      units: (json['units'] as num?)?.toDouble() ?? 0.0,
+      lastGrade: (json['lastGrade'] as num?)?.toDouble(),
+      lastGradeTerm: json['lastGradeTerm']?.toString(),
+      standingStatus: json['standingStatus']?.toString() ?? 'not_required',
+      corequisites: (json['corequisites'] as List<dynamic>?)
+              ?.map((e) => ProposedBlockCorequisiteModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+    );
+  }
+}
+
+class EnrollBatchResponseModel {
+  final String classId;
+  final bool enrolled;
+  final String? studyLoadId;
+  final List<String> reasons;
+
+  const EnrollBatchResponseModel({
+    required this.classId,
+    required this.enrolled,
+    this.studyLoadId,
+    this.reasons = const [],
+  });
+
+  factory EnrollBatchResponseModel.fromJson(Map<String, dynamic> json) {
+    return EnrollBatchResponseModel(
+      classId: json['classId']?.toString() ?? '',
+      enrolled: json['enrolled'] as bool? ?? false,
+      studyLoadId: json['studyLoadId']?.toString(),
+      reasons: (json['reasons'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+    );
+  }
+}
+
+class EnrollSingleResponseModel {
+  final bool success;
+  final String? studyLoadId;
+  final List<String> warnings;
+
+  const EnrollSingleResponseModel({
+    required this.success,
+    this.studyLoadId,
+    this.warnings = const [],
+  });
+
+  factory EnrollSingleResponseModel.fromJson(Map<String, dynamic> json) {
+    return EnrollSingleResponseModel(
+      success: json['success'] as bool? ?? false,
+      studyLoadId: json['studyLoadId']?.toString(),
+      warnings: (json['warnings'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+    );
+  }
+}
+
+

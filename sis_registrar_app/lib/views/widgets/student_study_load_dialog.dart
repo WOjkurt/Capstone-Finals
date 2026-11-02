@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import 'status_badge.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
+import 'study_load_builder_dialog.dart';
 
 class StudentStudyLoadDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -612,32 +613,62 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
               children: [
                 const Icon(Icons.menu_book_rounded, size: 18, color: AppColors.primary),
                 const SizedBox(width: 8),
-                const Text(
-                  'Study Load & Enrollment',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Flexible(
+                        child: Text(
+                          'Study Load & Enrollment',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      if (_studyLoads != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_studyLoads!.length} total classes',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                if (_studyLoads != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_studyLoads!.length} total classes',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
-                      ),
-                    ),
+                FilledButton.icon(
+                  key: const ValueKey('build_study_load_button'),
+                  icon: const Icon(Icons.architecture_rounded, size: 16),
+                  label: const Text('Build study load', style: TextStyle(fontSize: 12)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
-                const Spacer(),
+                  onPressed: () async {
+                    final updated = await StudyLoadBuilderDialog.show(
+                      context,
+                      student: widget.student,
+                      initialTermId: widget.termId,
+                      initialTermLabel: widget.termLabel,
+                      onEnrolled: _fetchStudyLoads,
+                    );
+                    if (updated == true) {
+                      _fetchStudyLoads();
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
                   tooltip: 'Refresh Study Load',
