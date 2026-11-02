@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:sis_college_head_app/blocs/auth_bloc.dart';
+import 'package:sis_college_head_app/blocs/students_bloc.dart';
+import 'package:sis_college_head_app/repositories/setup_repository.dart';
+import 'package:sis_college_head_app/repositories/student_repository.dart';
 import 'package:sis_college_head_app/views/main_layout_view.dart';
+import 'test_helpers.dart';
 
 class TestAuthBloc extends Bloc<AuthEvent, AuthState> implements AuthBloc {
   final List<AuthEvent> recordedEvents = [];
@@ -29,8 +35,14 @@ void main() {
 
   group('MainLayoutView', () {
     late TestAuthBloc authBloc;
+    late StudentsBloc studentsBloc;
 
     setUp(() {
+      final client = MockClient((req) async => http.Response('[]', 200));
+      studentsBloc = StudentsBloc(
+        StudentRepository(MockAuthService(), client),
+        AcademicSetupRepository(MockAuthService(), client),
+      );
       authBloc = TestAuthBloc(
         AuthenticatedState(
           email: 'test.collegehead@dbtc-cebu.edu.ph',
@@ -41,12 +53,18 @@ void main() {
       );
     });
 
-    tearDown(() => authBloc.close());
+    tearDown(() {
+      authBloc.close();
+      studentsBloc.close();
+    });
 
     Widget buildSubject() {
       return MaterialApp(
-        home: BlocProvider<AuthBloc>.value(
-          value: authBloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AuthBloc>.value(value: authBloc),
+            BlocProvider<StudentsBloc>.value(value: studentsBloc),
+          ],
           child: MainLayoutView(auth: authBloc.state as AuthenticatedState),
         ),
       );

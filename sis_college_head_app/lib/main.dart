@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/auth_bloc.dart';
+import 'blocs/students_bloc.dart';
 import 'firebase_options.dart';
 import 'injection.dart';
 import 'services/auth_service.dart';
@@ -30,6 +31,9 @@ class SisCollegeHeadApp extends StatelessWidget {
       providers: [
         BlocProvider<AuthBloc>(
           create: (_) => AuthBloc(getIt<AuthService>()),
+        ),
+        BlocProvider<StudentsBloc>(
+          create: (_) => getIt<StudentsBloc>(),
         ),
       ],
       child: MaterialApp(

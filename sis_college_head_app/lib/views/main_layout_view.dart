@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
 import 'placeholder_views.dart';
+import 'students_view.dart';
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -84,7 +85,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
             child: IndexedStack(
               index: currentIndex,
               children: const [
-                StudentsPlaceholderView(),
+                StudentsView(),
                 FacultyPlaceholderView(),
               ],
             ),
