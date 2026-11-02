@@ -155,4 +155,76 @@ public class AcademicTermsTests : IDisposable
         // Assert
         Assert.IsType<NotFoundObjectResult>(result);
     }
+
+    [Fact]
+    public async Task CreateTerm_DuplicateSchoolYearAndSemester_ReturnsBadRequest()
+    {
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = Guid.NewGuid(), SchoolYear = "2026-2027", Semester = 1 });
+        await _context.SaveChangesAsync();
+
+        var controller = CreateControllerWithUser(Guid.NewGuid());
+        var result = await controller.Create(new CreateAcademicTermDto { SchoolYear = " 2026-2027 ", Semester = 1 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(1, await _context.AcademicTerms.CountAsync());
+    }
+
+    [Fact]
+    public async Task CreateTerm_SameSchoolYearDifferentSemester_ReturnsCreated()
+    {
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = Guid.NewGuid(), SchoolYear = "2026-2027", Semester = 1 });
+        await _context.SaveChangesAsync();
+
+        var controller = CreateControllerWithUser(Guid.NewGuid());
+        var result = await controller.Create(new CreateAcademicTermDto { SchoolYear = "2026-2027", Semester = 2 });
+
+        Assert.IsType<CreatedAtActionResult>(result);
+        Assert.Equal(2, await _context.AcademicTerms.CountAsync());
+    }
+
+    [Fact]
+    public async Task UpdateTerm_ToExistingSchoolYearAndSemester_ReturnsBadRequest()
+    {
+        var existingId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        _context.AcademicTerms.AddRange(
+            new AcademicTerm { TermID = existingId, SchoolYear = "2026-2027", Semester = 1 },
+            new AcademicTerm { TermID = otherId, SchoolYear = "2026-2027", Semester = 2 });
+        await _context.SaveChangesAsync();
+
+        var controller = CreateControllerWithUser(Guid.NewGuid());
+        var result = await controller.Update(otherId, new CreateAcademicTermDto { SchoolYear = "2026-2027", Semester = 1 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        var other = await _context.AcademicTerms.AsNoTracking().FirstAsync(t => t.TermID == otherId);
+        Assert.Equal(2, other.Semester);
+    }
+
+    [Fact]
+    public async Task UpdateTerm_SavingSameValues_ReturnsOk()
+    {
+        var termId = Guid.NewGuid();
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = termId, SchoolYear = "2026-2027", Semester = 1 });
+        await _context.SaveChangesAsync();
+
+        var controller = CreateControllerWithUser(Guid.NewGuid());
+        var result = await controller.Update(termId, new CreateAcademicTermDto { SchoolYear = "2026-2027", Semester = 1 });
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task DeleteTerm_ReferencedByGradeClearance_ReturnsBadRequest()
+    {
+        var termId = Guid.NewGuid();
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = termId, SchoolYear = "2025-2026", Semester = 1 });
+        _context.GradeClearances.Add(new Api.Domain.Grading.GradeClearance { ClearanceID = Guid.NewGuid(), UserID = Guid.NewGuid(), TermID = termId });
+        await _context.SaveChangesAsync();
+
+        var controller = CreateControllerWithUser(Guid.NewGuid());
+        var result = await controller.Delete(termId);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.True(await _context.AcademicTerms.AnyAsync(t => t.TermID == termId));
+    }
 }

@@ -19,6 +19,8 @@ public class AcademicTermService : IAcademicTermService
 
     public async Task<AcademicTermDto> CreateAsync(CreateAcademicTermDto dto)
     {
+        await EnsureNotDuplicateAsync(dto.SchoolYear, dto.Semester, excludeTermId: null);
+
         var term = new AcademicTerm
         {
             TermID = Guid.NewGuid(),
@@ -91,6 +93,8 @@ public class AcademicTermService : IAcademicTermService
             throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
         }
 
+        await EnsureNotDuplicateAsync(dto.SchoolYear, dto.Semester, excludeTermId: termId);
+
         term.SchoolYear = dto.SchoolYear;
         term.Semester = dto.Semester;
 
@@ -151,5 +155,18 @@ public class AcademicTermService : IAcademicTermService
         }
 
         await _termRepository.DeleteAsync(termId);
+    }
+
+    private async Task EnsureNotDuplicateAsync(string schoolYear, int semester, Guid? excludeTermId)
+    {
+        var normalized = schoolYear.Trim();
+        bool exists = await _context.AcademicTerms.AnyAsync(t =>
+            t.SchoolYear.Trim() == normalized &&
+            t.Semester == semester &&
+            t.TermID != excludeTermId);
+        if (exists)
+        {
+            throw new InvalidOperationException($"AcademicTerm '{TermLabel.Format(normalized, semester)}' already exists.");
+        }
     }
 }

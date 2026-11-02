@@ -66,8 +66,15 @@ public class AcademicTermsController : ControllerBase
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> Create([FromBody] CreateAcademicTermDto dto)
     {
-        var term = await _termService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = term.TermID }, term);
+        try
+        {
+            var term = await _termService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = term.TermID }, term);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id:guid}")]
@@ -82,6 +89,10 @@ public class AcademicTermsController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 
