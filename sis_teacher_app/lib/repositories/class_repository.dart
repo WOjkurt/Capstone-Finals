@@ -47,6 +47,93 @@ class ClassRepository {
         .toList();
   }
 
+  Future<List<ClassScheduleModel>> getSchedules(String classId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.get(
+        Uri.parse('$baseUrl/api/classes/$classId/schedules'),
+        headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// [startTime] and [endTime] are 24-hour "HH:mm". Room and teacher clashes
+  /// come back as 409 with a readable message.
+  Future<void> createSchedule({
+    required String classId,
+    required String daysOfWeek,
+    required String startTime,
+    required String endTime,
+    required String room,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/classes/$classId/schedules'),
+      headers: {...headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'classID': classId,
+        'daysOfWeek': daysOfWeek,
+        'startTime': '$startTime:00',
+        'endTime': '$endTime:00',
+        'room': room,
+      }),
+    );
+    if (res.statusCode != 201 && res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+  }
+
+  Future<void> updateSchedule({
+    required String scheduleId,
+    required String classId,
+    required String daysOfWeek,
+    required String startTime,
+    required String endTime,
+    required String room,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/ClassSchedules/$scheduleId'),
+      headers: {...headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'classID': classId,
+        'daysOfWeek': daysOfWeek,
+        'startTime': '$startTime:00',
+        'endTime': '$endTime:00',
+        'room': room,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+  }
+
+  Future<void> deleteSchedule(String scheduleId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.delete(
+      Uri.parse('$baseUrl/api/ClassSchedules/$scheduleId'),
+      headers: headers,
+    );
+    if (res.statusCode != 200 && res.statusCode != 204) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+  }
+
   Future<List<ClassModel>> getProgramClasses({
     String? termId,
     String? subjectId,

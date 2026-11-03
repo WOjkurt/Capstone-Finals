@@ -5,6 +5,9 @@ import 'package:sis_teacher_app/models/setup_models.dart';
 import 'package:sis_teacher_app/repositories/class_repository.dart';
 
 class FakeClassRepository implements ClassRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
   List<ClassModel> mockClasses = [];
   List<AcademicTermModel> mockTerms = [];
   AcademicTermModel? mockActiveTerm;

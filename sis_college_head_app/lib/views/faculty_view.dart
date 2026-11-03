@@ -4,6 +4,7 @@ import '../blocs/faculty_bloc.dart';
 import '../models/class_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
+import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 
@@ -32,6 +33,20 @@ class _FacultyViewState extends State<FacultyView> {
           teacherUserId: teacherUserId,
         )),
       ),
+    );
+  }
+
+  Future<void> _openSchedule(ClassModel classItem) async {
+    final bloc = context.read<FacultyBloc>();
+    final changed = await ClassScheduleDialog.show(context, classItem);
+    if (changed == true) bloc.add(FacultyRefreshRequested());
+  }
+
+  Widget _scheduleButton(FacultyState state, ClassModel c) {
+    return TextButton.icon(
+      onPressed: state.isAssigning ? null : () => _openSchedule(c),
+      icon: const Icon(Icons.schedule_rounded, size: 16),
+      label: const Text('Schedule'),
     );
   }
 
@@ -149,9 +164,16 @@ class _FacultyViewState extends State<FacultyView> {
                   title: _classTitle(c),
                   subtitle: Text(
                       '${c.className} · ${state.programCodeFor(c.programId)} · ${c.scheduleSummary}'),
-                  trailing: FilledButton(
-                    onPressed: state.isAssigning ? null : () => _openAssign(c),
-                    child: const Text('Assign teacher'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _scheduleButton(state, c),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: state.isAssigning ? null : () => _openAssign(c),
+                        child: const Text('Assign teacher'),
+                      ),
+                    ],
                   ),
                 ),
               )),
@@ -185,12 +207,19 @@ class _FacultyViewState extends State<FacultyView> {
                                 dense: true,
                                 title: _classTitle(c),
                                 subtitle: Text(
-                                    '${c.className} · ${state.programCodeFor(c.programId)}'),
-                                trailing: OutlinedButton(
-                                  onPressed: state.isAssigning
-                                      ? null
-                                      : () => _openAssign(c),
-                                  child: const Text('Change'),
+                                    '${c.className} · ${state.programCodeFor(c.programId)} · ${c.scheduleSummary}'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _scheduleButton(state, c),
+                                    const SizedBox(width: 8),
+                                    OutlinedButton(
+                                      onPressed: state.isAssigning
+                                          ? null
+                                          : () => _openAssign(c),
+                                      child: const Text('Change'),
+                                    ),
+                                  ],
                                 ),
                               ))
                           .toList(),

@@ -9,6 +9,7 @@ import '../models/class_models.dart';
 import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
+import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../models/setup_models.dart';
@@ -75,10 +76,17 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   }
 
   void _openClassDetail(BuildContext context, ClassModel classItem) {
+    final bloc = context.read<ProgramOverviewBloc>();
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _ProgramClassDetailDialog(classItem: classItem),
+      builder: (ctx) => _ProgramClassDetailDialog(
+        classItem: classItem,
+        onScheduleChanged: () => bloc.add(LoadProgramClassesEvent(
+          termId: _selectedTermId,
+          yearLevel: _selectedYearLevel,
+        )),
+      ),
     );
   }
 
@@ -1717,8 +1725,9 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
 // ── Detail Dialog (Schedule + Roster) ──
 class _ProgramClassDetailDialog extends StatefulWidget {
   final ClassModel classItem;
+  final VoidCallback? onScheduleChanged;
 
-  const _ProgramClassDetailDialog({required this.classItem});
+  const _ProgramClassDetailDialog({required this.classItem, this.onScheduleChanged});
 
   @override
   State<_ProgramClassDetailDialog> createState() =>
@@ -1742,6 +1751,16 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
   void dispose() {
     _rosterSearch.dispose();
     super.dispose();
+  }
+
+  /// Minor classes are scheduled by the College Head, so only majors get a button.
+  Future<void> _editSchedule() async {
+    final changed = await ClassScheduleDialog.show(context, widget.classItem);
+    if (changed == true && mounted) {
+      // Close so the overview reloads with the new times.
+      Navigator.of(context).pop();
+      widget.onScheduleChanged?.call();
+    }
   }
 
   Future<void> _fetchRoster() async {
@@ -2137,6 +2156,19 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (widget.classItem.isMinor)
+                  const Text(
+                    'Schedule set by the College Head',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  )
+                else
+                  OutlinedButton.icon(
+                    key: const ValueKey('edit_schedule_button'),
+                    onPressed: _editSchedule,
+                    icon: const Icon(Icons.schedule_rounded, size: 16),
+                    label: const Text('Edit schedule'),
+                  ),
+                const SizedBox(width: 8),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Close'),

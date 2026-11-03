@@ -72,6 +72,9 @@ class ClassModel {
   final String? createdByUserId;
   final int enrolledCount;
   final int? yearLevel;
+
+  /// Minor (GE, theology…) classes are staffed and scheduled by the College Head.
+  final bool isMinor;
   final List<ClassScheduleModel> schedules;
 
   const ClassModel({
@@ -89,6 +92,7 @@ class ClassModel {
     this.createdByUserId,
     this.enrolledCount = 0,
     this.yearLevel,
+    this.isMinor = false,
     this.schedules = const [],
   });
 
@@ -110,6 +114,7 @@ class ClassModel {
       createdByUserId: json['createdByUserID'] as String? ?? json['createdByUserId'] as String?,
       enrolledCount: (json['enrolledCount'] as num?)?.toInt() ?? 0,
       yearLevel: (json['yearLevel'] as num?)?.toInt(),
+      isMinor: json['isMinor'] as bool? ?? false,
       schedules: (json['schedules'] as List<dynamic>?)
               ?.map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
               .toList() ??

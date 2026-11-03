@@ -29,6 +29,9 @@ class FakeUserSearchRepository extends UserSearchRepository {
 }
 
 class FakeClassRepository implements ClassRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
   List<ClassModel> mockClasses = [];
   bool shouldThrow = false;
   bool shouldThrowOnAssign = false;

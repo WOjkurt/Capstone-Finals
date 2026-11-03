@@ -30,6 +30,9 @@ class FacultyProgramSelected extends FacultyEvent {
   FacultyProgramSelected(this.programId);
 }
 
+/// Reloads the current term's classes, e.g. after a schedule change.
+class FacultyRefreshRequested extends FacultyEvent {}
+
 class FacultyAssignRequested extends FacultyEvent {
   final String classId;
   final String? teacherUserId;
@@ -154,6 +157,19 @@ class FacultyBloc extends Bloc<FacultyEvent, FacultyState> {
     on<FacultyTermSelected>(_onTermSelected);
     on<FacultyProgramSelected>(_onProgramSelected);
     on<FacultyAssignRequested>(_onAssignRequested);
+    on<FacultyRefreshRequested>(_onRefreshRequested);
+  }
+
+  Future<void> _onRefreshRequested(
+      FacultyRefreshRequested event, Emitter<FacultyState> emit) async {
+    final termId = state.selectedTermId;
+    if (termId == null) return;
+    try {
+      final classes = await _classRepo.getClasses(termId: termId);
+      emit(state.copyWith(classes: classes, clearMessages: true));
+    } catch (e, st) {
+      emit(state.copyWith(errorMessage: getFriendlyErrorMessage(e, st)));
+    }
   }
 
   Future<void> _onStarted(
