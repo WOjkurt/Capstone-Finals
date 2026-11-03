@@ -309,6 +309,7 @@ public class ClassService : IClassService
             CreatedByUserID = entity.CreatedByUserID,
             EnrolledCount = enrolledCount,
             YearLevel = entity.Subject?.YearLevel,
+            IsMinor = entity.Subject?.IsMinor ?? false,
             Schedules = schedules.Select(s => new ClassScheduleDto
             {
                 ScheduleID = s.ScheduleID,

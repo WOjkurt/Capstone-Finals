@@ -20,4 +20,7 @@ public class Subject
     public int DefaultSemester { get; set; }
 
     public int? StandingYear { get; set; }
+
+    /// <summary>Minor (GE, theology, NSTP, PE) subjects are staffed by the College Head; majors by the Program Head.</summary>
+    public bool IsMinor { get; set; }
 }

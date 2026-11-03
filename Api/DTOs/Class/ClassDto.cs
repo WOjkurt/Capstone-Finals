@@ -24,5 +24,7 @@ public class ClassDto
 
     public int? YearLevel { get; set; }
 
+    public bool IsMinor { get; set; }
+
     public List<ClassScheduleDto> Schedules { get; set; } = new();
 }

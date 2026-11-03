@@ -359,6 +359,40 @@ public class CollegeHeadRoleTests : IDisposable
     }
 
     [Fact]
+    public async Task RequireProgramHeadCollegeHeadOrAdmin_AllowsCollegeHeadProgramHeadAndAdmin()
+    {
+        foreach (var role in new[] { RoleUtils.CollegeHead, RoleUtils.ProgramHead, RoleUtils.Admin })
+        {
+            var user = await CreateUserWithDetailsAsync($"allowed{role}@dbtc-cebu.edu.ph", role);
+            var filter = new RequireProgramHeadCollegeHeadOrAdminAttribute();
+            var context = CreateFilterContext(user.UserID, _userRepo);
+
+            bool executed = false;
+            await filter.OnActionExecutionAsync(context, () => { executed = true; return Task.FromResult<ActionExecutedContext>(null!); });
+
+            Assert.True(executed, $"role {role} should pass");
+        }
+    }
+
+    [Fact]
+    public async Task RequireProgramHeadCollegeHeadOrAdmin_RegistrarTeacherStudent_Returns403Forbidden()
+    {
+        foreach (var role in new[] { RoleUtils.Registrar, RoleUtils.Teacher, RoleUtils.Student })
+        {
+            var user = await CreateUserWithDetailsAsync($"blocked{role}@dbtc-cebu.edu.ph", role);
+            var filter = new RequireProgramHeadCollegeHeadOrAdminAttribute();
+            var context = CreateFilterContext(user.UserID, _userRepo);
+
+            bool executed = false;
+            await filter.OnActionExecutionAsync(context, () => { executed = true; return Task.FromResult<ActionExecutedContext>(null!); });
+
+            Assert.False(executed, $"role {role} should be blocked");
+            var objResult = Assert.IsType<ObjectResult>(context.Result);
+            Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task RequireRegistrarOrAdmin_CollegeHead_Returns403Forbidden()
     {
         var collegeHead = await CreateUserWithDetailsAsync("ch@dbtc-cebu.edu.ph", RoleUtils.CollegeHead);
@@ -550,7 +584,8 @@ public class CollegeHeadRoleTests : IDisposable
         AssertActionHasFilter<ClassesController>("Create", typeof(RequireProgramHeadOrAdminAttribute));
         AssertActionHasFilter<ClassesController>("Update", typeof(RequireProgramHeadOrAdminAttribute));
         AssertActionHasFilter<ClassesController>("Delete", typeof(RequireProgramHeadOrAdminAttribute));
-        AssertActionHasFilter<ClassesController>("AssignTeacher", typeof(RequireProgramHeadOrAdminAttribute));
+        // AssignTeacher -> RequireProgramHeadCollegeHeadOrAdmin (College Head staffs minor subjects, and majors as a backup)
+        AssertActionHasFilter<ClassesController>("AssignTeacher", typeof(RequireProgramHeadCollegeHeadOrAdminAttribute));
         AssertActionHasFilter<ClassesController>("CreateSchedule", typeof(RequireProgramHeadOrAdminAttribute));
 
         // 2. ClassSchedulesController write actions -> RequireProgramHeadOrAdmin

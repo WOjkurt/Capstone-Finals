@@ -82,6 +82,7 @@ public class SubjectService : ISubjectService
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
             StandingYear = subject.StandingYear,
+            IsMinor = subject.IsMinor,
             Prerequisites = new List<PrerequisiteDto>()
         };
     }
@@ -131,6 +132,7 @@ public class SubjectService : ISubjectService
             YearLevel = s.YearLevel,
             DefaultSemester = s.DefaultSemester,
             StandingYear = s.StandingYear,
+            IsMinor = s.IsMinor,
             Prerequisites = prereqMap.TryGetValue(s.SubjectID, out var prereqs)
                 ? prereqs.Select(sp => new PrerequisiteDto
                 {
@@ -169,6 +171,7 @@ public class SubjectService : ISubjectService
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
             StandingYear = subject.StandingYear,
+            IsMinor = subject.IsMinor,
             Prerequisites = prereqs.Select(sp => new PrerequisiteDto
             {
                 PrerequisiteID = sp.PrerequisiteID,
@@ -242,6 +245,7 @@ public class SubjectService : ISubjectService
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
             StandingYear = subject.StandingYear,
+            IsMinor = subject.IsMinor,
             Prerequisites = prereqs.Select(sp => new PrerequisiteDto
             {
                 PrerequisiteID = sp.PrerequisiteID,

@@ -510,6 +510,9 @@ namespace Api.Migrations
                     b.Property<int>("DefaultSemester")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsMinor")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("LabHours")
                         .HasColumnType("numeric");
 

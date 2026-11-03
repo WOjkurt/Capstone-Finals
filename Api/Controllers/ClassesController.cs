@@ -204,8 +204,10 @@ public class ClassesController : ControllerBase
         }
     }
 
+    // Program Head: major subjects of their own program, teachers from that program.
+    // College Head: any class (minor subjects, and majors as a backup), any teacher.
     [HttpPatch("{id:guid}/teacher")]
-    [RequireProgramHeadOrAdmin]
+    [RequireProgramHeadCollegeHeadOrAdmin]
     public async Task<IActionResult> AssignTeacher(Guid id, [FromBody] AssignTeacherDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId)
@@ -213,7 +215,11 @@ public class ClassesController : ControllerBase
             return Unauthorized(new { message = "Authentication required." });
         }
 
-        if (HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role && role == RoleUtils.ProgramHead)
+        int? authRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
+        bool isProgramHead = authRole == RoleUtils.ProgramHead;
+        bool isCollegeHead = authRole == RoleUtils.CollegeHead;
+
+        if (isProgramHead || isCollegeHead)
         {
             var existingClass = await _classRepository.GetByIdAsync(id);
             if (existingClass == null)
@@ -221,13 +227,21 @@ public class ClassesController : ControllerBase
                 return NotFound(new { message = $"Class with ID '{id}' was not found." });
             }
 
-            try
+            if (isProgramHead)
             {
-                await _scopingService.EnsureProgramHeadAccessAsync(authUserId, existingClass.Subject?.ProgramID, "class");
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+                try
+                {
+                    await _scopingService.EnsureProgramHeadAccessAsync(authUserId, existingClass.Subject?.ProgramID, "class");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+                }
+
+                if (existingClass.Subject?.IsMinor == true)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new { message = $"{existingClass.Subject.SubjectCode} is a minor subject. Its teacher is assigned by the College Head." });
+                }
             }
 
             if (dto.UserID.HasValue)
@@ -243,7 +257,7 @@ public class ClassesController : ControllerBase
                     return BadRequest(new { message = "Assigned user must have the Teacher role." });
                 }
 
-                if (teacherDetails.ProgramID != existingClass.Subject?.ProgramID)
+                if (isProgramHead && teacherDetails.ProgramID != existingClass.Subject?.ProgramID)
                 {
                     return StatusCode(StatusCodes.Status403Forbidden, new { message = "Teacher does not belong to the same academic program as the class." });
                 }

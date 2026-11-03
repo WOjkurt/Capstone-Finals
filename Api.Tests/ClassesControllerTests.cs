@@ -535,4 +535,168 @@ public class ClassesControllerTests
         Assert.Equal(teacherId, returnedDto.UserID);
         _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
     }
+
+    // ── Minor vs major subject staffing (Stage 9C) ─────────────────────
+
+    private Class SetupClass(Guid classId, int programId, bool isMinor, string code = "THEO 101")
+    {
+        var existingClass = new Class
+        {
+            ClassID = classId,
+            ClassName = "BSIT 1A",
+            SubjectID = Guid.NewGuid(),
+            Subject = new Subject { SubjectID = Guid.NewGuid(), ProgramID = programId, SubjectCode = code, SubjectTitle = "Subject", IsMinor = isMinor }
+        };
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync(existingClass);
+        return existingClass;
+    }
+
+    private void SetupTeacher(Guid teacherId, int? programId, int role = RoleUtils.Teacher)
+    {
+        _userDetailsRepoMock.Setup(r => r.GetByUserIdAsync(teacherId)).ReturnsAsync(new UserDetails
+        {
+            UserDetailID = Guid.NewGuid(),
+            UserID = teacherId,
+            Firstname = "Test",
+            Lastname = "Teacher",
+            ProgramID = programId,
+            User = new User
+            {
+                UserID = teacherId,
+                FirebaseUID = $"firebase-{teacherId}",
+                Email = "teacher@dbtc-cebu.edu.ph",
+                Role = role,
+                CreatedAt = DateTime.UtcNow
+            }
+        });
+    }
+
+    private void SetupAssignSucceeds(Guid classId, Guid? teacherId)
+    {
+        _classServiceMock.Setup(s => s.AssignTeacherAsync(classId, teacherId))
+            .ReturnsAsync(new ClassDto { ClassID = classId, ClassName = "BSIT 1A", UserID = teacherId });
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadOnMinorSubject_Returns403AndPointsToCollegeHead()
+    {
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        SetupTeacher(teacherId, programId: 1);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = teacherId });
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
+        Assert.Contains("College Head", objResult.Value!.ToString());
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadUnassigningMinorSubject_Returns403()
+    {
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = null });
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadOnMinorSubject_TeacherFromOtherProgram_Succeeds()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        SetupTeacher(teacherId, programId: 2);
+        SetupAssignSucceeds(classId, teacherId);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = teacherId });
+
+        Assert.IsType<OkObjectResult>(result);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(classId, teacherId), Times.Once);
+        _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadOnMinorSubject_TeacherWithNoProgram_Succeeds()
+    {
+        // Basic Education teachers have no program.
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        SetupTeacher(teacherId, programId: null);
+        SetupAssignSucceeds(classId, teacherId);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = teacherId });
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadOnMajorSubject_AsBackup_Succeeds()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: false, code: "IT101");
+        SetupTeacher(teacherId, programId: 1);
+        SetupAssignSucceeds(classId, teacherId);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = teacherId });
+
+        Assert.IsType<OkObjectResult>(result);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(classId, teacherId), Times.Once);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadUnassigning_Succeeds()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        SetupAssignSucceeds(classId, null);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = null });
+
+        Assert.IsType<OkObjectResult>(result);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(classId, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadAssigningNonTeacherRole_Returns400()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        SetupTeacher(studentId, programId: 1, role: RoleUtils.Student);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = studentId });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadNonExistentClass_Returns404()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        _classRepoMock.Setup(r => r.GetByIdAsync(classId)).ReturnsAsync((Class?)null);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = Guid.NewGuid() });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
 }

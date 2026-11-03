@@ -14,6 +14,7 @@ public class SubjectDto
     public int YearLevel { get; set; }
     public int DefaultSemester { get; set; }
     public int? StandingYear { get; set; }
+    public bool IsMinor { get; set; }
 
     public List<PrerequisiteDto> Prerequisites { get; set; } = new();
 }
