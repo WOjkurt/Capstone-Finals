@@ -154,7 +154,7 @@ public class UserDetailsControllerTests
     [Theory]
     [InlineData(RoleUtils.Student)] // 1
     [InlineData(RoleUtils.Registrar)] // 2
-    [InlineData(RoleUtils.ProgramHead)] // 4
+    [InlineData(RoleUtils.Admin)] // Program Heads may search Teachers and Program Heads only
     [InlineData(null)] // null role search
     public async Task Search_ProgramHeadSearchingNonTeacherRoles_Returns403Forbidden(int? targetRole)
     {
@@ -230,5 +230,45 @@ public class UserDetailsControllerTests
 
         // Assert
         Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Search_ProgramHeadSearchingProgramHeads_IsScopedToOwnProgram()
+    {
+        var programHeadId = Guid.NewGuid();
+        int programId = 1;
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        _scopingServiceMock.Setup(s => s.GetProgramIdAsync(programHeadId)).ReturnsAsync(programId);
+        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, RoleUtils.ProgramHead, programId, null))
+            .ReturnsAsync(new List<UserDetails>());
+
+        var result = await _controller.Search(null, RoleUtils.ProgramHead);
+
+        Assert.IsType<OkObjectResult>(result);
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(null, RoleUtils.ProgramHead, programId, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task Search_CollegeHeadSearchingProgramHeads_AllPrograms_ReturnsOk()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        _userDetailsRepoMock.Setup(r => r.SearchAsync(null, RoleUtils.ProgramHead, null, null))
+            .ReturnsAsync(new List<UserDetails>());
+
+        var result = await _controller.Search(null, RoleUtils.ProgramHead);
+
+        Assert.IsType<OkObjectResult>(result);
+        _userDetailsRepoMock.Verify(r => r.SearchAsync(null, RoleUtils.ProgramHead, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task Search_ProgramHeadSearchingStudents_Returns403()
+    {
+        SetHttpContext(RoleUtils.ProgramHead, Guid.NewGuid());
+
+        var result = await _controller.Search(null, RoleUtils.Student);
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
     }
 }

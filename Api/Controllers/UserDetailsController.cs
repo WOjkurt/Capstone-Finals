@@ -38,8 +38,10 @@ public class UserDetailsController : ControllerBase
         }
 
         bool isRegistrarOrAdmin = authRole == RoleUtils.Registrar || authRole == RoleUtils.Admin;
-        bool isProgramHeadSearchingTeachers = authRole == RoleUtils.ProgramHead && role == RoleUtils.Teacher;
-        bool isCollegeHeadSearchingTeachers = authRole == RoleUtils.CollegeHead && role == RoleUtils.Teacher;
+        // Teachers and Program Heads can both be assigned to classes, so both can be searched.
+        bool isTeachingRole = role == RoleUtils.Teacher || role == RoleUtils.ProgramHead;
+        bool isProgramHeadSearchingTeachers = authRole == RoleUtils.ProgramHead && isTeachingRole;
+        bool isCollegeHeadSearchingTeachers = authRole == RoleUtils.CollegeHead && isTeachingRole;
 
         if (!isRegistrarOrAdmin && !isProgramHeadSearchingTeachers && !isCollegeHeadSearchingTeachers)
         {

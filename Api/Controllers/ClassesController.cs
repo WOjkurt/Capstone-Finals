@@ -252,9 +252,17 @@ public class ClassesController : ControllerBase
                     return NotFound(new { message = $"User with ID '{dto.UserID.Value}' was not found." });
                 }
 
-                if (teacherDetails.User?.Role != RoleUtils.Teacher)
+                // Program Heads teach too, so they may be assigned like Teachers.
+                var assigneeRole = teacherDetails.User?.Role;
+                if (assigneeRole != RoleUtils.Teacher && assigneeRole != RoleUtils.ProgramHead)
                 {
-                    return BadRequest(new { message = "Assigned user must have the Teacher role." });
+                    return BadRequest(new { message = "Assigned user must have the Teacher or Program Head role." });
+                }
+
+                // A Program Head may pick only themselves among Program Heads.
+                if (isProgramHead && assigneeRole == RoleUtils.ProgramHead && dto.UserID.Value != authUserId)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new { message = "A Program Head can assign only themselves or teachers from their own program." });
                 }
 
                 if (isProgramHead && teacherDetails.ProgramID != existingClass.Subject?.ProgramID)

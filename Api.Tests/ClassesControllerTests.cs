@@ -699,4 +699,72 @@ public class ClassesControllerTests
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
+
+    // ── Program Heads as assignees ───────────────────────────────────
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningThemselves_OnMajor_Succeeds()
+    {
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: false, code: "IT101");
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class")).Returns(Task.CompletedTask);
+        SetupTeacher(programHeadId, programId: 1, role: RoleUtils.ProgramHead);
+        SetupAssignSucceeds(classId, programHeadId);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = programHeadId });
+
+        Assert.IsType<OkObjectResult>(result);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(classId, programHeadId), Times.Once);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningAnotherProgramHead_Returns403()
+    {
+        var programHeadId = Guid.NewGuid();
+        var otherProgramHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: false, code: "IT101");
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class")).Returns(Task.CompletedTask);
+        SetupTeacher(otherProgramHeadId, programId: 1, role: RoleUtils.ProgramHead);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = otherProgramHeadId });
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
+        _classServiceMock.Verify(s => s.AssignTeacherAsync(It.IsAny<Guid>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_ProgramHeadAssigningThemselves_OnMinor_Returns403()
+    {
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class")).Returns(Task.CompletedTask);
+        SetupTeacher(programHeadId, programId: 1, role: RoleUtils.ProgramHead);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = programHeadId });
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_CollegeHeadAssigningProgramHeadFromOtherProgram_Succeeds()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        var programHeadId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        SetupTeacher(programHeadId, programId: 2, role: RoleUtils.ProgramHead);
+        SetupAssignSucceeds(classId, programHeadId);
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = programHeadId });
+
+        Assert.IsType<OkObjectResult>(result);
+    }
 }
