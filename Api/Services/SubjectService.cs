@@ -283,6 +283,11 @@ public class SubjectService : ISubjectService
             throw new InvalidOperationException($"Cannot delete Subject '{subject.SubjectCode}' because it is referenced by existing study loads.");
         }
 
+        if (await _context.CreditedSubjects.AnyAsync(c => c.SubjectID == subjectId))
+        {
+            throw new InvalidOperationException($"Cannot delete Subject '{subject.SubjectCode}' because it is credited to students.");
+        }
+
         bool isPrerequisiteOrHasPrerequisites = await _context.SubjectPrerequisites
             .AnyAsync(sp => sp.SubjectID == subjectId || sp.PrerequisiteSubjectID == subjectId);
         if (isPrerequisiteOrHasPrerequisites)

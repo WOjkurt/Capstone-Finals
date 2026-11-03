@@ -1,0 +1,64 @@
+using Api.Auth;
+using Api.DTOs.Credits;
+using Api.Services;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Api.Controllers;
+
+/// <summary>Subjects credited from another school (transferees, shiftees).</summary>
+[ApiController]
+[Route("api/credited-subjects")]
+public class CreditedSubjectsController : ControllerBase
+{
+    private readonly ICreditedSubjectService _service;
+
+    public CreditedSubjectsController(ICreditedSubjectService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet("student/{userId:guid}")]
+    [RequireRegistrarCollegeHeadOrAdmin]
+    public async Task<IActionResult> GetByStudent(Guid userId)
+    {
+        return Ok(await _service.GetByStudentAsync(userId));
+    }
+
+    [HttpPost]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Create([FromBody] CreateCreditedSubjectDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid callerId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            return Ok(await _service.CreateAsync(dto, callerId));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        try
+        {
+            await _service.DeleteAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+}

@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<ClassSchedule> ClassSchedules { get; set; }
     public DbSet<StudyLoad> StudyLoads { get; set; }
     public DbSet<OverloadApproval> OverloadApprovals { get; set; }
+    public DbSet<CreditedSubject> CreditedSubjects { get; set; }
 
     // IdentityAccess
     public DbSet<User> Users { get; set; }
@@ -310,6 +311,28 @@ public class AppDbContext : DbContext
         });
 
         // ── GradeClearance ──────────────────────────────────────────
+        modelBuilder.Entity<CreditedSubject>(entity =>
+        {
+            entity.HasIndex(c => new { c.UserID, c.SubjectID })
+                .IsUnique()
+                .HasDatabaseName("UQ_CreditedSubjects_UserID_SubjectID");
+
+            entity.HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(c => c.Subject)
+                .WithMany()
+                .HasForeignKey(c => c.SubjectID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(c => c.RecordedByUser)
+                .WithMany()
+                .HasForeignKey(c => c.RecordedByUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<OverloadApproval>(entity =>
         {
             entity.HasIndex(o => new { o.UserID, o.TermID })

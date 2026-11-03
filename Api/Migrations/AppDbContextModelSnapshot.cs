@@ -195,6 +195,54 @@ namespace Api.Migrations
                     b.ToTable("Contacts");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.CreditedSubject", b =>
+                {
+                    b.Property<Guid>("CreditedSubjectID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Grade")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RecordedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SchoolYear")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SourceSchool")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SourceSubjectCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("SubjectID")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("CreditedSubjectID");
+
+                    b.HasIndex("RecordedByUserID");
+
+                    b.HasIndex("SubjectID");
+
+                    b.HasIndex("UserID", "SubjectID")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_CreditedSubjects_UserID_SubjectID");
+
+                    b.ToTable("CreditedSubjects");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentApplication", b =>
                 {
                     b.Property<Guid>("ApplicationID")
@@ -893,6 +941,33 @@ namespace Api.Migrations
                         .IsRequired();
 
                     b.Navigation("EnrollmentForm");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.CreditedSubject", b =>
+                {
+                    b.HasOne("Api.Domain.IdentityAccess.User", "RecordedByUser")
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Api.Domain.Enrollment.Subject", "Subject")
+                        .WithMany()
+                        .HasForeignKey("SubjectID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Api.Domain.IdentityAccess.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RecordedByUser");
+
+                    b.Navigation("Subject");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentApplication", b =>

@@ -982,6 +982,12 @@ public class StudyLoadService : IStudyLoadService
 
     private async Task<SubjectSatisfactionResult> HasSatisfiedSubjectAsync(Guid userId, Guid subjectId)
     {
+        // A subject credited from another school counts as passed.
+        if (await _context.CreditedSubjects.AnyAsync(c => c.UserID == userId && c.SubjectID == subjectId))
+        {
+            return new SubjectSatisfactionResult { Status = SubjectCompletionStatus.Passed };
+        }
+
         var loads = await _context.StudyLoads
             .AsNoTracking()
             .Include(sl => sl.Class)
