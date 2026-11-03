@@ -188,6 +188,8 @@ public class CurriculumImportService : ICurriculumImportService
             var rawPrereqs = GetField("prerequisites");
             var rawCoreqs = GetField("corequisites");
             var rawStanding = GetField("standing_year");
+            bool hasMinorColumn = headerMap.ContainsKey("minor");
+            var rawMinor = GetField("minor");
 
             var normalizedCode = SubjectService.NormalizeSubjectCode(rawCode);
 
@@ -285,6 +287,24 @@ public class CurriculumImportService : ICurriculumImportService
                 }
             }
 
+            // Minor (optional column). Without the column the flag is left alone.
+            bool? isMinor = null;
+            if (hasMinorColumn)
+            {
+                switch (rawMinor.ToLowerInvariant())
+                {
+                    case "yes": case "y": case "true": case "1":
+                        isMinor = true;
+                        break;
+                    case "no": case "n": case "false": case "0": case "":
+                        isMinor = false;
+                        break;
+                    default:
+                        errors.Add(new CurriculumImportFindingDto { Row = physicalRowNumber, Code = normalizedCode, Message = $"minor must be yes, no or blank (found '{rawMinor}')." });
+                        break;
+                }
+            }
+
             // Prerequisites & Corequisites parsing
             var prereqCodes = rawPrereqs
                 .Split(';', StringSplitOptions.RemoveEmptyEntries)
@@ -313,6 +333,7 @@ public class CurriculumImportService : ICurriculumImportService
                 Year = year,
                 Semester = semester,
                 StandingYear = standingYear,
+                IsMinor = isMinor,
                 Prerequisites = prereqCodes,
                 Corequisites = coreqCodes
             });
@@ -594,6 +615,7 @@ public class CurriculumImportService : ICurriculumImportService
                 if (existing.YearLevel != row.Year) diffFields.Add(nameof(Subject.YearLevel));
                 if (existing.DefaultSemester != row.Semester) diffFields.Add(nameof(Subject.DefaultSemester));
                 if (existing.StandingYear != row.StandingYear) diffFields.Add(nameof(Subject.StandingYear));
+                if (row.IsMinor.HasValue && existing.IsMinor != row.IsMinor.Value) diffFields.Add(nameof(Subject.IsMinor));
 
                 if (diffFields.Count > 0)
                 {
@@ -704,6 +726,10 @@ public class CurriculumImportService : ICurriculumImportService
                             existing.YearLevel = row.Year;
                             existing.DefaultSemester = row.Semester;
                             existing.StandingYear = row.StandingYear;
+                            if (row.IsMinor.HasValue)
+                            {
+                                existing.IsMinor = row.IsMinor.Value;
+                            }
                             _context.Subjects.Update(existing);
                         }
                     }
@@ -721,7 +747,8 @@ public class CurriculumImportService : ICurriculumImportService
                             ProgramID = programEntity.ProgramID,
                             YearLevel = row.Year,
                             DefaultSemester = row.Semester,
-                            StandingYear = row.StandingYear
+                            StandingYear = row.StandingYear,
+                            IsMinor = row.IsMinor ?? false
                         };
                         await _context.Subjects.AddAsync(newSubject);
                         entityMap[row.NormalizedCode] = newSubject;
@@ -856,6 +883,7 @@ public class CurriculumImportService : ICurriculumImportService
         public int Year { get; set; }
         public int Semester { get; set; }
         public int? StandingYear { get; set; }
+        public bool? IsMinor { get; set; }
         public List<string> Prerequisites { get; set; } = new();
         public List<string> Corequisites { get; set; } = new();
     }

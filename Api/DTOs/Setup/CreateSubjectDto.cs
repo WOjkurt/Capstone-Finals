@@ -20,4 +20,7 @@ public class CreateSubjectDto
     /// <summary>Optional standing requirement (valid values: 1 to 4).</summary>
     [Range(1, 4, ErrorMessage = "StandingYear must be between 1 and 4.")]
     public int? StandingYear { get; set; }
+
+    /// <summary>Minor (GE, theology…) subject. Null leaves an existing subject unchanged and makes a new one major.</summary>
+    public bool? IsMinor { get; set; }
 }

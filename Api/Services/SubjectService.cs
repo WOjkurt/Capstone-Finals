@@ -63,7 +63,8 @@ public class SubjectService : ISubjectService
             ProgramID = dto.ProgramID,
             YearLevel = dto.YearLevel,
             DefaultSemester = dto.DefaultSemester,
-            StandingYear = dto.StandingYear
+            StandingYear = dto.StandingYear,
+            IsMinor = dto.IsMinor ?? false
         };
 
         await _subjectRepository.AddAsync(subject);
@@ -226,6 +227,10 @@ public class SubjectService : ISubjectService
         subject.YearLevel = dto.YearLevel;
         subject.DefaultSemester = dto.DefaultSemester;
         subject.StandingYear = dto.StandingYear;
+        if (dto.IsMinor.HasValue)
+        {
+            subject.IsMinor = dto.IsMinor.Value;
+        }
 
         await _subjectRepository.UpdateAsync(subject);
 
