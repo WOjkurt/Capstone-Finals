@@ -37,7 +37,7 @@ class _AssignTeacherDialogState extends State<AssignTeacherDialog> {
   @override
   void initState() {
     super.initState();
-    // Load the full teacher list on open (no query = all teachers, role 3).
+    // Load the full list on open (no query = all Teachers and Program Heads).
     _runSearch('');
   }
 
@@ -62,7 +62,7 @@ class _AssignTeacherDialogState extends State<AssignTeacherDialog> {
     try {
       final repo = getIt<UserSearchRepository>();
       final results =
-          await repo.search(query: query.isEmpty ? null : query, role: 3);
+          await repo.searchTeachingStaff(query: query.isEmpty ? null : query);
       if (mounted) {
         setState(() {
           _results = results;

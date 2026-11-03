@@ -169,4 +169,22 @@ class UserSearchRepository {
             UserSearchResultModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// Teachers and Program Heads, who can both be assigned to classes.
+  Future<List<UserSearchResultModel>> searchTeachingStaff(
+      {String? query}) async {
+    final results = await Future.wait([
+      search(query: query, role: 3),
+      search(query: query, role: 4),
+    ]);
+    final seen = <String>{};
+    final merged = [
+      for (final list in results)
+        for (final u in list)
+          if (seen.add(u.userId)) u,
+    ];
+    merged.sort((a, b) =>
+        a.lastname.toLowerCase().compareTo(b.lastname.toLowerCase()));
+    return merged;
+  }
 }

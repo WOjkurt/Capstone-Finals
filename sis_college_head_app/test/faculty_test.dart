@@ -95,19 +95,25 @@ Future<void> _started(FacultyBloc bloc) async {
 
 void main() {
   group('Repositories', () {
-    test('searchTeachers with no query asks for all teachers (role 3)', () async {
-      Uri? captured;
+    test('searchTeachers asks for Teachers (3) and Program Heads (4), merged and sorted', () async {
+      final queries = <Map<String, String>>[];
       final client = MockClient((req) async {
-        captured = req.url;
+        queries.add(req.url.queryParameters);
+        if (req.url.queryParameters['role'] == '4') {
+          return http.Response(jsonEncode([
+            {..._teacher('ph-it', 'Paula', 'Aquino', 1), 'role': 4},
+          ]), 200);
+        }
         return http.Response(jsonEncode(_teachersJson), 200);
       });
 
-      final list = await TeacherRepository(MockAuthService(), client).searchTeachers('');
+      final list = await TeacherRepository(MockAuthService(), client).searchTeachers(' ben ');
 
-      expect(captured!.path, '/api/UserDetails');
-      expect(captured!.queryParameters, {'role': '3'});
-      expect(list.map((t) => t.userId), ['t-it', 't-me', 't-be']);
-      expect(list.last.programId, isNull);
+      expect(queries.toSet().length, 2);
+      expect(queries.map((q) => q['role']).toSet(), {'3', '4'});
+      expect(queries.every((q) => q['search'] == 'ben'), isTrue);
+      expect(list.map((t) => t.userId), ['ph-it', 't-be', 't-it', 't-me']);
+      expect(list.firstWhere((t) => t.userId == 't-be').programId, isNull);
     });
 
     test('assignTeacher sends PATCH /api/classes/{id}/teacher with userID', () async {

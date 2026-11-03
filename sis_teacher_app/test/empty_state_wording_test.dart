@@ -62,6 +62,10 @@ class _FakeUserSearchRepository implements UserSearchRepository {
       mockFaculty;
 
   @override
+  Future<List<UserSearchResultModel>> searchTeachingStaff({String? query}) async =>
+      mockFaculty;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

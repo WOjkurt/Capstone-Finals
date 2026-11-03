@@ -112,7 +112,7 @@ class FacultyBloc extends Bloc<FacultyEvent, FacultyState> {
     emit(FacultyLoading());
     try {
       final results = await Future.wait([
-        _userSearchRepo.search(role: 3),
+        _userSearchRepo.searchTeachingStaff(),
         _classRepo.getProgramClasses(),
       ]);
 
@@ -168,7 +168,7 @@ class FacultyBloc extends Bloc<FacultyEvent, FacultyState> {
       await _classRepo.assignTeacher(event.classId, event.teacherUserId);
 
       final results = await Future.wait([
-        _userSearchRepo.search(role: 3),
+        _userSearchRepo.searchTeachingStaff(),
         _classRepo.getProgramClasses(),
       ]);
 
