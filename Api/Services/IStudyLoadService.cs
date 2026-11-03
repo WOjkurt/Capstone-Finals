@@ -14,4 +14,5 @@ public interface IStudyLoadService
     Task<FinalizeStudyLoadsResponseDto> FinalizeBatchAsync(FinalizeStudyLoadsRequestDto dto, Guid callerUserId, int? callerRole = null);
     Task<List<PendingStudyLoadSummaryDto>> GetPendingSummaryAsync(Guid? termId = null);
     Task<YearLevelSuggestionDto> GetYearLevelSuggestionAsync(Guid userId);
+    Task<UnitLimitDto> GetUnitLimitAsync(Guid userId, Guid termId);
 }

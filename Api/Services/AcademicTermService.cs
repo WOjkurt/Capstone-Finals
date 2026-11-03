@@ -154,6 +154,11 @@ public class AcademicTermService : IAcademicTermService
             throw new InvalidOperationException($"Cannot delete AcademicTerm '{TermLabel.Format(term.SchoolYear, term.Semester)}' because it is referenced by existing grade clearances.");
         }
 
+        if (await _context.OverloadApprovals.AnyAsync(o => o.TermID == termId))
+        {
+            throw new InvalidOperationException($"Cannot delete AcademicTerm '{TermLabel.Format(term.SchoolYear, term.Semester)}' because it has overload approvals.");
+        }
+
         await _termRepository.DeleteAsync(termId);
     }
 

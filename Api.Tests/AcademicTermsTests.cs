@@ -227,4 +227,22 @@ public class AcademicTermsTests : IDisposable
         Assert.IsType<BadRequestObjectResult>(result);
         Assert.True(await _context.AcademicTerms.AnyAsync(t => t.TermID == termId));
     }
+
+    [Fact]
+    public async Task DeleteTerm_WithOverloadApproval_ReturnsBadRequest()
+    {
+        var termId = Guid.NewGuid();
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = termId, SchoolYear = "2025-2026", Semester = 2 });
+        _context.OverloadApprovals.Add(new OverloadApproval
+        {
+            OverloadApprovalID = Guid.NewGuid(), UserID = Guid.NewGuid(), TermID = termId,
+            Units = 24, MaxUnits = 21, Reason = "catching up", ApprovedByUserID = Guid.NewGuid(), ApprovedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await CreateControllerWithUser(Guid.NewGuid()).Delete(termId);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("overload approvals", bad.Value!.ToString());
+    }
 }

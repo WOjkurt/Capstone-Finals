@@ -10,4 +10,11 @@ public class PendingStudyLoadSummaryDto
     public int? YearLevel { get; set; }
     public int PendingCount { get; set; }
     public decimal PendingUnits { get; set; }
+
+    // Unit limit for the term (Enrolled + Pending units vs the CHED limit) and any recorded overload approval.
+    public decimal TermUnits { get; set; }
+    public decimal MaxUnits { get; set; }
+    public bool IsOverloaded { get; set; }
+    public string? OverloadReason { get; set; }
+    public string? OverloadApprovedBy { get; set; }
 }

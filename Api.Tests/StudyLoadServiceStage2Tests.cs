@@ -252,8 +252,8 @@ public class StudyLoadServiceStage2Tests : IDisposable
             ClassId = classId,
             Grades =
             [
-                new SubmitGradeBatchItemDto { StudyLoadId = enrolledLoad.StudyLoadID, MidtermGrade = 88.0m },
-                new SubmitGradeBatchItemDto { StudyLoadId = pendingLoad.StudyLoadID,  MidtermGrade = 88.0m },
+                new SubmitGradeBatchItemDto { StudyLoadId = enrolledLoad.StudyLoadID, MidtermGrade = 2.0m },
+                new SubmitGradeBatchItemDto { StudyLoadId = pendingLoad.StudyLoadID,  MidtermGrade = 2.0m },
             ]
         };
 

@@ -1,3 +1,4 @@
+using Api.Common;
 using Api.Auth;
 using Api.Domain.Grading;
 using Api.DTOs.Grading;
@@ -40,6 +41,8 @@ public class GradeCorrectionService : IGradeCorrectionService
         {
             throw new UnauthorizedAccessException("Only the teacher who originally submitted the grade can request a correction.");
         }
+
+        GradeScale.EnsureValid(dto.NewGrade);
 
         // Old Grade Validation
         if (dto.CorrectionPeriod == 1) // Midterms

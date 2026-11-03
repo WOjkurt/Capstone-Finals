@@ -322,7 +322,9 @@ public class StudyLoadService : IStudyLoadService
             var resultList = new List<EnrollBatchResponseDto>();
             var newlyEnrolledCount = 0;
             var enrolledSubjectIdsInBatch = new HashSet<Guid>();
+            var accepted = new List<(Guid ClassId, EnrollBatchResponseDto Result, decimal Units)>();
 
+            // Pass 1: check every class without saving, so the unit limit can be checked on the whole batch.
             foreach (var classId in dto.ClassIds)
             {
                 var targetClass = await _context.Classes
@@ -360,6 +362,52 @@ public class StudyLoadService : IStudyLoadService
                     continue;
                 }
 
+                enrolledSubjectIdsInBatch.Add(targetClass.SubjectID);
+                var result = new EnrollBatchResponseDto { ClassId = classId, Enrolled = true, Reasons = new List<string>() };
+                resultList.Add(result);
+                accepted.Add((classId, result, (targetClass.Subject?.LecUnits ?? 0m) + (targetClass.Subject?.LabUnits ?? 0m)));
+            }
+
+            // Going over the CHED unit limit needs a written reason, which is recorded as the overload approval.
+            // (Skipped for accounts without student details, which have no program or year to measure against.)
+            if (accepted.Count > 0 && await _context.UserDetails.AnyAsync(u => u.UserID == dto.UserId))
+            {
+                var limit = await GetUnitLimitAsync(dto.UserId, dto.TermId);
+                decimal projected = limit.CurrentUnits + accepted.Sum(a => a.Units);
+                if (projected > limit.MaxUnits)
+                {
+                    string? reason = dto.OverloadReason?.Trim();
+                    if (string.IsNullOrEmpty(reason))
+                    {
+                        throw new InvalidOperationException(
+                            $"This load would be {projected:0.#} units, over the limit of {limit.MaxUnits:0.#}. Enter a reason to approve the overload.");
+                    }
+
+                    var approval = await _context.OverloadApprovals
+                        .FirstOrDefaultAsync(o => o.UserID == dto.UserId && o.TermID == dto.TermId);
+                    if (approval == null)
+                    {
+                        approval = new OverloadApproval
+                        {
+                            OverloadApprovalID = Guid.NewGuid(),
+                            UserID = dto.UserId,
+                            TermID = dto.TermId,
+                            Reason = reason
+                        };
+                        _context.OverloadApprovals.Add(approval);
+                    }
+                    approval.Units = projected;
+                    approval.MaxUnits = limit.MaxUnits;
+                    approval.Reason = reason;
+                    approval.ApprovedByUserID = createdByUserId;
+                    approval.ApprovedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+            }
+
+            // Pass 2: save the accepted classes.
+            foreach (var (classId, result, _) in accepted)
+            {
                 var studyLoad = new StudyLoad
                 {
                     StudyLoadID = Guid.NewGuid(),
@@ -372,15 +420,7 @@ public class StudyLoadService : IStudyLoadService
 
                 await _studyLoadRepository.AddAsync(studyLoad);
                 newlyEnrolledCount++;
-                enrolledSubjectIdsInBatch.Add(targetClass.SubjectID);
-
-                resultList.Add(new EnrollBatchResponseDto
-                {
-                    ClassId = classId,
-                    Enrolled = true,
-                    StudyLoadId = studyLoad.StudyLoadID,
-                    Reasons = new List<string>()
-                });
+                result.StudyLoadId = studyLoad.StudyLoadID;
             }
 
             // Ensure exactly one GradeClearance row exists for this student + term (idempotent)
@@ -692,6 +732,86 @@ public class StudyLoadService : IStudyLoadService
         }
 
         return result;
+    }
+
+    // CHED norms (CMO / MORPHE): no overload for non-graduating students; up to 6 extra units when graduating;
+    // summer capped at 9 units (12 when graduating). Used for warnings only.
+    public const decimal DefaultRegularMaxUnits = 21m;
+    public const decimal GraduatingOverloadUnits = 6m;
+    public const decimal SummerMaxUnits = 9m;
+    public const decimal GraduatingSummerMaxUnits = 12m;
+
+    public async Task<UnitLimitDto> GetUnitLimitAsync(Guid userId, Guid termId)
+    {
+        var userDetails = await _context.UserDetails
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserID == userId)
+            ?? throw new KeyNotFoundException($"UserDetails not found for user '{userId}'.");
+
+        var term = await _context.AcademicTerms
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TermID == termId)
+            ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+
+        var programSubjects = userDetails.ProgramID.HasValue
+            ? await _context.Subjects.AsNoTracking().Where(s => s.ProgramID == userDetails.ProgramID.Value).ToListAsync()
+            : new List<Subject>();
+
+        int? yearLevel = userDetails.YearLevel;
+        bool isGraduating = yearLevel.HasValue && programSubjects.Count > 0 && yearLevel.Value >= programSubjects.Max(s => s.YearLevel);
+        bool isSummer = term.Semester == 3;
+
+        decimal curriculumUnits = yearLevel.HasValue
+            ? programSubjects.Where(s => s.YearLevel == yearLevel.Value && s.DefaultSemester == term.Semester)
+                             .Sum(s => s.LecUnits + s.LabUnits)
+            : 0m;
+
+        decimal currentUnits = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.TermID == termId &&
+                         (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Pending))
+            .Select(sl => sl.Class!.Subject!.LecUnits + sl.Class!.Subject!.LabUnits)
+            .SumAsync();
+
+        decimal max;
+        string rule;
+        if (isSummer)
+        {
+            max = isGraduating ? GraduatingSummerMaxUnits : SummerMaxUnits;
+            rule = isGraduating ? "Summer limit for graduating students: 12 units." : "Summer limit: 9 units.";
+        }
+        else
+        {
+            decimal regular = curriculumUnits > 0 ? curriculumUnits : DefaultRegularMaxUnits;
+            string basis = curriculumUnits > 0 ? $"curriculum load {regular:0.#} units" : $"{regular:0.#} units (no curriculum load found)";
+            max = isGraduating ? regular + GraduatingOverloadUnits : regular;
+            rule = isGraduating
+                ? $"Regular limit is the {basis}, plus up to {GraduatingOverloadUnits:0} units overload for graduating students."
+                : $"Regular limit is the {basis}. Overload is allowed only for graduating students.";
+        }
+
+        var approval = await _context.OverloadApprovals
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.UserID == userId && o.TermID == termId);
+        string? approvedBy = null;
+        if (approval != null)
+        {
+            var approver = await _context.UserDetails.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == approval.ApprovedByUserID);
+            approvedBy = approver != null ? $"{approver.Firstname} {approver.Lastname}".Trim() : null;
+        }
+
+        return new UnitLimitDto
+        {
+            MaxUnits = max,
+            CurrentUnits = currentUnits,
+            CurriculumUnits = curriculumUnits,
+            IsGraduating = isGraduating,
+            IsSummer = isSummer,
+            Rule = rule,
+            OverloadReason = approval?.Reason,
+            OverloadApprovedBy = approval != null ? (approvedBy ?? "Unknown staff") : null,
+            OverloadApprovedAt = approval?.ApprovedAt
+        };
     }
 
     private enum SubjectCompletionStatus
@@ -1481,8 +1601,15 @@ public class StudyLoadService : IStudyLoadService
             string fullName = ud != null ? $"{ud.Firstname} {ud.Lastname}".Trim() : "Unknown Student";
             decimal totalUnits = g.Sum(sl => (sl.Class?.Subject?.LecUnits ?? 0m) + (sl.Class?.Subject?.LabUnits ?? 0m));
 
+            var limit = await GetUnitLimitAsync(g.Key, resolvedTermId);
+
             result.Add(new PendingStudyLoadSummaryDto
             {
+                TermUnits = limit.CurrentUnits,
+                MaxUnits = limit.MaxUnits,
+                IsOverloaded = limit.IsOverloaded,
+                OverloadReason = limit.OverloadReason,
+                OverloadApprovedBy = limit.OverloadApprovedBy,
                 UserId = g.Key,
                 FullName = fullName,
                 Lrn = ud?.LRN,

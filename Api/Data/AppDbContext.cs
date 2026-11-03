@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<Class> Classes { get; set; }
     public DbSet<ClassSchedule> ClassSchedules { get; set; }
     public DbSet<StudyLoad> StudyLoads { get; set; }
+    public DbSet<OverloadApproval> OverloadApprovals { get; set; }
 
     // IdentityAccess
     public DbSet<User> Users { get; set; }
@@ -309,6 +310,31 @@ public class AppDbContext : DbContext
         });
 
         // ── GradeClearance ──────────────────────────────────────────
+        modelBuilder.Entity<OverloadApproval>(entity =>
+        {
+            entity.HasIndex(o => new { o.UserID, o.TermID })
+                .IsUnique()
+                .HasDatabaseName("UQ_OverloadApprovals_UserID_TermID");
+
+            entity.Property(o => o.Units).HasPrecision(5, 1);
+            entity.Property(o => o.MaxUnits).HasPrecision(5, 1);
+
+            entity.HasOne(o => o.User)
+                .WithMany()
+                .HasForeignKey(o => o.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(o => o.Term)
+                .WithMany()
+                .HasForeignKey(o => o.TermID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(o => o.ApprovedByUser)
+                .WithMany()
+                .HasForeignKey(o => o.ApprovedByUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<GradeClearance>(entity =>
         {
             entity.HasIndex(gc => new { gc.UserID, gc.TermID })

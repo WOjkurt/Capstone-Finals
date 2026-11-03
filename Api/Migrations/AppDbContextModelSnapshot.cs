@@ -453,6 +453,50 @@ namespace Api.Migrations
                     b.ToTable("EnrollmentResponses");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.OverloadApproval", b =>
+                {
+                    b.Property<Guid>("OverloadApprovalID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ApprovedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("MaxUnits")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("TermID")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Units")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<Guid>("UserID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("OverloadApprovalID");
+
+                    b.HasIndex("ApprovedByUserID");
+
+                    b.HasIndex("TermID");
+
+                    b.HasIndex("UserID", "TermID")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_OverloadApprovals_UserID_TermID");
+
+                    b.ToTable("OverloadApprovals");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.StudyLoad", b =>
                 {
                     b.Property<Guid>("StudyLoadID")
@@ -908,6 +952,33 @@ namespace Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Application");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.OverloadApproval", b =>
+                {
+                    b.HasOne("Api.Domain.IdentityAccess.User", "ApprovedByUser")
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Api.Domain.Enrollment.AcademicTerm", "Term")
+                        .WithMany()
+                        .HasForeignKey("TermID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Api.Domain.IdentityAccess.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedByUser");
+
+                    b.Navigation("Term");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Api.Domain.Enrollment.StudyLoad", b =>

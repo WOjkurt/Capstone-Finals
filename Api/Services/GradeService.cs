@@ -146,6 +146,9 @@ public class GradeService : IGradeService
             throw new InvalidOperationException("At least one grade field (MidtermGrade or FinalGrade) must be provided for submission.");
         }
 
+        GradeScale.EnsureValid(midtermGrade);
+        GradeScale.EnsureValid(finalGrade);
+
         var existingGrade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
 
         if (existingGrade == null)

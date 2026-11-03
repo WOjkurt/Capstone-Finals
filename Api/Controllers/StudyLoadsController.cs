@@ -137,6 +137,20 @@ public class StudyLoadsController : ControllerBase
         }
     }
 
+    [HttpGet("unit-limit")]
+    [RequireRegistrarCollegeHeadOrAdmin]
+    public async Task<IActionResult> GetUnitLimit([FromQuery] Guid userId, [FromQuery] Guid termId)
+    {
+        try
+        {
+            return Ok(await _studyLoadService.GetUnitLimitAsync(userId, termId));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("year-level-suggestion")]
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> GetYearLevelSuggestion([FromQuery] Guid userId)
