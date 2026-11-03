@@ -199,3 +199,102 @@ class UserSearchResultModel {
     );
   }
 }
+
+/// Suggested next year level from the API (75% of the year's units passed).
+/// The Registrar always makes the final decision.
+class YearLevelSuggestionModel {
+  final int currentYearLevel;
+  final int suggestedYearLevel;
+  final bool isFinalYear;
+  final String reason;
+  final List<String> failedSubjectCodes;
+
+  const YearLevelSuggestionModel({
+    required this.currentYearLevel,
+    required this.suggestedYearLevel,
+    required this.isFinalYear,
+    required this.reason,
+    this.failedSubjectCodes = const [],
+  });
+
+  factory YearLevelSuggestionModel.fromJson(Map<String, dynamic> json) {
+    return YearLevelSuggestionModel(
+      currentYearLevel: json['currentYearLevel'] as int,
+      suggestedYearLevel: json['suggestedYearLevel'] as int,
+      isFinalYear: json['isFinalYear'] as bool? ?? false,
+      reason: json['reason'] as String? ?? '',
+      failedSubjectCodes:
+          (json['failedSubjectCodes'] as List?)?.cast<String>() ?? const [],
+    );
+  }
+}
+
+/// One grade in a student's history, as the Registrar sees it.
+class StudentGradeModel {
+  final String gradeId;
+  final String? subjectCode;
+  final String? subjectTitle;
+  final String? className;
+  final double? units;
+  final double? midtermGrade;
+  final double? finalGrade;
+  final int? remarks; // 1 Passed, 2 Failed
+  final String? termId;
+  final String? schoolYear;
+  final int? semester;
+  final String? termLabel;
+  final int? loadStatus; // 1 Enrolled, 2 Dropped, 3 Withdrawn, 4 Pending, 5 Rejected
+  final String? teacherName;
+
+  const StudentGradeModel({
+    required this.gradeId,
+    this.subjectCode,
+    this.subjectTitle,
+    this.className,
+    this.units,
+    this.midtermGrade,
+    this.finalGrade,
+    this.remarks,
+    this.termId,
+    this.schoolYear,
+    this.semester,
+    this.termLabel,
+    this.loadStatus,
+    this.teacherName,
+  });
+
+  bool get isPassed => remarks == 1;
+  bool get isFailed => remarks == 2;
+
+  factory StudentGradeModel.fromJson(Map<String, dynamic> json) {
+    return StudentGradeModel(
+      gradeId: json['gradeId']?.toString() ?? '',
+      subjectCode: json['subjectCode'] as String?,
+      subjectTitle: json['subjectTitle'] as String?,
+      className: json['className'] as String?,
+      units: (json['units'] as num?)?.toDouble(),
+      midtermGrade: (json['midtermGrade'] as num?)?.toDouble(),
+      finalGrade: (json['finalGrade'] as num?)?.toDouble(),
+      remarks: (json['remarks'] as num?)?.toInt(),
+      termId: json['termId']?.toString(),
+      schoolYear: json['schoolYear'] as String?,
+      semester: (json['semester'] as num?)?.toInt(),
+      termLabel: json['termLabel'] as String?,
+      loadStatus: (json['loadStatus'] as num?)?.toInt(),
+      teacherName: json['teacherName'] as String?,
+    );
+  }
+}
+
+/// Subject codes failed on an enrolled load and not passed in any later attempt.
+List<String> unresolvedFailedSubjects(List<StudentGradeModel> grades) {
+  final counted = grades.where((g) => g.loadStatus == null || g.loadStatus == 1);
+  final passed = counted.where((g) => g.isPassed).map((g) => g.subjectCode).toSet();
+  final failed = counted
+      .where((g) => g.isFailed && !passed.contains(g.subjectCode))
+      .map((g) => g.subjectCode ?? '?')
+      .toSet()
+      .toList()
+    ..sort();
+  return failed;
+}

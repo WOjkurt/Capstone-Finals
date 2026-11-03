@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import 'status_badge.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
+import 'student_grades_dialog.dart';
 import 'study_load_builder_dialog.dart';
 
 class StudentStudyLoadDialog extends StatefulWidget {
@@ -647,6 +648,20 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                     ],
                   ),
                 ),
+                OutlinedButton.icon(
+                  key: const ValueKey('view_grades_button'),
+                  icon: const Icon(Icons.grading_rounded, size: 16),
+                  label: const Text('Grades', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onPressed: () => StudentGradesDialog.show(
+                    context,
+                    userId: widget.student.userId,
+                    studentName: widget.student.fullName,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 FilledButton.icon(
                   key: const ValueKey('build_study_load_button'),
                   icon: const Icon(Icons.architecture_rounded, size: 16),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../injection.dart';
+import '../../models/grading_models.dart';
 import '../../repositories/grading_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
@@ -49,12 +50,90 @@ class _EditYearLevelDialogState extends State<EditYearLevelDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
   String? _serverError;
+  YearLevelSuggestionModel? _suggestion;
+  bool _loadingSuggestion = true;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(
       text: widget.currentYearLevel?.toString() ?? '',
+    );
+    _loadSuggestion();
+  }
+
+  /// The suggestion only helps the Registrar; if it fails, the dialog still works.
+  Future<void> _loadSuggestion() async {
+    YearLevelSuggestionModel? suggestion;
+    try {
+      suggestion =
+          await getIt<UserSearchRepository>().getYearLevelSuggestion(widget.userId);
+    } catch (_) {
+      suggestion = null;
+    }
+    if (mounted) {
+      setState(() {
+        _suggestion = suggestion;
+        _loadingSuggestion = false;
+      });
+    }
+  }
+
+  Widget _buildSuggestion() {
+    if (_loadingSuggestion) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 14),
+        child: LinearProgressIndicator(minHeight: 2),
+      );
+    }
+    final s = _suggestion;
+    if (s == null) return const SizedBox.shrink();
+
+    final moves = s.suggestedYearLevel > s.currentYearLevel;
+    final title = moves
+        ? 'Suggested: move up to Year ${s.suggestedYearLevel}'
+        : s.isFinalYear
+            ? 'Suggested: stay in Year ${s.suggestedYearLevel} (final year)'
+            : 'Suggested: stay in Year ${s.suggestedYearLevel}';
+    final color = moves ? const Color(0xFF047857) : const Color(0xFFB45309);
+
+    return Container(
+      key: const ValueKey('year_level_suggestion'),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: moves ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+          const SizedBox(height: 4),
+          Text(s.reason,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+          if (s.failedSubjectCodes.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('Failed: ${s.failedSubjectCodes.join(', ')}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF991B1B))),
+          ],
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const ValueKey('use_suggestion_button'),
+              onPressed: _isSaving
+                  ? null
+                  : () => setState(() =>
+                      _controller.text = s.suggestedYearLevel.toString()),
+              child: Text('Use Year ${s.suggestedYearLevel}'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -168,6 +247,7 @@ class _EditYearLevelDialogState extends State<EditYearLevelDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildSuggestion(),
               const Text(
                 'Year Level (1 – 5)',
                 style: TextStyle(

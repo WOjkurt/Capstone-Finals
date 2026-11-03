@@ -203,4 +203,41 @@ class UserSearchRepository {
           statusCode: res.statusCode, message: _extractMessage(res.body));
     }
   }
+
+  Future<YearLevelSuggestionModel> getYearLevelSuggestion(String userId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/studyloads/year-level-suggestion?userId=$userId'),
+      headers: headers,
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return YearLevelSuggestionModel.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
+}
+
+class StudentGradeRepository {
+  final AuthService _auth;
+  final http.Client _client;
+  StudentGradeRepository(this._auth, {http.Client? client})
+      : _client = client ?? http.Client();
+
+  /// All grades of one student, every term.
+  Future<List<StudentGradeModel>> getStudentGrades(String userId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/grades/student/$userId'),
+      headers: headers,
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => StudentGradeModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 }
