@@ -202,4 +202,72 @@ public class TeacherScheduleConflictTests : IDisposable
 
         Assert.Equal("R303", result.Room);
     }
+
+    // ── A class's own times, room spelling, and time order ─────────
+
+    [Fact]
+    public async Task CreateSchedule_SameSlotTwiceOnSameClass_Throws()
+    {
+        await _scheduleService.CreateAsync(Slot(_bsmeTheoClassId, "T/TH", 10, 11));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _scheduleService.CreateAsync(Slot(_bsmeTheoClassId, "T/TH", 10, 11)));
+
+        Assert.Contains("This class already meets T/TH 10:00-11:00", ex.Message);
+        Assert.Equal(1, await _context.ClassSchedules.CountAsync(s => s.ClassID == _bsmeTheoClassId));
+    }
+
+    [Fact]
+    public async Task CreateSchedule_OverlapOnSameClassInAnotherRoom_StillThrows()
+    {
+        await _scheduleService.CreateAsync(Slot(_bsmeTheoClassId, "T", 10, 12));
+        var dto = Slot(_bsmeTheoClassId, "T", 11, 13);
+        dto.Room = "Lab 9";
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _scheduleService.CreateAsync(dto));
+    }
+
+    [Fact]
+    public async Task CreateSchedule_SameClassDifferentDays_Succeeds()
+    {
+        await _scheduleService.CreateAsync(Slot(_bsmeTheoClassId, "T", 10, 11));
+
+        var second = await _scheduleService.CreateAsync(Slot(_bsmeTheoClassId, "TH", 10, 11));
+
+        Assert.Equal("TH", second.DaysOfWeek);
+    }
+
+    [Fact]
+    public async Task CreateSchedule_RoomClash_IgnoresCaseAndSpaces()
+    {
+        // BSIT 1A already uses R101 on M/W/F 08:00-09:00.
+        var dto = Slot(_bsmeTheoClassId, "F", 8, 9);
+        dto.Room = " r101 ";
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _scheduleService.CreateAsync(dto));
+
+        Assert.Contains("already booked", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateSchedule_SavesRoomTrimmed()
+    {
+        var dto = Slot(_bsmeTheoClassId, "S", 8, 9);
+        dto.Room = "  Lab 2  ";
+
+        var result = await _scheduleService.CreateAsync(dto);
+
+        Assert.Equal("Lab 2", result.Room);
+    }
+
+    [Theory]
+    [InlineData(10, 9)]
+    [InlineData(10, 10)]
+    public async Task CreateSchedule_EndNotAfterStart_Throws(int startHour, int endHour)
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _scheduleService.CreateAsync(Slot(_bsmeTheoClassId, "S", startHour, endHour)));
+
+        Assert.Equal("End time must be after start time.", ex.Message);
+    }
 }

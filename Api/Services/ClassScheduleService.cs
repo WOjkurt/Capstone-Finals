@@ -29,6 +29,9 @@ public class ClassScheduleService : IClassScheduleService
             throw new KeyNotFoundException($"Class with ID '{dto.ClassID}' was not found.");
         }
 
+        dto.Room = dto.Room.Trim();
+        EnsureEndAfterStart(dto.StartTime, dto.EndTime);
+        await CheckOwnOverlapAsync(dto.ClassID, dto.DaysOfWeek, dto.StartTime, dto.EndTime, excludeScheduleId: null);
         await CheckRoomConflictAsync(dto.ClassID, parentClass.TermID, dto.Room, dto.DaysOfWeek, dto.StartTime, dto.EndTime, excludeScheduleId: null);
         if (parentClass.UserID.HasValue)
         {
@@ -71,6 +74,9 @@ public class ClassScheduleService : IClassScheduleService
             throw new KeyNotFoundException($"Class with ID '{dto.ClassID}' was not found.");
         }
 
+        dto.Room = dto.Room.Trim();
+        EnsureEndAfterStart(dto.StartTime, dto.EndTime);
+        await CheckOwnOverlapAsync(dto.ClassID, dto.DaysOfWeek, dto.StartTime, dto.EndTime, excludeScheduleId: scheduleId);
         await CheckRoomConflictAsync(dto.ClassID, parentClass.TermID, dto.Room, dto.DaysOfWeek, dto.StartTime, dto.EndTime, excludeScheduleId: scheduleId);
         if (parentClass.UserID.HasValue)
         {
@@ -100,6 +106,43 @@ public class ClassScheduleService : IClassScheduleService
         await _scheduleRepository.DeleteAsync(scheduleId);
     }
 
+    private static void EnsureEndAfterStart(TimeOnly startTime, TimeOnly endTime)
+    {
+        if (endTime <= startTime)
+        {
+            throw new InvalidOperationException("End time must be after start time.");
+        }
+    }
+
+    /// <summary>A class cannot have two meeting times that overlap, whatever the room.</summary>
+    private async Task CheckOwnOverlapAsync(
+        Guid classId, string daysOfWeek, TimeOnly startTime, TimeOnly endTime, Guid? excludeScheduleId)
+    {
+        var newDays = ParseDays(daysOfWeek);
+        if (newDays.Count == 0)
+        {
+            return;
+        }
+
+        var query = _context.ClassSchedules.Where(cs => cs.ClassID == classId);
+        if (excludeScheduleId.HasValue)
+        {
+            query = query.Where(cs => cs.ScheduleID != excludeScheduleId.Value);
+        }
+
+        foreach (var existing in await query.ToListAsync())
+        {
+            bool daysOverlap = newDays.Overlaps(ParseDays(existing.DaysOfWeek));
+            bool timeOverlap = startTime < existing.EndTime && endTime > existing.StartTime;
+            if (daysOverlap && timeOverlap)
+            {
+                throw new InvalidOperationException(
+                    $"This class already meets {existing.DaysOfWeek} " +
+                    $"{existing.StartTime:HH:mm}-{existing.EndTime:HH:mm} in {existing.Room}.");
+            }
+        }
+    }
+
     private async Task CheckRoomConflictAsync(
         Guid classId, Guid termId, string room, string daysOfWeek,
         TimeOnly startTime, TimeOnly endTime, Guid? excludeScheduleId)
@@ -120,8 +163,10 @@ public class ClassScheduleService : IClassScheduleService
             return;
         }
 
+        // "R101", "r101" and " R101 " are the same room.
+        var normalizedRoom = room.Trim().ToLower();
         var query = _context.ClassSchedules
-            .Where(cs => classIdsInTerm.Contains(cs.ClassID) && cs.Room == room);
+            .Where(cs => classIdsInTerm.Contains(cs.ClassID) && cs.Room.Trim().ToLower() == normalizedRoom);
 
         if (excludeScheduleId.HasValue)
         {
