@@ -286,10 +286,15 @@ class StudentGradeModel {
   }
 }
 
-/// Subject codes failed on an enrolled load and not passed in any later attempt.
-List<String> unresolvedFailedSubjects(List<StudentGradeModel> grades) {
+/// Subject codes failed on an enrolled load and not passed in any later attempt
+/// (a subject credited from another school also counts as passed).
+List<String> unresolvedFailedSubjects(List<StudentGradeModel> grades,
+    {Iterable<String> creditedCodes = const []}) {
   final counted = grades.where((g) => g.loadStatus == null || g.loadStatus == 1);
-  final passed = counted.where((g) => g.isPassed).map((g) => g.subjectCode).toSet();
+  final passed = {
+    ...counted.where((g) => g.isPassed).map((g) => g.subjectCode),
+    ...creditedCodes,
+  };
   final failed = counted
       .where((g) => g.isFailed && !passed.contains(g.subjectCode))
       .map((g) => g.subjectCode ?? '?')
@@ -297,4 +302,49 @@ List<String> unresolvedFailedSubjects(List<StudentGradeModel> grades) {
       .toList()
     ..sort();
   return failed;
+}
+
+/// A DBTC subject credited from another school (transferees, shiftees).
+class CreditedSubjectModel {
+  final String creditedSubjectId;
+  final String subjectId;
+  final String subjectCode;
+  final String subjectTitle;
+  final double units;
+  final int yearLevel;
+  final String sourceSchool;
+  final String? sourceSubjectCode;
+  final String? grade;
+  final String? schoolYear;
+  final String? recordedBy;
+
+  const CreditedSubjectModel({
+    required this.creditedSubjectId,
+    required this.subjectId,
+    required this.subjectCode,
+    required this.subjectTitle,
+    this.units = 0,
+    this.yearLevel = 0,
+    required this.sourceSchool,
+    this.sourceSubjectCode,
+    this.grade,
+    this.schoolYear,
+    this.recordedBy,
+  });
+
+  factory CreditedSubjectModel.fromJson(Map<String, dynamic> json) {
+    return CreditedSubjectModel(
+      creditedSubjectId: json['creditedSubjectId']?.toString() ?? '',
+      subjectId: json['subjectId']?.toString() ?? '',
+      subjectCode: json['subjectCode'] as String? ?? '',
+      subjectTitle: json['subjectTitle'] as String? ?? '',
+      units: (json['units'] as num?)?.toDouble() ?? 0,
+      yearLevel: (json['yearLevel'] as num?)?.toInt() ?? 0,
+      sourceSchool: json['sourceSchool'] as String? ?? '',
+      sourceSubjectCode: json['sourceSubjectCode'] as String?,
+      grade: json['grade'] as String?,
+      schoolYear: json['schoolYear'] as String?,
+      recordedBy: json['recordedBy'] as String?,
+    );
+  }
 }

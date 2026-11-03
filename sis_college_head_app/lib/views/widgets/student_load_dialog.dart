@@ -5,6 +5,7 @@ import '../../models/grading_models.dart';
 import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
+import '../../utils/study_load_pdf.dart';
 import 'status_badge.dart';
 import 'study_load_builder_dialog.dart';
 
@@ -47,6 +48,7 @@ class _StudentLoadDialogState extends State<StudentLoadDialog> {
   List<ClassRosterItemModel> _loads = [];
   bool _isLoading = true;
   String? _error;
+  bool _isPrinting = false;
 
   @override
   void initState() {
@@ -93,6 +95,35 @@ class _StudentLoadDialogState extends State<StudentLoadDialog> {
     }
   }
 
+  /// Prints the Official Enrollment Sheet: three copies (College Head, Registrar, student),
+  /// Enrolled subjects only, so it can be printed once the Registrar has finalized the load.
+  Future<void> _printOes() async {
+    setState(() => _isPrinting = true);
+    try {
+      final s = widget.student;
+      final data = StudyLoadPrintData(
+        studentName: s.fullName,
+        lrn: s.lrn,
+        programCode: s.programCode,
+        yearLevel: s.yearLevel,
+        termLabel: widget.termLabel,
+        loads: _loads,
+      );
+      final bytes = await buildStudyLoadPdf(data, logo: await loadSchoolLogo());
+      final safeName = s.fullName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+      await printPdf(bytes, 'Enrollment_Sheet_$safeName.pdf');
+    } catch (e, st) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not print: ${getFriendlyErrorMessage(e, st)}'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.student;
@@ -125,6 +156,17 @@ class _StudentLoadDialogState extends State<StudentLoadDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
+        ),
+        OutlinedButton.icon(
+          key: const ValueKey('print_oes_button'),
+          onPressed: (_isLoading || _isPrinting || !_loads.any((l) => l.isEnrolled))
+              ? null
+              : _printOes,
+          icon: _isPrinting
+              ? const SizedBox(
+                  width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.print_outlined, size: 18),
+          label: const Text('Print Enrollment Sheet'),
         ),
         FilledButton.icon(
           key: const ValueKey('build_study_load_button'),

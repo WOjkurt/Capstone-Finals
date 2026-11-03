@@ -153,6 +153,8 @@ class ClassRosterItemModel {
   final bool isForced;
   final String? forcedReason;
   final String? forcedByUserId;
+  final double units;
+  final List<ClassScheduleModel> schedules;
 
   const ClassRosterItemModel({
     required this.studyLoadId,
@@ -169,6 +171,8 @@ class ClassRosterItemModel {
     this.isForced = false,
     this.forcedReason,
     this.forcedByUserId,
+    this.units = 0,
+    this.schedules = const [],
   });
 
   factory ClassRosterItemModel.fromJson(Map<String, dynamic> json) {
@@ -190,6 +194,11 @@ class ClassRosterItemModel {
       isForced: json['isForced'] as bool? ?? false,
       forcedReason: json['forcedReason'] as String?,
       forcedByUserId: json['forcedByUserID'] as String? ?? json['forcedByUserId'] as String?,
+      units: (json['units'] as num?)?.toDouble() ?? 0,
+      schedules: (json['schedules'] as List?)
+              ?.map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 

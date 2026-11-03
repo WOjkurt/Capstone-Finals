@@ -85,6 +85,18 @@ void main() {
     expect(text, isNot(contains('(GEC)')));
   });
 
+  test('Official Enrollment Sheet: three identical copies with a College Head signature', () async {
+    final data = StudyLoadPrintData(studentName: 'Ana Cruz', termLabel: 'T', loads: [_model('IT 101', 'Enrolled')]);
+
+    final text = _text(await buildStudyLoadPdf(data, compress: false));
+
+    expect(RegExp(r'/Type\s*/Page[^s]').allMatches(text).length, 3);
+    expect('(ENROLLMENT)'.allMatches(text).length, 3);
+    expect(text, isNot(contains('(OES)')));
+    expect(text, isNot(contains("(COPY)")));
+    expect(text, contains('(Head)'));
+  });
+
   group('Print button', () {
     late List<String> printed;
 
@@ -123,7 +135,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('print_study_load_button')));
       await tester.pumpAndSettle();
 
-      expect(printed, ['StudyLoad_Ana_Cruz.pdf']);
+      expect(printed, ['Enrollment_Sheet_Ana_Cruz.pdf']);
     });
 
     testWidgets('is disabled when nothing is enrolled yet', (tester) async {

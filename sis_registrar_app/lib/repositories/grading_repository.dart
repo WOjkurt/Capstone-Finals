@@ -241,3 +241,66 @@ class StudentGradeRepository {
         .toList();
   }
 }
+
+class CreditedSubjectRepository {
+  final AuthService _auth;
+  final http.Client _client;
+  CreditedSubjectRepository(this._auth, {http.Client? client})
+      : _client = client ?? http.Client();
+
+  Future<List<CreditedSubjectModel>> getForStudent(String userId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/credited-subjects/student/$userId'),
+      headers: headers,
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => CreditedSubjectModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<CreditedSubjectModel> create({
+    required String userId,
+    required String subjectId,
+    required String sourceSchool,
+    String? sourceSubjectCode,
+    String? grade,
+    String? schoolYear,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/credited-subjects'),
+      headers: headers,
+      body: jsonEncode({
+        'userId': userId,
+        'subjectId': subjectId,
+        'sourceSchool': sourceSchool,
+        'sourceSubjectCode': sourceSubjectCode,
+        'grade': grade,
+        'schoolYear': schoolYear,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return CreditedSubjectModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<void> delete(String creditedSubjectId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.delete(
+      Uri.parse('$baseUrl/api/credited-subjects/$creditedSubjectId'),
+      headers: headers,
+    );
+    if (res.statusCode != 204 && res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+  }
+}

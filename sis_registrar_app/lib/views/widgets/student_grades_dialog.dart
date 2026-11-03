@@ -36,6 +36,7 @@ class StudentGradesDialog extends StatefulWidget {
 
 class _StudentGradesDialogState extends State<StudentGradesDialog> {
   List<StudentGradeModel>? _grades;
+  List<CreditedSubjectModel> _credits = [];
   String? _error;
   bool _failedOnly = false;
 
@@ -53,7 +54,17 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     try {
       final grades =
           await getIt<StudentGradeRepository>().getStudentGrades(widget.userId);
-      if (mounted) setState(() => _grades = grades);
+      // Credits are extra information; the grades still show if they fail to load.
+      var credits = <CreditedSubjectModel>[];
+      try {
+        credits = await getIt<CreditedSubjectRepository>().getForStudent(widget.userId);
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _grades = grades;
+          _credits = credits;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _error = e is ApiException ? e.message : e.toString());
@@ -143,7 +154,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    if (grades.isEmpty) {
+    if (grades.isEmpty && _credits.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(24),
         child: Text('No grades recorded for this student yet.',
@@ -151,7 +162,8 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
       );
     }
 
-    final unresolved = unresolvedFailedSubjects(grades);
+    final unresolved = unresolvedFailedSubjects(grades,
+        creditedCodes: _credits.map((c) => c.subjectCode));
     final shown = _failedOnly ? grades.where((g) => g.isFailed).toList() : grades;
 
     return ListView(
@@ -173,7 +185,43 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
               style: const TextStyle(fontSize: 12, color: Color(0xFF991B1B)),
             ),
           ),
-        if (shown.isEmpty)
+        if (_credits.isNotEmpty && !_failedOnly) ...[
+          const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 4),
+            child: Text('Credited from other schools',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.accentGreenDark)),
+          ),
+          for (final c in _credits)
+            Container(
+              key: ValueKey('credited_row_${c.subjectCode}'),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${c.subjectCode} — ${c.subjectTitle}',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    'Credited from ${c.sourceSchool}${c.grade != null ? ' · ${c.grade}' : ''}',
+                    style: const TextStyle(fontSize: 12, color: AppColors.accentGreenDark),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        if (shown.isEmpty && (grades.isNotEmpty || _failedOnly))
           const Text('No failed subjects.',
               style: TextStyle(color: AppColors.textSecondary)),
         for (final term in _byTerm(shown)) ...[

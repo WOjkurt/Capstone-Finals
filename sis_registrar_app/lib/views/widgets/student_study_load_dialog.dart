@@ -6,6 +6,7 @@ import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/study_load_pdf.dart';
 import 'status_badge.dart';
+import 'credited_subjects_dialog.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
 import 'overload_badge.dart';
@@ -95,7 +96,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
     }
   }
 
-  /// Prints the Enrolled subjects only; Pending loads are not official yet.
+  /// Prints the Official Enrollment Sheet (3 copies) with Enrolled subjects only; Pending loads are not official yet.
   Future<void> _printStudyLoad() async {
     setState(() => _isPrinting = true);
     try {
@@ -109,7 +110,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
       );
       final bytes = await buildStudyLoadPdf(data, logo: await loadSchoolLogo());
       final safeName = widget.student.fullName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
-      await printPdf(bytes, 'StudyLoad_$safeName.pdf');
+      await printPdf(bytes, 'Enrollment_Sheet_$safeName.pdf');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -691,13 +692,27 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                     ],
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
+                  tooltip: 'Refresh Study Load',
+                  onPressed: _fetchStudyLoads,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Actions wrap onto a second line when the window is narrow.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
                 OutlinedButton.icon(
                   key: const ValueKey('print_study_load_button'),
                   icon: _isPrinting
                       ? const SizedBox(
                           width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.print_outlined, size: 16),
-                  label: const Text('Print', style: TextStyle(fontSize: 12)),
+                  label: const Text('Print Enrollment Sheet', style: TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
@@ -705,7 +720,15 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                       ? null
                       : _printStudyLoad,
                 ),
-                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  key: const ValueKey('credited_subjects_button'),
+                  icon: const Icon(Icons.school_outlined, size: 16),
+                  label: const Text('Credits', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onPressed: () => CreditedSubjectsDialog.show(context, student: widget.student),
+                ),
                 OutlinedButton.icon(
                   key: const ValueKey('view_grades_button'),
                   icon: const Icon(Icons.grading_rounded, size: 16),
@@ -719,7 +742,6 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                     studentName: widget.student.fullName,
                   ),
                 ),
-                const SizedBox(width: 8),
                 FilledButton.icon(
                   key: const ValueKey('build_study_load_button'),
                   icon: const Icon(Icons.architecture_rounded, size: 16),
@@ -740,12 +762,6 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                       _fetchStudyLoads();
                     }
                   },
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
-                  tooltip: 'Refresh Study Load',
-                  onPressed: _fetchStudyLoads,
                 ),
               ],
             ),
