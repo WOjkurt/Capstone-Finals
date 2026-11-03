@@ -849,6 +849,22 @@ public class ClassServiceVisibilityTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAllAsync_ProgramIdAndIsMinorMapped_InClassDto()
+    {
+        var subject = await _context.Subjects.FirstAsync(s => s.SubjectID == _subjectYear1Id);
+        subject.IsMinor = true;
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetAllAsync();
+
+        var class1 = result.First(c => c.ClassID == _classYear1Id);
+        var class2 = result.First(c => c.ClassID == _classYear2Id);
+        Assert.Equal(1, class1.ProgramID);
+        Assert.True(class1.IsMinor);
+        Assert.False(class2.IsMinor);
+    }
+
+    [Fact]
     public async Task GetAllAsync_YearLevelMapped_InClassDto()
     {
         // Act

@@ -310,6 +310,7 @@ public class ClassService : IClassService
             EnrolledCount = enrolledCount,
             YearLevel = entity.Subject?.YearLevel,
             IsMinor = entity.Subject?.IsMinor ?? false,
+            ProgramID = entity.Subject?.ProgramID,
             Schedules = schedules.Select(s => new ClassScheduleDto
             {
                 ScheduleID = s.ScheduleID,

@@ -26,5 +26,7 @@ public class ClassDto
 
     public bool IsMinor { get; set; }
 
+    public int? ProgramID { get; set; }
+
     public List<ClassScheduleDto> Schedules { get; set; } = new();
 }
