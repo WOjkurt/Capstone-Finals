@@ -24,6 +24,19 @@ class AcademicSetupRepository {
   AcademicSetupRepository(this._auth, [http.Client? client])
       : _client = client ?? http.Client();
 
+  Future<List<AcademicProgramModel>> getPrograms() async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.get(Uri.parse('$baseUrl/api/AcademicPrograms'),
+        headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => AcademicProgramModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<AcademicTermModel>> getTerms() async {
     final headers = await _auth.getAuthHeaders();
     final res = await _client.get(Uri.parse('$baseUrl/api/AcademicTerms'),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
-import 'placeholder_views.dart';
+import 'faculty_view.dart';
 import 'students_view.dart';
 
 class MainLayoutView extends StatefulWidget {
@@ -86,7 +86,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
               index: currentIndex,
               children: const [
                 StudentsView(),
-                FacultyPlaceholderView(),
+                FacultyView(),
               ],
             ),
           ),

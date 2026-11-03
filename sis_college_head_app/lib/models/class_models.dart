@@ -71,6 +71,8 @@ class ClassModel {
   final DateTime? createdAt;
   final String? createdByUserId;
   final int enrolledCount;
+  final bool isMinor;
+  final int? programId;
   final List<ClassScheduleModel> schedules;
 
   const ClassModel({
@@ -87,6 +89,8 @@ class ClassModel {
     this.createdAt,
     this.createdByUserId,
     this.enrolledCount = 0,
+    this.isMinor = false,
+    this.programId,
     this.schedules = const [],
   });
 
@@ -107,6 +111,8 @@ class ClassModel {
           : null,
       createdByUserId: json['createdByUserID'] as String? ?? json['createdByUserId'] as String?,
       enrolledCount: (json['enrolledCount'] as num?)?.toInt() ?? 0,
+      isMinor: json['isMinor'] as bool? ?? false,
+      programId: (json['programID'] as num?)?.toInt() ?? (json['programId'] as num?)?.toInt(),
       schedules: (json['schedules'] as List<dynamic>?)
               ?.map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
               .toList() ??

@@ -4,9 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sis_college_head_app/blocs/auth_bloc.dart';
+import 'package:sis_college_head_app/blocs/faculty_bloc.dart';
 import 'package:sis_college_head_app/blocs/students_bloc.dart';
+import 'package:sis_college_head_app/repositories/class_repository.dart';
 import 'package:sis_college_head_app/repositories/setup_repository.dart';
 import 'package:sis_college_head_app/repositories/student_repository.dart';
+import 'package:sis_college_head_app/repositories/teacher_repository.dart';
 import 'package:sis_college_head_app/views/main_layout_view.dart';
 import 'test_helpers.dart';
 
@@ -36,11 +39,17 @@ void main() {
   group('MainLayoutView', () {
     late TestAuthBloc authBloc;
     late StudentsBloc studentsBloc;
+    late FacultyBloc facultyBloc;
 
     setUp(() {
       final client = MockClient((req) async => http.Response('[]', 200));
       studentsBloc = StudentsBloc(
         StudentRepository(MockAuthService(), client),
+        AcademicSetupRepository(MockAuthService(), client),
+      );
+      facultyBloc = FacultyBloc(
+        TeacherRepository(MockAuthService(), client),
+        ClassRepository(MockAuthService(), client),
         AcademicSetupRepository(MockAuthService(), client),
       );
       authBloc = TestAuthBloc(
@@ -56,6 +65,7 @@ void main() {
     tearDown(() {
       authBloc.close();
       studentsBloc.close();
+      facultyBloc.close();
     });
 
     Widget buildSubject() {
@@ -64,6 +74,7 @@ void main() {
           providers: [
             BlocProvider<AuthBloc>.value(value: authBloc),
             BlocProvider<StudentsBloc>.value(value: studentsBloc),
+            BlocProvider<FacultyBloc>.value(value: facultyBloc),
           ],
           child: MainLayoutView(auth: authBloc.state as AuthenticatedState),
         ),
@@ -97,7 +108,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Faculty overview across all programs will appear here.'),
+        find.text('Assign teachers to minor subjects, and to majors as a backup, across all programs.'),
         findsOneWidget,
       );
     });
