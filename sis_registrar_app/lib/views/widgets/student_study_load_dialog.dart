@@ -4,6 +4,7 @@ import '../../models/class_models.dart';
 import '../../models/grading_models.dart';
 import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/study_load_pdf.dart';
 import 'status_badge.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
@@ -54,6 +55,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
   late bool? _hasLrn;
   late int? _currentYearLevel;
   UnitLimitModel? _unitLimit;
+  bool _isPrinting = false;
 
   @override
   void initState() {
@@ -90,6 +92,32 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Prints the Enrolled subjects only; Pending loads are not official yet.
+  Future<void> _printStudyLoad() async {
+    setState(() => _isPrinting = true);
+    try {
+      final data = StudyLoadPrintData(
+        studentName: widget.student.fullName,
+        lrn: _currentLrn,
+        programCode: widget.student.programCode,
+        yearLevel: _currentYearLevel,
+        termLabel: widget.termLabel,
+        loads: _studyLoads ?? const [],
+      );
+      final bytes = await buildStudyLoadPdf(data, logo: await loadSchoolLogo());
+      final safeName = widget.student.fullName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+      await printPdf(bytes, 'StudyLoad_$safeName.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not print: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
     }
   }
 
@@ -663,6 +691,21 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                     ],
                   ),
                 ),
+                OutlinedButton.icon(
+                  key: const ValueKey('print_study_load_button'),
+                  icon: _isPrinting
+                      ? const SizedBox(
+                          width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.print_outlined, size: 16),
+                  label: const Text('Print', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onPressed: (_isPrinting || !(_studyLoads?.any((l) => l.isEnrolled) ?? false))
+                      ? null
+                      : _printStudyLoad,
+                ),
+                const SizedBox(width: 8),
                 OutlinedButton.icon(
                   key: const ValueKey('view_grades_button'),
                   icon: const Icon(Icons.grading_rounded, size: 16),
