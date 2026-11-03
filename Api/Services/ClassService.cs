@@ -246,6 +246,13 @@ public class ClassService : IClassService
             throw new KeyNotFoundException($"Class with ID '{classId}' was not found.");
         }
 
+        if (userId.HasValue)
+        {
+            var classSchedules = await _scheduleRepository.GetByClassIdAsync(classId);
+            await TeacherScheduleConflicts.EnsureNoConflictAsync(_context, userId.Value, entity.TermID, classId,
+                classSchedules.Select(s => (s.DaysOfWeek, s.StartTime, s.EndTime)));
+        }
+
         entity.UserID = userId;
 
         await _classRepository.UpdateAsync(entity);

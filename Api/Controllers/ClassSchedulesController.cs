@@ -28,7 +28,7 @@ public class ClassSchedulesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequireProgramHeadOrAdmin]
+    [RequireProgramHeadCollegeHeadOrAdmin]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateClassScheduleDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId)
@@ -48,6 +48,11 @@ public class ClassSchedulesController : ControllerBase
             {
                 await _scopingService.EnsureProgramHeadAccessAsync(authUserId, existingSchedule.Class?.Subject?.ProgramID, "schedule");
 
+                if (existingSchedule.Class?.Subject?.IsMinor == true)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new { message = $"{existingSchedule.Class.Subject.SubjectCode} is a minor subject. Its schedule is set by the College Head." });
+                }
+
                 if (dto.ClassID != Guid.Empty && dto.ClassID != existingSchedule.ClassID)
                 {
                     var targetClass = await _classRepository.GetByIdAsync(dto.ClassID);
@@ -57,6 +62,11 @@ public class ClassSchedulesController : ControllerBase
                     }
 
                     await _scopingService.EnsureProgramHeadAccessAsync(authUserId, targetClass.Subject?.ProgramID, "class");
+
+                    if (targetClass.Subject?.IsMinor == true)
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new { message = $"{targetClass.Subject.SubjectCode} is a minor subject. Its schedule is set by the College Head." });
+                    }
                 }
             }
             catch (UnauthorizedAccessException ex)
@@ -81,7 +91,7 @@ public class ClassSchedulesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [RequireProgramHeadOrAdmin]
+    [RequireProgramHeadCollegeHeadOrAdmin]
     public async Task<IActionResult> Delete(Guid id)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId)
@@ -104,6 +114,11 @@ public class ClassSchedulesController : ControllerBase
             catch (UnauthorizedAccessException ex)
             {
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+
+            if (existingSchedule.Class?.Subject?.IsMinor == true)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = $"{existingSchedule.Class.Subject.SubjectCode} is a minor subject. Its schedule is set by the College Head." });
             }
         }
 

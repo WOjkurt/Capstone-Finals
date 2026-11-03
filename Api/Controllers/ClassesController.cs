@@ -281,6 +281,10 @@ public class ClassesController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id:guid}")]
@@ -339,8 +343,9 @@ public class ClassesController : ControllerBase
         return Ok(schedules);
     }
 
+    // Program Head: major subjects of their own program. College Head: any class.
     [HttpPost("{classId:guid}/schedules")]
-    [RequireProgramHeadOrAdmin]
+    [RequireProgramHeadCollegeHeadOrAdmin]
     public async Task<IActionResult> CreateSchedule(Guid classId, [FromBody] CreateClassScheduleDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId)
@@ -363,6 +368,11 @@ public class ClassesController : ControllerBase
             catch (UnauthorizedAccessException ex)
             {
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+
+            if (existingClass.Subject?.IsMinor == true)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = $"{existingClass.Subject.SubjectCode} is a minor subject. Its schedule is set by the College Head." });
             }
         }
 

@@ -30,6 +30,11 @@ public class ClassScheduleService : IClassScheduleService
         }
 
         await CheckRoomConflictAsync(dto.ClassID, parentClass.TermID, dto.Room, dto.DaysOfWeek, dto.StartTime, dto.EndTime, excludeScheduleId: null);
+        if (parentClass.UserID.HasValue)
+        {
+            await TeacherScheduleConflicts.EnsureNoConflictAsync(_context, parentClass.UserID.Value, parentClass.TermID, dto.ClassID,
+                new[] { (dto.DaysOfWeek, dto.StartTime, dto.EndTime) });
+        }
 
         var schedule = new ClassSchedule
         {
@@ -67,6 +72,11 @@ public class ClassScheduleService : IClassScheduleService
         }
 
         await CheckRoomConflictAsync(dto.ClassID, parentClass.TermID, dto.Room, dto.DaysOfWeek, dto.StartTime, dto.EndTime, excludeScheduleId: scheduleId);
+        if (parentClass.UserID.HasValue)
+        {
+            await TeacherScheduleConflicts.EnsureNoConflictAsync(_context, parentClass.UserID.Value, parentClass.TermID, dto.ClassID,
+                new[] { (dto.DaysOfWeek, dto.StartTime, dto.EndTime) }, excludeScheduleId: scheduleId);
+        }
 
         schedule.ClassID = dto.ClassID;
         schedule.DaysOfWeek = dto.DaysOfWeek;

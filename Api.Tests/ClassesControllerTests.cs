@@ -767,4 +767,60 @@ public class ClassesControllerTests
 
         Assert.IsType<OkObjectResult>(result);
     }
+
+    // ── Schedules on minor subjects, and teacher clashes ─────────────
+
+    private static CreateClassScheduleDto NewSchedule() => new()
+    {
+        DaysOfWeek = "M/W/F", StartTime = new TimeOnly(8, 0), EndTime = new TimeOnly(9, 0), Room = "R101"
+    };
+
+    [Fact]
+    public async Task CreateSchedule_ProgramHeadOnMinorSubject_Returns403()
+    {
+        var programHeadId = Guid.NewGuid();
+        SetHttpContext(RoleUtils.ProgramHead, programHeadId);
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 1, isMinor: true);
+        _scopingServiceMock.Setup(s => s.EnsureProgramHeadAccessAsync(programHeadId, 1, "class")).Returns(Task.CompletedTask);
+
+        var result = await _controller.CreateSchedule(classId, NewSchedule());
+
+        var obj = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, obj.StatusCode);
+        Assert.Contains("schedule is set by the College Head", obj.Value!.ToString());
+        _scheduleServiceMock.Verify(s => s.CreateAsync(It.IsAny<CreateClassScheduleDto>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateSchedule_CollegeHeadOnMinorSubject_ReturnsCreated()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        SetupClass(classId, programId: 2, isMinor: true);
+        _scheduleServiceMock.Setup(s => s.CreateAsync(It.Is<CreateClassScheduleDto>(d => d.ClassID == classId)))
+            .ReturnsAsync(new ClassScheduleDto { ScheduleID = Guid.NewGuid(), ClassID = classId, DaysOfWeek = "M/W/F", Room = "R101" });
+
+        var result = await _controller.CreateSchedule(classId, NewSchedule());
+
+        Assert.IsType<CreatedAtActionResult>(result);
+        _scopingServiceMock.Verify(s => s.EnsureProgramHeadAccessAsync(It.IsAny<Guid>(), It.IsAny<int?>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AssignTeacher_TeacherClash_Returns409()
+    {
+        SetHttpContext(RoleUtils.CollegeHead, Guid.NewGuid());
+        var classId = Guid.NewGuid();
+        var teacherId = Guid.NewGuid();
+        SetupClass(classId, programId: 2, isMinor: true);
+        SetupTeacher(teacherId, programId: null);
+        _classServiceMock.Setup(s => s.AssignTeacherAsync(classId, teacherId))
+            .ThrowsAsync(new InvalidOperationException("Ben Basiced already teaches THEO 101A (BSIT 1A) M/W/F 08:00-09:00 this term."));
+
+        var result = await _controller.AssignTeacher(classId, new AssignTeacherDto { UserID = teacherId });
+
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains("already teaches", conflict.Value!.ToString());
+    }
 }

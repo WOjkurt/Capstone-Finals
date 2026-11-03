@@ -586,11 +586,12 @@ public class CollegeHeadRoleTests : IDisposable
         AssertActionHasFilter<ClassesController>("Delete", typeof(RequireProgramHeadOrAdminAttribute));
         // AssignTeacher -> RequireProgramHeadCollegeHeadOrAdmin (College Head staffs minor subjects, and majors as a backup)
         AssertActionHasFilter<ClassesController>("AssignTeacher", typeof(RequireProgramHeadCollegeHeadOrAdminAttribute));
-        AssertActionHasFilter<ClassesController>("CreateSchedule", typeof(RequireProgramHeadOrAdminAttribute));
+        // Schedules -> RequireProgramHeadCollegeHeadOrAdmin (College Head schedules minor subjects, and majors as a backup)
+        AssertActionHasFilter<ClassesController>("CreateSchedule", typeof(RequireProgramHeadCollegeHeadOrAdminAttribute));
 
-        // 2. ClassSchedulesController write actions -> RequireProgramHeadOrAdmin
-        AssertActionHasFilter<ClassSchedulesController>("Update", typeof(RequireProgramHeadOrAdminAttribute));
-        AssertActionHasFilter<ClassSchedulesController>("Delete", typeof(RequireProgramHeadOrAdminAttribute));
+        // 2. ClassSchedulesController write actions -> RequireProgramHeadCollegeHeadOrAdmin
+        AssertActionHasFilter<ClassSchedulesController>("Update", typeof(RequireProgramHeadCollegeHeadOrAdminAttribute));
+        AssertActionHasFilter<ClassSchedulesController>("Delete", typeof(RequireProgramHeadCollegeHeadOrAdminAttribute));
 
         // 3. StudyLoadsController write actions
         // EnrollSingle + EnrollBatch -> RequireRegistrarCollegeHeadOrAdmin (College Head CAN call these)
