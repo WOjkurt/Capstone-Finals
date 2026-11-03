@@ -16,4 +16,10 @@ public class GradeResponseDto
     public string? SubjectCode { get; set; }
     public string? SubjectTitle { get; set; }
     public string? ClassName { get; set; }
+    public decimal? Units { get; set; }
+    public Guid? TermId { get; set; }
+    public string? SchoolYear { get; set; }
+    public int? Semester { get; set; }
+    public string? TermLabel { get; set; }
+    public int? LoadStatus { get; set; }
 }

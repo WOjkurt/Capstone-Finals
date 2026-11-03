@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Common;
 using Api.Domain.Enrollment;
 using Api.Domain.Grading;
 using Api.DTOs.Grading;
@@ -398,6 +399,9 @@ public class GradeService : IGradeService
             .Include(g => g.StudyLoad)
                 .ThenInclude(sl => sl!.Class)
                     .ThenInclude(c => c!.Subject)
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.Class)
+                    .ThenInclude(c => c!.Term)
             .Include(g => g.SubmittedByUser)
             .Where(g => studyLoadIds.Contains(g.StudyLoadID))
             .ToListAsync();
@@ -444,6 +448,8 @@ public class GradeService : IGradeService
 
         Guid? studentUserId = g.StudyLoad?.UserID;
         string? studentName = studentUserId.HasValue ? await ResolveUserNameAsync(studentUserId.Value) : null;
+        var subject = g.StudyLoad?.Class?.Subject;
+        var term = g.StudyLoad?.Class?.Term;
 
         return new GradeResponseDto
         {
@@ -460,7 +466,13 @@ public class GradeService : IGradeService
             StudentName = studentName,
             SubjectCode = g.StudyLoad?.Class?.Subject?.SubjectCode,
             SubjectTitle = g.StudyLoad?.Class?.Subject?.SubjectTitle,
-            ClassName = g.StudyLoad?.Class?.ClassName
+            ClassName = g.StudyLoad?.Class?.ClassName,
+            Units = subject != null ? subject.LecUnits + subject.LabUnits : null,
+            TermId = term?.TermID,
+            SchoolYear = term?.SchoolYear,
+            Semester = term?.Semester,
+            TermLabel = term != null ? TermLabel.Format(term.SchoolYear, term.Semester) : null,
+            LoadStatus = g.StudyLoad?.LoadStatus
         };
     }
 
