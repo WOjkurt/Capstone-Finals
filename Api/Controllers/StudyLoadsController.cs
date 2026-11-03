@@ -137,6 +137,24 @@ public class StudyLoadsController : ControllerBase
         }
     }
 
+    [HttpGet("year-level-suggestion")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> GetYearLevelSuggestion([FromQuery] Guid userId)
+    {
+        try
+        {
+            return Ok(await _studyLoadService.GetYearLevelSuggestionAsync(userId));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("pending-summary")]
     [RequireRegistrarCollegeHeadOrAdmin]
     public async Task<IActionResult> GetPendingSummary([FromQuery] Guid? termId)

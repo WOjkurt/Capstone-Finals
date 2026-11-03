@@ -13,4 +13,5 @@ public interface IStudyLoadService
     Task<List<StudyLoadResponseDto>> GetByClassAsync(Guid classId, bool excludePending = false, int? callerRole = null);
     Task<FinalizeStudyLoadsResponseDto> FinalizeBatchAsync(FinalizeStudyLoadsRequestDto dto, Guid callerUserId, int? callerRole = null);
     Task<List<PendingStudyLoadSummaryDto>> GetPendingSummaryAsync(Guid? termId = null);
+    Task<YearLevelSuggestionDto> GetYearLevelSuggestionAsync(Guid userId);
 }

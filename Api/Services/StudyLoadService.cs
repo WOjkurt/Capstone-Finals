@@ -594,6 +594,106 @@ public class StudyLoadService : IStudyLoadService
         };
     }
 
+    /// <summary>Share of a year level's units a student must pass to move up.</summary>
+    public const decimal PromotionPassRatio = 0.75m;
+
+    public async Task<YearLevelSuggestionDto> GetYearLevelSuggestionAsync(Guid userId)
+    {
+        var userDetails = await _context.UserDetails
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserID == userId);
+
+        if (userDetails == null)
+        {
+            throw new KeyNotFoundException($"UserDetails not found for user '{userId}'.");
+        }
+
+        if (!userDetails.ProgramID.HasValue || !userDetails.YearLevel.HasValue)
+        {
+            throw new InvalidOperationException("Cannot suggest a year level: the student's program and year level must both be set.");
+        }
+
+        int current = userDetails.YearLevel.Value;
+        var programSubjects = await _context.Subjects
+            .AsNoTracking()
+            .Where(s => s.ProgramID == userDetails.ProgramID.Value)
+            .ToListAsync();
+
+        var result = new YearLevelSuggestionDto { CurrentYearLevel = current, SuggestedYearLevel = current };
+        int finalYear = programSubjects.Count > 0 ? programSubjects.Max(s => s.YearLevel) : current;
+        result.IsFinalYear = current >= finalYear;
+
+        foreach (var s in programSubjects.Where(s => s.YearLevel == current).OrderBy(s => s.SubjectCode))
+        {
+            decimal units = s.LecUnits + s.LabUnits;
+            result.TotalSubjects++;
+            result.TotalUnits += units;
+            if (!s.IsMinor) result.TotalMajorUnits += units;
+
+            var satisfaction = await HasSatisfiedSubjectAsync(userId, s.SubjectID);
+            switch (satisfaction.Status)
+            {
+                case SubjectCompletionStatus.Passed:
+                    result.PassedSubjects++;
+                    result.PassedUnits += units;
+                    if (!s.IsMinor) result.PassedMajorUnits += units;
+                    break;
+                case SubjectCompletionStatus.Failed:
+                    result.FailedSubjectCodes.Add(s.SubjectCode);
+                    break;
+                case SubjectCompletionStatus.InProgress:
+                    result.UngradedSubjects++;
+                    break;
+                default:
+                    result.NotTakenSubjectCodes.Add(s.SubjectCode);
+                    break;
+            }
+        }
+
+        if (result.TotalUnits == 0)
+        {
+            result.Reason = $"No subjects with units were found for Year {current} of this program.";
+            return result;
+        }
+
+        int percent = (int)Math.Floor(result.PassedUnits / result.TotalUnits * 100);
+        string summary = $"Passed {result.PassedUnits:0.#} of {result.TotalUnits:0.#} units ({percent}%) of Year {current} subjects; " +
+                         $"{PromotionPassRatio * 100:0}% is needed to move up.";
+
+        // Passing mostly minor subjects (GE, theology, PE) must not be enough on its own.
+        bool enoughUnits = result.PassedUnits >= result.TotalUnits * PromotionPassRatio;
+        bool enoughMajorUnits = result.TotalMajorUnits == 0 ||
+                                result.PassedMajorUnits >= result.TotalMajorUnits * PromotionPassRatio;
+        if (enoughUnits && !enoughMajorUnits)
+        {
+            int majorPercent = (int)Math.Floor(result.PassedMajorUnits / result.TotalMajorUnits * 100);
+            summary = $"Passed {result.PassedUnits:0.#} of {result.TotalUnits:0.#} units ({percent}%), " +
+                      $"but only {result.PassedMajorUnits:0.#} of {result.TotalMajorUnits:0.#} major units ({majorPercent}%); " +
+                      $"{PromotionPassRatio * 100:0}% of major units is needed to move up.";
+        }
+
+        if (result.IsFinalYear)
+        {
+            result.Reason = $"Year {current} is the final year of this program. {summary}";
+        }
+        else if (enoughUnits && enoughMajorUnits)
+        {
+            result.SuggestedYearLevel = current + 1;
+            result.Reason = summary;
+        }
+        else
+        {
+            result.Reason = summary;
+        }
+
+        if (result.UngradedSubjects > 0)
+        {
+            result.Reason += $" {result.UngradedSubjects} subject(s) still have no final grade.";
+        }
+
+        return result;
+    }
+
     private enum SubjectCompletionStatus
     {
         Passed,
