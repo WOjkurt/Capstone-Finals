@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import 'widgets/class_roster_dialog.dart';
 import 'widgets/open_term_dialog.dart';
 import 'widgets/page_header.dart';
+import 'widgets/status_badge.dart';
 
 class SetupView extends StatefulWidget {
   const SetupView({super.key});
@@ -893,12 +894,21 @@ class _SubjectsTab extends StatelessWidget {
                                       },
                                       cells: [
                                         DataCell(
-                                          Text(
-                                            sub.subjectCode,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.primary,
-                                            ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                sub.subjectCode,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.primary,
+                                                ),
+                                              ),
+                                              if (sub.isMinor) ...[
+                                                const SizedBox(width: 6),
+                                                StatusBadge.info(label: 'Minor'),
+                                              ],
+                                            ],
                                           ),
                                         ),
                                         DataCell(
@@ -1254,6 +1264,8 @@ class _SubjectsTab extends StatelessWidget {
         ? sub.standingYear
         : null;
 
+    bool isMinor = sub?.isMinor ?? false;
+
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -1467,6 +1479,19 @@ class _SubjectsTab extends StatelessWidget {
                         ],
                         onChanged: (v) => setState(() => standingYear = v),
                       ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        key: const ValueKey('subject_is_minor_checkbox'),
+                        value: isMinor,
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Minor subject (GE, theology, PE, NSTP…)'),
+                        subtitle: const Text(
+                          'Teachers and schedules for minor subjects are set by the College Head.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        onChanged: (v) => setState(() => isMinor = v ?? false),
+                      ),
                     ],
                   ),
                 ),
@@ -1491,6 +1516,7 @@ class _SubjectsTab extends StatelessWidget {
                     'yearLevel': yearLevel,
                     'defaultSemester': defSem,
                     'standingYear': standingYear,
+                    'isMinor': isMinor,
                   };
 
                   if (sub == null) {

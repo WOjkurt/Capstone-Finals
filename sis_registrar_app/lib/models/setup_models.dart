@@ -106,6 +106,9 @@ class SubjectModel {
   final int yearLevel;
   final int defaultSemester;
   final int? standingYear;
+
+  /// Minor (GE, theology…) subjects are staffed and scheduled by the College Head.
+  final bool isMinor;
   final List<PrerequisiteModel> prerequisites;
 
   const SubjectModel({
@@ -121,6 +124,7 @@ class SubjectModel {
     required this.yearLevel,
     required this.defaultSemester,
     this.standingYear,
+    this.isMinor = false,
     this.prerequisites = const [],
   });
 
@@ -138,6 +142,7 @@ class SubjectModel {
       yearLevel: (json['yearLevel'] as num?)?.toInt() ?? 1,
       defaultSemester: (json['defaultSemester'] as num?)?.toInt() ?? 1,
       standingYear: (json['standingYear'] as num?)?.toInt(),
+      isMinor: json['isMinor'] as bool? ?? false,
       prerequisites: (json['prerequisites'] as List<dynamic>?)
               ?.map((e) =>
                   PrerequisiteModel.fromJson(e as Map<String, dynamic>))
