@@ -7,6 +7,7 @@ import '../repositories/class_repository.dart';
 import '../repositories/enrollment_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/overload_badge.dart';
 import 'widgets/student_study_load_dialog.dart';
 
 class PendingLoadsView extends StatefulWidget {
@@ -439,13 +440,27 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
                           ),
                         ),
                         DataCell(
-                          Text(
-                            '${item.pendingUnits.toStringAsFixed(item.pendingUnits.truncateToDouble() == item.pendingUnits ? 0 : 1)} units',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${item.pendingUnits.toStringAsFixed(item.pendingUnits.truncateToDouble() == item.pendingUnits ? 0 : 1)} units',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              if (item.isOverloaded) ...[
+                                const SizedBox(width: 6),
+                                OverloadBadge(
+                                  termUnits: item.termUnits,
+                                  maxUnits: item.maxUnits,
+                                  approvedBy: item.overloadApprovedBy,
+                                  reason: item.overloadReason,
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         DataCell(

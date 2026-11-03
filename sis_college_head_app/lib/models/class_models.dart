@@ -487,3 +487,38 @@ class EnrollSingleResponseModel {
 }
 
 
+
+/// CHED-style unit limit for a student in a term (a warning only).
+class UnitLimitModel {
+  final double maxUnits;
+  final double currentUnits;
+  final bool isGraduating;
+  final bool isSummer;
+  final String rule;
+  final String? overloadReason;
+  final String? overloadApprovedBy;
+
+  const UnitLimitModel({
+    required this.maxUnits,
+    required this.currentUnits,
+    this.isGraduating = false,
+    this.isSummer = false,
+    this.rule = '',
+    this.overloadReason,
+    this.overloadApprovedBy,
+  });
+
+  bool get isOverloaded => currentUnits > maxUnits + 0.001;
+
+  factory UnitLimitModel.fromJson(Map<String, dynamic> json) {
+    return UnitLimitModel(
+      maxUnits: (json['maxUnits'] as num?)?.toDouble() ?? 0,
+      currentUnits: (json['currentUnits'] as num?)?.toDouble() ?? 0,
+      isGraduating: json['isGraduating'] as bool? ?? false,
+      isSummer: json['isSummer'] as bool? ?? false,
+      rule: json['rule'] as String? ?? '',
+      overloadReason: json['overloadReason'] as String?,
+      overloadApprovedBy: json['overloadApprovedBy'] as String?,
+    );
+  }
+}

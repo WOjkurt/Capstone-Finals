@@ -65,6 +65,9 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
 
   bool _isSubmitting = false;
 
+  // CHED unit limit for this student and term; null if it could not be loaded.
+  UnitLimitModel? _unitLimit;
+
   bool get _effectiveIsCollegeHead => widget.isCollegeHead ?? false;
 
   @override
@@ -93,11 +96,28 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
     }
   }
 
+  /// The limit is only a warning, so a failure here never blocks the builder.
+  Future<void> _fetchUnitLimit() async {
+    final termId = _selectedTermId;
+    UnitLimitModel? limit;
+    try {
+      limit = await getIt<ClassRepository>()
+          .getUnitLimit(widget.student.userId, termId);
+    } catch (_) {
+      limit = null;
+    }
+    if (mounted && termId == _selectedTermId) {
+      setState(() => _unitLimit = limit);
+    }
+  }
+
   Future<void> _fetchProposedBlock() async {
     setState(() {
       _isLoadingItems = true;
       _loadError = null;
+      _unitLimit = null;
     });
+    _fetchUnitLimit();
 
     try {
       final repo = getIt<ClassRepository>();
@@ -263,6 +283,24 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
     return total;
   }
 
+  /// Units after saving: what is already in the term plus the ticked subjects.
+  double get _projectedUnits => (_unitLimit?.currentUnits ?? 0) + _selectedUnitsTotal;
+
+  bool get _isOverUnitLimit =>
+      _unitLimit != null && _projectedUnits > _unitLimit!.maxUnits + 0.001;
+
+  /// Asks for the overload reason; returns null when the user goes back.
+  Future<String?> _askOverloadReason() {
+    final limit = _unitLimit!;
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => _OverloadReasonDialog(
+        message: 'This load would be ${_projectedUnits.toStringAsFixed(1)} units, '
+            'above the limit of ${limit.maxUnits.toStringAsFixed(1)} units.\n\n${limit.rule}',
+      ),
+    );
+  }
+
   List<ProposedBlockItemModel> get _selectedBlockedItems {
     if (_items == null) return [];
     return _items!
@@ -307,6 +345,12 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
       return;
     }
 
+    String? overloadReason;
+    if (_isOverUnitLimit) {
+      overloadReason = await _askOverloadReason();
+      if (overloadReason == null || !mounted) return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -316,6 +360,7 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
         termId: _selectedTermId,
         classIds: classIds,
         asPending: asPending,
+        overloadReason: overloadReason,
       );
 
       final enrolledResults = results.where((r) => r.enrolled).toList();
@@ -1290,6 +1335,34 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_isOverUnitLimit)
+          Container(
+            key: const ValueKey('unit_limit_warning'),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFCD34D)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded,
+                    color: Color(0xFFB45309), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Over the unit limit: ${_projectedUnits.toStringAsFixed(1)} of '
+                    '${_unitLimit!.maxUnits.toStringAsFixed(1)} units. ${_unitLimit!.rule}',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF92400E),
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (hasBlocked)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1351,6 +1424,21 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                           color: AppColors.primaryDark,
                         ),
                       ),
+                      if (_unitLimit != null) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          '${_unitLimit!.currentUnits > 0 ? '${_unitLimit!.currentUnits.toStringAsFixed(1)} already in term · ' : ''}'
+                          'Limit ${_unitLimit!.maxUnits.toStringAsFixed(1)}',
+                          key: const ValueKey('unit_limit_label'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _isOverUnitLimit
+                                ? const Color(0xFFB45309)
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1405,6 +1493,80 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
               ],
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Owns its text controller so it is disposed only after the dialog has closed.
+class _OverloadReasonDialog extends StatefulWidget {
+  final String message;
+  const _OverloadReasonDialog({required this.message});
+
+  @override
+  State<_OverloadReasonDialog> createState() => _OverloadReasonDialogState();
+}
+
+class _OverloadReasonDialogState extends State<_OverloadReasonDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Approve overload'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.message),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('overload_reason_field'),
+                controller: _controller,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  labelText: 'Reason for the overload *',
+                  hintText: 'e.g. Irregular student catching up on back subjects',
+                  errorText: _error,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const Text(
+                'Your name and this reason are recorded and shown to the Registrar.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Go back'),
+        ),
+        FilledButton(
+          key: const ValueKey('confirm_over_limit_button'),
+          onPressed: () {
+            final text = _controller.text.trim();
+            if (text.isEmpty) {
+              setState(() => _error = 'A reason is required.');
+              return;
+            }
+            Navigator.of(context).pop(text);
+          },
+          child: const Text('Approve and save'),
         ),
       ],
     );

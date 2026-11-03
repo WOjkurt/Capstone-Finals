@@ -611,8 +611,7 @@ class _GradesViewState extends State<GradesView> {
                           final parsed = double.tryParse(newGradeText);
                           if (parsed == null ||
                               !isValidGradeValue(parsed)) {
-                            ngErr =
-                                'Must be 1.00, 1.25 … 3.00, or 5.00';
+                            ngErr = kGradeScaleMessage;
                           } else if ((parsed - currentGrade).abs() <
                               0.001) {
                             ngErr =
@@ -1119,7 +1118,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
                     border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: const Text(
-                    'Standard Scale: 1.00, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 2.75, 3.00 (Passed) · 5.00 (Failed). Submitted fields become permanently locked.',
+                    'Grading scale: 1.0 to 3.0 (Passed) · 3.1 to 5.0 (Failed), in steps of 0.1 (1.25, 1.75 … also allowed). Submitted fields become permanently locked.',
                     style: TextStyle(fontSize: 11, color: Color(0xFF475569), fontWeight: FontWeight.w500),
                   ),
                 ),

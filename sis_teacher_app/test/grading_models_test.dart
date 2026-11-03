@@ -147,13 +147,13 @@ void main() {
   });
 
   group('Grading Scale Validation tests', () {
-    test('isValidGradeValue allows only values from DBTC collegiate scale', () {
-      final valid = [1.00, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 2.75, 3.00, 5.00];
+    test('isValidGradeValue allows 1.0-5.0 in 0.1 steps plus quarter steps', () {
+      final valid = [1.00, 1.1, 1.25, 1.50, 1.75, 2.00, 2.75, 3.00, 3.1, 4.0, 4.9, 5.00];
       for (final val in valid) {
         expect(isValidGradeValue(val), isTrue, reason: '$val should be valid');
       }
 
-      final invalid = [0.0, 1.1, 1.2, 1.3, 2.1, 3.1, 4.0, 5.5, 75.0, 99.0];
+      final invalid = [0.0, 0.9, 1.15, 3.15, 5.1, 5.5, 75.0, 99.0];
       for (final val in invalid) {
         expect(isValidGradeValue(val), isFalse, reason: '$val should be invalid');
       }
@@ -170,10 +170,13 @@ void main() {
       expect(validateGradeString('3.00'), isNull);
       expect(validateGradeString('5.00'), isNull);
 
-      expect(validateGradeString('1.3'), isNotNull);
+      expect(validateGradeString('3.1'), isNull);
+      expect(validateGradeString('4.00'), isNull);
+
+      expect(validateGradeString('3.15'), isNotNull);
       expect(validateGradeString('15'), isNotNull);
       expect(validateGradeString('abc'), isNotNull);
-      expect(validateGradeString('4.00'), isNotNull);
+      expect(validateGradeString('0.5'), isNotNull);
     });
   });
 

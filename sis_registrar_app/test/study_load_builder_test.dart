@@ -1205,4 +1205,119 @@ void main() {
       expect(tester.widget<Checkbox>(find.byKey(const ValueKey('checkbox_IT212'))).value, isTrue);
     });
   });
+
+  group('Unit limit warning', () {
+    MockClient clientWith({required Map<String, dynamic> limit, void Function(Map<String, dynamic>)? onEnroll}) {
+      return MockClient((req) async {
+        if (req.url.path == '/api/studyloads/proposed-block') {
+          return http.Response(jsonEncode([
+            _regularItem(subjectId: 's1', subjectCode: 'IT211', classId: 'cls-1', units: 3.0),
+            _regularItem(subjectId: 's2', subjectCode: 'IT212', classId: 'cls-2', units: 3.0),
+          ]), 200);
+        }
+        if (req.url.path == '/api/studyloads/unit-limit') {
+          return http.Response(jsonEncode(limit), 200);
+        }
+        if (req.url.path == '/api/AcademicTerms') {
+          return http.Response(jsonEncode([
+            {'termID': 'term-1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true}
+          ]), 200);
+        }
+        if (req.url.path == '/api/studyloads/enroll-batch') {
+          onEnroll?.call(jsonDecode(req.body) as Map<String, dynamic>);
+          return http.Response(jsonEncode([
+            {'classId': 'cls-1', 'enrolled': true, 'studyLoadId': 'sl-1', 'reasons': []},
+            {'classId': 'cls-2', 'enrolled': true, 'studyLoadId': 'sl-2', 'reasons': []},
+          ]), 200);
+        }
+        return http.Response('[]', 200);
+      });
+    }
+
+    Future<void> pumpBuilder(WidgetTester tester, MockClient client) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+      _setupGetIt(client);
+      await tester.pumpWidget(_wrapDialog(
+        child: StudyLoadBuilderDialog(
+          student: _student,
+          initialTermId: 'term-1',
+          initialTermLabel: '2026-2027 — 1st Sem',
+          isCollegeHead: false,
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('within the limit: shows the limit, no warning, saves directly', (tester) async {
+      var enrolled = false;
+      await pumpBuilder(tester, clientWith(
+        limit: {'maxUnits': 21, 'currentUnits': 0, 'rule': 'Regular limit.'},
+        onEnroll: (_) => enrolled = true,
+      ));
+
+      expect(find.text('Limit 21.0'), findsOneWidget);
+      expect(find.byKey(const ValueKey('unit_limit_warning')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
+      await tester.pumpAndSettle();
+      expect(enrolled, isTrue);
+    });
+
+    testWidgets('over the limit: warns, asks for a reason, and Go back does not save', (tester) async {
+      var enrolled = false;
+      await pumpBuilder(tester, clientWith(
+        limit: {'maxUnits': 6, 'currentUnits': 3, 'rule': 'Summer limit: 9 units.'},
+        onEnroll: (_) => enrolled = true,
+      ));
+
+      expect(find.text('3.0 already in term · Limit 6.0'), findsOneWidget);
+      expect(find.byKey(const ValueKey('unit_limit_warning')), findsOneWidget);
+      expect(find.textContaining('Over the unit limit: 9.0 of 6.0 units'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('Approve overload'), findsOneWidget);
+
+      await tester.tap(find.text('Go back'));
+      await tester.pumpAndSettle();
+      expect(enrolled, isFalse);
+    });
+
+    testWidgets('over the limit: a reason is required, then it is sent with the save', (tester) async {
+      Map<String, dynamic>? body;
+      await pumpBuilder(tester, clientWith(
+        limit: {'maxUnits': 3, 'currentUnits': 0, 'rule': 'r'},
+        onEnroll: (b) => body = b,
+      ));
+
+      await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('confirm_over_limit_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('A reason is required.'), findsOneWidget);
+      expect(body, isNull);
+
+      await tester.enterText(find.byKey(const ValueKey('overload_reason_field')), 'Irregular student');
+      await tester.tap(find.byKey(const ValueKey('confirm_over_limit_button')));
+      await tester.pumpAndSettle();
+
+      expect(body!['overloadReason'], 'Irregular student');
+    });
+
+    testWidgets('within the limit: no overloadReason is sent', (tester) async {
+      Map<String, dynamic>? body;
+      await pumpBuilder(tester, clientWith(
+        limit: {'maxUnits': 21, 'currentUnits': 0, 'rule': 'r'},
+        onEnroll: (b) => body = b,
+      ));
+
+      await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
+      await tester.pumpAndSettle();
+
+      expect(body!.containsKey('overloadReason'), isFalse);
+    });
+  });
 }

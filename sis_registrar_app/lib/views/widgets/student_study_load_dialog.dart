@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import 'status_badge.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
+import 'overload_badge.dart';
 import 'student_grades_dialog.dart';
 import 'study_load_builder_dialog.dart';
 
@@ -52,6 +53,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
   late String? _currentLrn;
   late bool? _hasLrn;
   late int? _currentYearLevel;
+  UnitLimitModel? _unitLimit;
 
   @override
   void initState() {
@@ -67,6 +69,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
       _isLoading = true;
       _error = null;
     });
+    _fetchUnitLimit();
 
     try {
       final repo = getIt<ClassRepository>();
@@ -88,6 +91,18 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         });
       }
     }
+  }
+
+  /// Only used for the overload note, so failures are ignored.
+  Future<void> _fetchUnitLimit() async {
+    UnitLimitModel? limit;
+    try {
+      limit = await getIt<ClassRepository>()
+          .getUnitLimit(widget.student.userId, widget.termId);
+    } catch (_) {
+      limit = null;
+    }
+    if (mounted) setState(() => _unitLimit = limit);
   }
 
   Future<void> _confirmAndUpdateStatus(
@@ -692,6 +707,14 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
               ],
             ),
             const SizedBox(height: 12),
+
+            if (_unitLimit != null && _unitLimit!.isOverloaded)
+              OverloadBanner(
+                termUnits: _unitLimit!.currentUnits,
+                maxUnits: _unitLimit!.maxUnits,
+                approvedBy: _unitLimit!.overloadApprovedBy,
+                reason: _unitLimit!.overloadReason,
+              ),
 
             // Classes List Content
             Expanded(

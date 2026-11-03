@@ -281,29 +281,25 @@ class GradeBatchResultModel {
   }
 }
 
-/// Allowed values on the DBTC-Cebu collegiate grading scale
-const List<double> kValidGradeValues = [
-  1.00,
-  1.25,
-  1.50,
-  1.75,
-  2.00,
-  2.25,
-  2.50,
-  2.75,
-  3.00,
-  5.00,
-];
+/// DBTC-Cebu collegiate grades: 1.0 to 5.0 in steps of 0.1, plus the quarter
+/// steps (1.25, 1.75 …). 3.0 and below is Passed; above 3.0 is Failed.
+const double kMinGrade = 1.0;
+const double kMaxGrade = 5.0;
+const String kGradeScaleMessage =
+    'Must be from 1.0 to 5.0 in steps of 0.1 (1.25, 1.75 … also allowed)';
 
 bool isValidGradeValue(double value) {
-  return kValidGradeValues.any((v) => (v - value).abs() < 0.001);
+  if (value < kMinGrade - 0.0001 || value > kMaxGrade + 0.0001) return false;
+  final hundredths = (value * 100).round();
+  if ((value * 100 - hundredths).abs() > 0.001) return false;
+  return hundredths % 10 == 0 || hundredths % 25 == 0;
 }
 
 String? validateGradeString(String? text) {
   if (text == null || text.trim().isEmpty) return null; // empty is allowed
   final parsed = double.tryParse(text.trim());
   if (parsed == null || !isValidGradeValue(parsed)) {
-    return 'Must be 1.00, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 2.75, 3.00, or 5.00';
+    return kGradeScaleMessage;
   }
   return null;
 }

@@ -204,6 +204,21 @@ class ClassRepository {
     return list;
   }
 
+  Future<UnitLimitModel> getUnitLimit(String userId, String termId) async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/studyloads/unit-limit').replace(
+      queryParameters: {'userId': userId, 'termId': termId},
+    );
+    final res = await _client.get(uri, headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+    return UnitLimitModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<List<ProposedBlockItemModel>> getProposedBlock(
       String userId, String termId) async {
     final headers = await _auth.getAuthHeaders();
@@ -231,6 +246,7 @@ class ClassRepository {
     required String termId,
     required List<String> classIds,
     bool asPending = false,
+    String? overloadReason,
   }) async {
     final headers = await _auth.getAuthHeaders();
     headers['Content-Type'] = 'application/json';
@@ -240,6 +256,7 @@ class ClassRepository {
       'termId': termId,
       'classIds': classIds,
       'asPending': asPending,
+      if (overloadReason != null) 'overloadReason': overloadReason,
     });
     final res = await _client.post(uri, headers: headers, body: body);
     if (res.statusCode != 200) {
