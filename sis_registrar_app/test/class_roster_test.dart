@@ -187,7 +187,7 @@ void main() {
         ],
       );
 
-      expect(classModel.termLabel, '2026-2027 · 1st Sem');
+      expect(classModel.termLabel, '2026-2027 (1st Sem)');
       expect(classModel.scheduleSummary, 'M/W/F 8:00 AM – 9:30 AM · Room 301');
     });
   });

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../blocs/link_accounts_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
 
 class LinkAccountsView extends StatefulWidget {
-  const LinkAccountsView({super.key});
+  /// False inside the Admissions page, whose tabs already name this page.
+  final bool showHeader;
+
+  const LinkAccountsView({super.key, this.showHeader = true});
 
   @override
   State<LinkAccountsView> createState() => _LinkAccountsViewState();
@@ -52,7 +55,7 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -66,7 +69,7 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
                     Expanded(child: Text(state.message)),
                   ],
                 ),
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 4),
               ),
@@ -77,26 +80,11 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PageHeader(
-                title: 'Link Student Accounts',
-                subtitle:
-                    'Connect approved admissions to student system accounts by providing their registered email address.',
-                action: ElevatedButton.icon(
-                  onPressed: () => context
-                      .read<LinkAccountsBloc>()
-                      .add(LoadApprovedApplications()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Refresh'),
-                ),
+              if (widget.showHeader)
+                PageHeader(
+                title: 'Create Logins',
+                subtitle: 'Give approved applicants their student login.',
+                onRefresh: () => context.read<LinkAccountsBloc>().add(LoadApprovedApplications()),
               ),
               Expanded(
                 child: _buildContent(context, state),
@@ -152,7 +140,6 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
     }
 
     final programMap = {for (var p in programs) p.programId: p.programCode};
-    final dateFormat = DateFormat('MMM dd, yyyy');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
@@ -212,7 +199,7 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
                       final name = app.form?.fullName ?? 'Unnamed Applicant';
                       final prog =
                           programMap[app.programId] ?? 'Program #${app.programId}';
-                      final dateStr = dateFormat.format(app.createdAt);
+                      final dateStr = formatDate(app.createdAt);
                       final emailCtrl = _getController(app.applicationId, app.schoolEmail);
                       final isLinking = (state is LinkAccountsLoaded) &&
                           state.linkingApplicationId == app.applicationId;

@@ -12,10 +12,14 @@ class StudentGradesDialog extends StatefulWidget {
   final String userId;
   final String studentName;
 
+  /// Shown inside the Students page's "Grades" tab instead of as a window.
+  final bool embedded;
+
   const StudentGradesDialog({
     super.key,
     required this.userId,
     required this.studentName,
+    this.embedded = false,
   });
 
   static Future<void> show(
@@ -91,8 +95,25 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
 
   String _fmt(double? v) => v == null ? '—' : v.toStringAsFixed(2);
 
+  Widget get _failedOnlyChip => FilterChip(
+        key: const ValueKey('failed_only_chip'),
+        label: const Text('Failed only'),
+        selected: _failedOnly,
+        onSelected: (v) => setState(() => _failedOnly = v),
+      );
+
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(alignment: Alignment.centerRight, child: _failedOnlyChip),
+          const SizedBox(height: 8),
+          Expanded(child: _buildBody()),
+        ],
+      );
+    }
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
@@ -114,12 +135,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                FilterChip(
-                  key: const ValueKey('failed_only_chip'),
-                  label: const Text('Failed only'),
-                  selected: _failedOnly,
-                  onSelected: (v) => setState(() => _failedOnly = v),
-                ),
+                _failedOnlyChip,
                 IconButton(
                   icon: const Icon(Icons.close),
                   tooltip: 'Close',

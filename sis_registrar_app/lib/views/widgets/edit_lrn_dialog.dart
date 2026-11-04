@@ -131,7 +131,7 @@ class _EditLrnDialogState extends State<EditLrnDialog> {
             content: Text(clean == null
                 ? 'LRN cleared successfully.'
                 : 'LRN updated successfully ($clean).'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );

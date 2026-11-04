@@ -6,6 +6,7 @@ import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/study_load_pdf.dart';
 import 'status_badge.dart';
+import 'activity_log_browser.dart';
 import 'credited_subjects_dialog.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
@@ -18,11 +19,20 @@ class StudentStudyLoadDialog extends StatefulWidget {
   final String termId;
   final String termLabel;
 
+  /// Shown inside the Students page's "Study load" tab: no window frame and no student header,
+  /// and no Grades/Credits/History buttons because those are tabs of their own.
+  final bool embedded;
+
+  /// In embedded mode, shown at the start of the toolbar row (the Students page puts its term picker here).
+  final Widget? toolbarLeading;
+
   const StudentStudyLoadDialog({
     super.key,
     required this.student,
     required this.termId,
     required this.termLabel,
+    this.embedded = false,
+    this.toolbarLeading,
   });
 
   static Future<void> show(
@@ -289,7 +299,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${load.subjectCode} updated to $statusName successfully.'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -302,7 +312,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to update status: $e'),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -333,7 +343,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Successfully finalized $count study load(s).'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -343,7 +353,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to finalize: $e'),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 5),
           ),
@@ -377,7 +387,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${load.subjectCode} finalized and enrolled.'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -387,7 +397,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to finalize ${load.subjectCode}: $e'),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 5),
           ),
@@ -450,7 +460,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${load.subjectCode} rejected and marked Dropped.'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -460,7 +470,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to reject: $e'),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -478,6 +488,12 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _buildLoadSection(),
+      );
+    }
     return Dialog(
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
@@ -653,132 +669,7 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: 16),
 
-            // Study Load Header & Count
-            Row(
-              children: [
-                const Icon(Icons.menu_book_rounded, size: 18, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Flexible(
-                        child: Text(
-                          'Study Load & Enrollment',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      if (_studyLoads != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${_studyLoads!.length} total classes',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
-                  tooltip: 'Refresh Study Load',
-                  onPressed: _fetchStudyLoads,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Actions wrap onto a second line when the window is narrow.
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  key: const ValueKey('print_study_load_button'),
-                  icon: _isPrinting
-                      ? const SizedBox(
-                          width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.print_outlined, size: 16),
-                  label: const Text('Print Enrollment Sheet', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onPressed: (_isPrinting || !(_studyLoads?.any((l) => l.isEnrolled) ?? false))
-                      ? null
-                      : _printStudyLoad,
-                ),
-                OutlinedButton.icon(
-                  key: const ValueKey('credited_subjects_button'),
-                  icon: const Icon(Icons.school_outlined, size: 16),
-                  label: const Text('Credits', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onPressed: () => CreditedSubjectsDialog.show(context, student: widget.student),
-                ),
-                OutlinedButton.icon(
-                  key: const ValueKey('view_grades_button'),
-                  icon: const Icon(Icons.grading_rounded, size: 16),
-                  label: const Text('Grades', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onPressed: () => StudentGradesDialog.show(
-                    context,
-                    userId: widget.student.userId,
-                    studentName: widget.student.fullName,
-                  ),
-                ),
-                FilledButton.icon(
-                  key: const ValueKey('build_study_load_button'),
-                  icon: const Icon(Icons.architecture_rounded, size: 16),
-                  label: const Text('Build study load', style: TextStyle(fontSize: 12)),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onPressed: () async {
-                    final updated = await StudyLoadBuilderDialog.show(
-                      context,
-                      student: widget.student,
-                      initialTermId: widget.termId,
-                      initialTermLabel: widget.termLabel,
-                      onEnrolled: _fetchStudyLoads,
-                    );
-                    if (updated == true) {
-                      _fetchStudyLoads();
-                    }
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            if (_unitLimit != null && _unitLimit!.isOverloaded)
-              OverloadBanner(
-                termUnits: _unitLimit!.currentUnits,
-                maxUnits: _unitLimit!.maxUnits,
-                approvedBy: _unitLimit!.overloadApprovedBy,
-                reason: _unitLimit!.overloadReason,
-              ),
-
-            // Classes List Content
-            Expanded(
-              child: _buildContent(),
-            ),
+            ..._buildLoadSection(),
 
             const SizedBox(height: 16),
             const Divider(height: 1, color: AppColors.border),
@@ -804,6 +695,190 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
       ),
     );
   }
+
+  Widget _classCountChip() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          '${_studyLoads!.length} total classes',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primary,
+          ),
+        ),
+      );
+
+  /// Print, the other-window buttons (dialog only) and Build study load.
+  List<Widget> _actionButtons() => [
+
+          OutlinedButton.icon(
+            key: const ValueKey('print_study_load_button'),
+            icon: _isPrinting
+                ? const SizedBox(
+                    width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.print_outlined, size: 16),
+            label: const Text('Print Enrollment Sheet', style: TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            onPressed: (_isPrinting || !(_studyLoads?.any((l) => l.isEnrolled) ?? false))
+                ? null
+                : _printStudyLoad,
+          ),
+          if (!widget.embedded)
+            OutlinedButton.icon(
+              key: const ValueKey('student_history_button'),
+              icon: const Icon(Icons.history, size: 16),
+              label: const Text('History', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onPressed: () => StudentHistoryDialog.show(
+                context,
+                studentId: widget.student.userId,
+                studentName: widget.student.fullName,
+              ),
+            ),
+          if (!widget.embedded)
+            OutlinedButton.icon(
+              key: const ValueKey('credited_subjects_button'),
+              icon: const Icon(Icons.school_outlined, size: 16),
+              label: const Text('Credits', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onPressed: () => CreditedSubjectsDialog.show(context, student: widget.student),
+            ),
+          if (!widget.embedded)
+            OutlinedButton.icon(
+              key: const ValueKey('view_grades_button'),
+              icon: const Icon(Icons.grading_rounded, size: 16),
+              label: const Text('Grades', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onPressed: () => StudentGradesDialog.show(
+                context,
+                userId: widget.student.userId,
+                studentName: widget.student.fullName,
+              ),
+            ),
+          FilledButton.icon(
+            key: const ValueKey('build_study_load_button'),
+            icon: const Icon(Icons.architecture_rounded, size: 16),
+            label: const Text('Build study load', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            onPressed: () async {
+              final updated = await StudyLoadBuilderDialog.show(
+                context,
+                student: widget.student,
+                initialTermId: widget.termId,
+                initialTermLabel: widget.termLabel,
+                onEnrolled: _fetchStudyLoads,
+              );
+              if (updated == true) {
+                _fetchStudyLoads();
+              }
+            },
+          ),
+      ];
+
+  /// The study load itself: count, actions, overload note and the class list.
+  List<Widget> _buildLoadSection() => [
+      if (!widget.embedded) ...[
+        // Study Load Header & Count
+        Row(
+          children: [
+            const Icon(Icons.menu_book_rounded, size: 18, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Row(
+                children: [
+                  const Flexible(
+                    child: Text(
+                      'Study Load & Enrollment',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  if (_studyLoads != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_studyLoads!.length} total classes',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
+              tooltip: 'Refresh Study Load',
+              onPressed: _fetchStudyLoads,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          children: _actionButtons(),
+        ),
+      ] else
+        // One toolbar row: term picker, class count and refresh on the left, the actions on the right.
+        Row(
+          children: [
+            if (widget.toolbarLeading != null)
+              Flexible(flex: 3, child: widget.toolbarLeading!),
+            const SizedBox(width: 8),
+            if (_studyLoads != null) _classCountChip(),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
+              tooltip: 'Refresh study load',
+              onPressed: _fetchStudyLoads,
+            ),
+            const Spacer(flex: 1),
+            for (final b in _actionButtons()) ...[const SizedBox(width: 8), b],
+          ],
+        ),
+
+      const SizedBox(height: 12),
+
+      if (_unitLimit != null && _unitLimit!.isOverloaded)
+        OverloadBanner(
+          termUnits: _unitLimit!.currentUnits,
+          maxUnits: _unitLimit!.maxUnits,
+          approvedBy: _unitLimit!.overloadApprovedBy,
+          reason: _unitLimit!.overloadReason,
+        ),
+
+      // Classes List Content
+      Expanded(
+        child: _buildContent(),
+      ),
+      ];
 
   Widget _buildContent() {
     if (_isLoading) {
@@ -939,7 +1014,8 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                     backgroundColor: const Color(0xFF059669),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    textStyle: const TextStyle(
+                fontFamily: AppTheme.fontFamily,fontSize: 12, fontWeight: FontWeight.bold),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                 ),

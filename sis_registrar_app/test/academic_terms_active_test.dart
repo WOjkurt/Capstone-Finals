@@ -239,10 +239,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Confirmation dialog should appear showing BOTH sides:
-      // "This will deactivate 2024-2025 — 2nd Sem and activate 2025-2026 — 1st Sem as the current academic term."
+      // "This will deactivate 2024-2025 (2nd Sem) and activate 2025-2026 (1st Sem) as the current academic term."
       expect(find.text('Set Active Academic Term'), findsOneWidget);
       expect(
-        find.textContaining('This will deactivate 2024-2025 — 2nd Sem and activate 2025-2026 — 1st Sem'),
+        find.textContaining('This will deactivate 2024-2025 (2nd Sem) and activate 2025-2026 (1st Sem)'),
         findsOneWidget,
       );
 

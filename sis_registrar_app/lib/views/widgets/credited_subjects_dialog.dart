@@ -12,7 +12,10 @@ import '../../utils/error_handler.dart';
 class CreditedSubjectsDialog extends StatefulWidget {
   final UserSearchResultModel student;
 
-  const CreditedSubjectsDialog({super.key, required this.student});
+  /// Shown inside the Students page's "Credits" tab instead of as a window.
+  final bool embedded;
+
+  const CreditedSubjectsDialog({super.key, required this.student, this.embedded = false});
 
   static Future<void> show(BuildContext context, {required UserSearchResultModel student}) {
     return showDialog<void>(
@@ -147,8 +150,21 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
     }
   }
 
+  static const _helpText = 'Subjects passed at another school. Credited subjects count as passed for prerequisites, '
+      'the study load builder and year-level promotion.';
+
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(_helpText, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
+          Expanded(child: _buildBody()),
+        ],
+      );
+    }
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
@@ -176,11 +192,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
                 ),
               ],
             ),
-            const Text(
-              'Subjects passed at another school. Credited subjects count as passed for prerequisites, '
-              'the study load builder and year-level promotion.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
+            const Text(_helpText, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             const SizedBox(height: 12),
             Flexible(child: _buildBody()),
           ],

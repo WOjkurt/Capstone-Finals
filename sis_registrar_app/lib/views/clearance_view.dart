@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../blocs/clearance_bloc.dart';
+import 'promotion_view.dart';
 import 'widgets/page_header.dart';
+import 'widgets/student_profile_panel.dart';
 import 'widgets/status_badge.dart';
-import 'widgets/student_study_load_dialog.dart';
-import 'widgets/initialize_clearance_dialog.dart';
 import 'widgets/edit_lrn_dialog.dart';
 import '../theme/app_theme.dart';
 
 class ClearanceView extends StatefulWidget {
-  const ClearanceView({super.key});
+  /// Focus for the search box, so Ctrl+K anywhere in the app can put the cursor here.
+  final FocusNode? searchFocus;
+
+  const ClearanceView({super.key, this.searchFocus});
 
   @override
   State<ClearanceView> createState() => _ClearanceViewState();
@@ -41,11 +43,15 @@ class _ClearanceViewState extends State<ClearanceView> {
       body: BlocConsumer<ClearanceBloc, ClearanceState>(
         listener: (context, state) {
           if (state is ClearanceStateData) {
+            // A search started elsewhere (the menu's quick search) shows up in this box too.
+            if (state.searchQuery != _searchController.text) {
+              _searchController.text = state.searchQuery;
+            }
             if (state.successMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(state.successMessage!),
-                  backgroundColor: const Color(0xFF10B981),
+                  backgroundColor: AppColors.success,
                   behavior: SnackBarBehavior.floating,
                 ),
               );
@@ -53,7 +59,7 @@ class _ClearanceViewState extends State<ClearanceView> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(state.errorMessage!),
-                  backgroundColor: const Color(0xFFDC2626),
+                  backgroundColor: AppColors.error,
                   behavior: SnackBarBehavior.floating,
                 ),
               );
@@ -67,26 +73,21 @@ class _ClearanceViewState extends State<ClearanceView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               PageHeader(
-                title: 'Student Grade Clearance',
-                subtitle:
-                    'Audit student clearance statuses per academic term. Cleared status permits grade viewing and future term enrollment.',
-                action: ElevatedButton.icon(
-                  onPressed: () {
-                    _searchController.clear();
-                    context.read<ClearanceBloc>().add(SearchStudentsEvent(''));
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Reset'),
+                title: 'Students',
+                subtitle: 'Find a student to see their study load, grades, credits and history.',
+                // Used once a year, so it lives here instead of in the menu.
+                action: OutlinedButton.icon(
+                  key: const ValueKey('open_promotion_button'),
+                  icon: const Icon(Icons.trending_up_rounded, size: 18),
+                  label: const Text('End-of-year promotion'),
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (routeContext) => PromotionView(onBack: () => Navigator.of(routeContext).pop()),
+                  )),
                 ),
+                onRefresh: () {
+                  _searchController.clear();
+                  context.read<ClearanceBloc>().add(SearchStudentsEvent(''));
+                },
               ),
               Expanded(
                 child: Padding(
@@ -146,7 +147,7 @@ class _ClearanceViewState extends State<ClearanceView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Select Student',
+                  'Find a student',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -156,11 +157,12 @@ class _ClearanceViewState extends State<ClearanceView> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: _searchController,
+                  focusNode: widget.searchFocus,
                   onChanged: (val) {
                     context.read<ClearanceBloc>().add(SearchStudentsEvent(val));
                   },
                   decoration: InputDecoration(
-                    hintText: 'Search by name or email...',
+                    hintText: 'Search by name, email or LRN...',
                     hintStyle:
                         TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     prefixIcon:
@@ -244,7 +246,9 @@ class _ClearanceViewState extends State<ClearanceView> {
                       child: Text(
                         data.isSearching
                             ? 'Searching students...'
-                            : 'No students found matching "${data.searchQuery}".',
+                            : data.searchQuery.trim().isEmpty
+                                ? 'Type a name, email or LRN to find a student.'
+                                : 'No students found matching "${data.searchQuery}".',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF64748B)),
                       ),
@@ -361,12 +365,15 @@ class _ClearanceViewState extends State<ClearanceView> {
                                     },
                                   )
                                 else if (s.lrn != null && s.lrn!.isNotEmpty)
-                                  Text(
-                                    'LRN: ${s.lrn}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B),
-                                      fontWeight: FontWeight.w500,
+                                  Flexible(
+                                    child: Text(
+                                      'LRN: ${s.lrn}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -401,7 +408,7 @@ class _ClearanceViewState extends State<ClearanceView> {
                   size: 56, color: Color(0xFFCBD5E1)),
               SizedBox(height: 16),
               Text(
-                'No Student Selected',
+                'Choose a student',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -410,7 +417,7 @@ class _ClearanceViewState extends State<ClearanceView> {
               ),
               SizedBox(height: 6),
               Text(
-                'Select a student from the left panel to inspect or toggle their term clearances.',
+                'Search on the left, then pick a student to see their study load, grades, credits and history.',
                 style: TextStyle(color: Color(0xFF64748B)),
               ),
             ],
@@ -419,449 +426,6 @@ class _ClearanceViewState extends State<ClearanceView> {
       );
     }
 
-    final student = data.selectedStudent!;
-    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Selected Student Banner
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primary,
-                  child: Text(
-                    student.firstname.isNotEmpty
-                        ? student.firstname[0].toUpperCase()
-                        : 'S',
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w800),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        student.fullName.isNotEmpty
-                            ? student.fullName
-                            : 'Student Record',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${student.email} • ${student.programCode ?? "General"} • Year ${student.yearLevel ?? 1}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFFBFDBFE),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          if (student.hasLrn == false)
-                            StatusBadge.noLrn(
-                              onTap: () {
-                                EditLrnDialog.showForStudent(
-                                  context,
-                                  userId: student.userId,
-                                  studentName: student.fullName,
-                                  currentLrn: student.lrn,
-                                  onSaved: (newLrn) {
-                                    context
-                                        .read<ClearanceBloc>()
-                                        .add(StudentLrnUpdatedEvent(student.userId, newLrn));
-                                  },
-                                );
-                              },
-                            )
-                          else if (student.lrn != null && student.lrn!.isNotEmpty)
-                            InkWell(
-                              onTap: () {
-                                EditLrnDialog.showForStudent(
-                                  context,
-                                  userId: student.userId,
-                                  studentName: student.fullName,
-                                  currentLrn: student.lrn,
-                                  onSaved: (newLrn) {
-                                    context
-                                        .read<ClearanceBloc>()
-                                        .add(StudentLrnUpdatedEvent(student.userId, newLrn));
-                                  },
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(4),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.3)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'LRN: ${student.lrn}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(Icons.edit_outlined,
-                                        size: 13, color: Colors.white70),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.badge_outlined, size: 16),
-                  label: const Text('Edit LRN'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white70),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () {
-                    EditLrnDialog.showForStudent(
-                      context,
-                      userId: student.userId,
-                      studentName: student.fullName,
-                      currentLrn: student.lrn,
-                      onSaved: (newLrn) {
-                        context
-                            .read<ClearanceBloc>()
-                            .add(StudentLrnUpdatedEvent(student.userId, newLrn));
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add_moderator_outlined, size: 16),
-                  label: const Text('Initialize Clearance'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.primary,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () {
-                    InitializeClearanceDialog.show(
-                      context,
-                      student: student,
-                      existingTermIds:
-                          data.clearances.map((c) => c.termId).toList(),
-                      onConfirmed: (termId, isCleared) {
-                        context.read<ClearanceBloc>().add(
-                              InitializeClearanceEvent(
-                                termId: termId,
-                                isCleared: isCleared,
-                              ),
-                            );
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          // Clearances list
-          Expanded(
-            child: data.isClearanceLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  )
-                : data.clearances.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.history_toggle_off_rounded,
-                                size: 48, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No Term Clearances Found',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF334155),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'This student has no clearance records initialized for any term.',
-                              style: TextStyle(color: Color(0xFF64748B)),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.add_moderator_outlined,
-                                  size: 16),
-                              label: const Text('Initialize Term Clearance'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: () {
-                                InitializeClearanceDialog.show(
-                                  context,
-                                  student: student,
-                                  existingTermIds: data.clearances
-                                      .map((c) => c.termId)
-                                      .toList(),
-                                  onConfirmed: (termId, isCleared) {
-                                    context.read<ClearanceBloc>().add(
-                                          InitializeClearanceEvent(
-                                            termId: termId,
-                                            isCleared: isCleared,
-                                          ),
-                                        );
-                                  },
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: data.clearances.length,
-                        separatorBuilder: (ctx, i) =>
-                            const SizedBox(height: 14),
-                        itemBuilder: (ctx, i) {
-                          final c = data.clearances[i];
-                          final isToggling =
-                              data.togglingTermId == c.termId;
-
-                          return Container(
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: c.isCleared
-                                    ? const Color(0xFFA7F3D0)
-                                    : const Color(0xFFFECACA),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: c.isCleared
-                                        ? const Color(0xFFD1FAE5)
-                                        : const Color(0xFFFEE2E2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    c.isCleared
-                                        ? Icons.check_circle_outline_rounded
-                                        : Icons.lock_outline_rounded,
-                                    color: c.isCleared
-                                        ? const Color(0xFF065F46)
-                                        : const Color(0xFF991B1B),
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        c.termLabel ?? 'Academic Term',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF0F172A),
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                      const SizedBox(height: 6),
-                                      LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final hasAuditInfo = c.clearedByUserName != null || c.clearedAt != null;
-                                          final isWide = constraints.maxWidth > 300;
-
-                                          if (isWide && hasAuditInfo) {
-                                            return Row(
-                                              children: [
-                                                c.isCleared
-                                                    ? StatusBadge.success(
-                                                        label: 'Cleared')
-                                                    : StatusBadge.danger(
-                                                        label: 'Hold (Uncleared)'),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    [
-                                                      if (c.clearedByUserName != null)
-                                                        'Audited by: ${c.clearedByUserName}',
-                                                      if (c.clearedAt != null)
-                                                        dateFormat.format(c.clearedAt!.toLocal()),
-                                                    ].join(' • '),
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: Color(0xFF64748B),
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                    maxLines: 1,
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          }
-
-                                          return Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              c.isCleared
-                                                  ? StatusBadge.success(
-                                                      label: 'Cleared')
-                                                  : StatusBadge.danger(
-                                                      label: 'Hold (Uncleared)'),
-                                              if (hasAuditInfo) ...[
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  [
-                                                    if (c.clearedByUserName != null)
-                                                      'Audited by: ${c.clearedByUserName}',
-                                                    if (c.clearedAt != null)
-                                                      dateFormat.format(c.clearedAt!.toLocal()),
-                                                  ].join(' • '),
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Color(0xFF64748B),
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
-                                                  maxLines: 1,
-                                                ),
-                                              ],
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                OutlinedButton.icon(
-                                  icon: const Icon(Icons.menu_book_outlined,
-                                      size: 14),
-                                  label: const Text('Study Load'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.primary,
-                                    side: const BorderSide(
-                                        color: Color(0xFFBFDBFE)),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 6),
-                                    visualDensity: VisualDensity.compact,
-                                    textStyle: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12),
-                                  ),
-                                  onPressed: () {
-                                    StudentStudyLoadDialog.show(
-                                      context,
-                                      student: student,
-                                      termId: c.termId,
-                                      termLabel:
-                                          c.termLabel ?? 'Academic Term',
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                // Toggle Switch (no label — badge shows state)
-                                isToggling
-                                    ? const SizedBox(
-                                        width: 28,
-                                        height: 28,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2),
-                                      )
-                                    : Switch(
-                                        value: c.isCleared,
-                                        activeThumbColor:
-                                            const Color(0xFF10B981),
-                                        onChanged: (val) {
-                                          context
-                                              .read<ClearanceBloc>()
-                                              .add(ToggleClearanceEvent(
-                                                  c.termId, val));
-                                        },
-                                      ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
-    );
+    return StudentProfilePanel(data: data);
   }
 }

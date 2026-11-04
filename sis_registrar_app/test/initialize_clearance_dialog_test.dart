@@ -161,7 +161,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The term label must appear in the dropdown
-    expect(find.text('2025-2026 — 1st Sem'), findsOneWidget);
+    expect(find.text('2025-2026 (1st Sem)'), findsOneWidget);
 
     // Tap the confirm button
     await tester.tap(find.text('Initialize Clearance'));

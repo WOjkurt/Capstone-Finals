@@ -96,9 +96,25 @@ void main() {
     ]);
   });
 
-  test('Promotion is in the Registrar menu', () {
+  test('Promotion is opened from the Students page, not the menu', () {
     final items = MainLayoutView.buildNavItems(role: 2, roleName: 'Registrar');
-    expect(items.map((i) => i['title']), contains('Promotion'));
+    expect(items.map((i) => i['title']), isNot(contains('Promotion')));
+  });
+
+  testWidgets('opened from Students it shows a back arrow that closes it', (tester) async {
+    await getIt.reset();
+    getIt.registerSingleton<PromotionRepository>(FakePromotionRepo());
+    getIt.registerSingleton<AcademicSetupRepository>(FakeSetupRepo());
+    var closed = false;
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(home: PromotionView(onBack: () => closed = true)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('End-of-Year Promotion'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('page_back_button')));
+    expect(closed, isTrue);
+    await getIt.reset();
   });
 
   group('PromotionView', () {

@@ -38,7 +38,7 @@ class _SetupViewState extends State<SetupView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.successMessage!),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -52,7 +52,7 @@ class _SetupViewState extends State<SetupView> {
                     Expanded(child: Text(state.errorMessage!)),
                   ],
                 ),
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 4),
               ),
@@ -64,25 +64,9 @@ class _SetupViewState extends State<SetupView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               PageHeader(
-                title: 'Academic Setup & Governance',
-                subtitle:
-                    'Configure programs, terms, subjects, and prerequisite dependency graphs.',
-                action: ElevatedButton.icon(
-                  onPressed: () => context
-                      .read<SetupBloc>()
-                      .add(LoadSetupData(activeTab: state.activeTab)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Refresh'),
-                ),
+                title: 'Setup',
+                subtitle: 'Programs, academic terms, subjects and classes.',
+                onRefresh: () => context.read<SetupBloc>().add(LoadSetupData(activeTab: state.activeTab)),
               ),
               // Sub Tabs Navigation
               _buildSubTabBar(context, state),
@@ -554,6 +538,7 @@ class _TermsTab extends StatelessWidget {
                                           visualDensity:
                                               VisualDensity.compact,
                                           textStyle: const TextStyle(
+                                              fontFamily: AppTheme.fontFamily,
                                               fontWeight: FontWeight.w600,
                                               fontSize: 12),
                                         ),

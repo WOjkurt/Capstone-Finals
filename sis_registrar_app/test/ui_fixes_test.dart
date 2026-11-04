@@ -153,7 +153,7 @@ void main() {
       expect(tester.takeException(), isNull);
 
       // Tap to close term dropdown
-      final termOption = find.text('2026-2027 Comprehensive First Semester Academic Year Term Session — 1st Sem').last;
+      final termOption = find.text('2026-2027 Comprehensive First Semester Academic Year Term Session (1st Sem)').last;
       await tester.tap(termOption);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -487,16 +487,21 @@ void main() {
       expect(find.text('Alexander Bartholomew Montgomery-Delacroix'), findsWidgets);
       expect(find.textContaining('alexander.bartholomew.delacroix'), findsWidgets);
 
+      // Term clearances now live in the profile's "Grade release" tab.
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('student_tabs')), matching: find.text('Grade release')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
       // Verify term labels render
       expect(find.text('Academic Year 2026-2027 First Trimester Extension Program — Special Term'), findsOneWidget);
       expect(find.text('Academic Year 2026-2027 Second Semester Regular Collegiate Session'), findsOneWidget);
 
       // Verify status badges render
-      expect(find.text('Cleared'), findsWidgets);
-      expect(find.text('Hold (Uncleared)'), findsOneWidget);
+      expect(find.text('Released'), findsWidgets);
+      expect(find.text('On hold'), findsOneWidget);
 
       // Verify audit trail text renders
-      expect(find.textContaining('Audited by: Sister Maria Teresa'), findsOneWidget);
+      expect(find.textContaining('by Sister Maria Teresa'), findsOneWidget);
 
       // Verify switches exist and are responsive
       final switches = find.byType(Switch);

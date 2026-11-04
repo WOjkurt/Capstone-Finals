@@ -12,7 +12,10 @@ import 'widgets/page_header.dart';
 /// (75% of the year's units and 75% of its major units passed), and the Registrar
 /// ticks which suggestions to apply. Nothing changes until "Apply" is confirmed.
 class PromotionView extends StatefulWidget {
-  const PromotionView({super.key});
+  /// Set when opened from the Students page; shows a back arrow.
+  final VoidCallback? onBack;
+
+  const PromotionView({super.key, this.onBack});
 
   @override
   State<PromotionView> createState() => _PromotionViewState();
@@ -144,11 +147,12 @@ class _PromotionViewState extends State<PromotionView> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const PageHeader(
-            title: 'Year-Level Promotion',
+          PageHeader(
+            title: 'End-of-Year Promotion',
             subtitle:
                 'Suggested next year level for every student: 75% of the year\'s units and 75% of its major units passed. '
                 'Tick the ones to apply; nothing changes until you confirm.',
+            onBack: widget.onBack,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),

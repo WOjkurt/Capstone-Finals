@@ -173,7 +173,7 @@ class _EditYearLevelDialogState extends State<EditYearLevelDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Year level updated to Year $parsed.'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );

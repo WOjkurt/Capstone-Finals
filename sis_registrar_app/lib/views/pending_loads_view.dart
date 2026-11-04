@@ -4,8 +4,9 @@ import '../models/class_models.dart';
 import '../models/grading_models.dart';
 import '../models/setup_models.dart';
 import '../repositories/class_repository.dart';
-import '../repositories/enrollment_repository.dart';
+import '../services/current_term.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_handler.dart';
 import 'widgets/page_header.dart';
 import 'widgets/overload_badge.dart';
 import 'widgets/student_study_load_dialog.dart';
@@ -17,46 +18,86 @@ class PendingLoadsView extends StatefulWidget {
   State<PendingLoadsView> createState() => _PendingLoadsViewState();
 }
 
-class _PendingLoadsViewState extends State<PendingLoadsView> {
+class _PendingLoadsViewState extends State<PendingLoadsView> with CurrentTermUser {
   bool _isLoading = true;
   String? _error;
-  List<AcademicTermModel> _terms = [];
-  AcademicTermModel? _selectedTerm;
   List<PendingStudyLoadSummaryModel> _pendingStudents = [];
+  final Set<String> _selected = {};
+  bool _finalizing = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadInitialData();
-  }
+  AcademicTermModel? get _selectedTerm => currentTerm.term;
 
-  Future<void> _loadInitialData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  /// Over the unit limit with no recorded approval: review that student on their own.
+  bool _canBulkFinalize(PendingStudyLoadSummaryModel s) => !s.isOverloaded || s.overloadApprovedBy != null;
 
-    try {
-      final setupRepo = getIt<AcademicSetupRepository>();
-      final terms = await setupRepo.getTerms();
-      _terms = terms;
+  Future<void> _finalizeSelected() async {
+    final term = _selectedTerm;
+    final chosen = _pendingStudents.where((s) => _selected.contains(s.userId)).toList();
+    if (term == null || chosen.isEmpty) return;
 
-      if (_terms.isNotEmpty) {
-        _selectedTerm = _terms.firstWhere(
-          (t) => t.isActive,
-          orElse: () => _terms.first,
-        );
-      }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Finalize study loads?'),
+        content: Text('All pending subjects of ${chosen.length} student(s) will be enrolled for ${term.label}.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            key: const ValueKey('confirm_finalize_selected'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Finalize'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
 
-      await _fetchPendingStudents();
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
+    setState(() => _finalizing = true);
+    final failures = <String>[];
+    for (final s in chosen) {
+      try {
+        await getIt<ClassRepository>().finalizeStudyLoads(userId: s.userId, termId: term.termId);
+      } catch (e) {
+        failures.add('${s.fullName}: ${e is ApiException ? e.message : e}');
       }
     }
+    if (!mounted) return;
+    setState(() {
+      _finalizing = false;
+      _selected.clear();
+    });
+
+    final done = chosen.length - failures.length;
+    if (failures.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Finalized $done student(s).'),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Finalized $done of ${chosen.length}'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Text('These were not finalized; open them to review:\n\n${failures.join('\n\n')}'),
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))],
+        ),
+      );
+    }
+    await _fetchPendingStudents();
+  }
+
+  @override
+  void onTermChanged(String termId) => _fetchPendingStudents();
+
+  Future<void> _reload() async {
+    await currentTerm.load(force: true);
+    await _fetchPendingStudents();
   }
 
   Future<void> _fetchPendingStudents() async {
@@ -74,6 +115,7 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
       if (mounted) {
         setState(() {
           _pendingStudents = students;
+          _selected.removeWhere((id) => !students.any((s) => s.userId == id));
           _isLoading = false;
         });
       }
@@ -123,22 +165,9 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PageHeader(
-            title: 'Pending Study Loads',
-            subtitle:
-                'Review and finalize proposed study loads built by College Heads awaiting Registrar approval.',
-            action: ElevatedButton.icon(
-              onPressed: _isLoading ? null : _fetchPendingStudents,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Refresh'),
-            ),
+            title: 'Pending Loads',
+            subtitle: 'Study loads built by College Heads, waiting for you to finalize.',
+            onRefresh: _isLoading ? null : _fetchPendingStudents,
           ),
           Expanded(
             child: _buildBody(),
@@ -149,6 +178,12 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
   }
 
   Widget _buildBody() {
+    if (currentTerm.isLoaded && currentTerm.terms.isEmpty) {
+      return const Center(
+        child: Text('No academic terms yet. Add one in Setup.',
+            style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -177,7 +212,7 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
             ),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _loadInitialData,
+              onPressed: _reload,
               child: const Text('Retry'),
             ),
           ],
@@ -187,7 +222,6 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
 
     final totalStudents = _pendingStudents.length;
     final totalSubjects = _pendingStudents.fold<int>(0, (sum, s) => sum + s.pendingCount);
-    final totalUnits = _pendingStudents.fold<double>(0.0, (sum, s) => sum + s.pendingUnits);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
@@ -197,52 +231,8 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
           // Filter Toolbar & Term Picker
           Row(
             children: [
-              if (_terms.isNotEmpty) ...[
-                const Text(
-                  'Academic Term: ',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedTerm?.termId,
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-                      items: _terms.map((t) {
-                        return DropdownMenuItem<String>(
-                          value: t.termId,
-                          child: Text(
-                            '${t.label}${t.isActive ? " (Active)" : ""}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: t.isActive ? FontWeight.w700 : FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (newTermId) {
-                        if (newTermId != null) {
-                          setState(() {
-                            _selectedTerm = _terms.firstWhere((t) => t.termId == newTermId);
-                          });
-                          _fetchPendingStudents();
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ],
+              // Shared with the other pages: changing it here changes it everywhere.
+              if (currentTerm.terms.isNotEmpty) CurrentTermPicker(term: currentTerm),
               const Spacer(),
               // Summary Pills
               _buildMetricPill(
@@ -257,10 +247,15 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
                 color: const Color(0xFFD97706),
               ),
               const SizedBox(width: 12),
-              _buildMetricPill(
-                icon: Icons.school_outlined,
-                label: '${totalUnits.toStringAsFixed(totalUnits.truncateToDouble() == totalUnits ? 0 : 1)} Total Units',
-                color: const Color(0xFF059669),
+              FilledButton.icon(
+                key: const ValueKey('finalize_selected_button'),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.accentGreenDark),
+                icon: _finalizing
+                    ? const SizedBox(
+                        width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.done_all_rounded, size: 18),
+                label: Text('Finalize selected (${_selected.length})'),
+                onPressed: (_selected.isEmpty || _finalizing) ? null : _finalizeSelected,
               ),
             ],
           ),
@@ -347,7 +342,13 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
                         ? item.fullName.trim()[0].toUpperCase()
                         : 'S';
 
+                    final selectable = _canBulkFinalize(item);
                     return DataRow(
+                      key: ValueKey('pending_row_${item.userId}'),
+                      selected: _selected.contains(item.userId),
+                      onSelectChanged: (selectable && !_finalizing)
+                          ? (v) => setState(() => v == true ? _selected.add(item.userId) : _selected.remove(item.userId))
+                          : null,
                       cells: [
                         DataCell(
                           Row(
@@ -473,6 +474,7 @@ class _PendingLoadsViewState extends State<PendingLoadsView> {
                               side: const BorderSide(color: Color(0xFFBFDBFE)),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               textStyle: const TextStyle(
+                                fontFamily: AppTheme.fontFamily,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),

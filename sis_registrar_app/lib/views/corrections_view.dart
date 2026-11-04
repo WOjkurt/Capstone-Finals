@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../blocs/corrections_bloc.dart';
 import '../models/grading_models.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
 
 class CorrectionsView extends StatefulWidget {
   const CorrectionsView({super.key});
@@ -34,7 +34,7 @@ class _CorrectionsViewState extends State<CorrectionsView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -48,7 +48,7 @@ class _CorrectionsViewState extends State<CorrectionsView> {
                     Expanded(child: Text(state.message)),
                   ],
                 ),
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -59,25 +59,9 @@ class _CorrectionsViewState extends State<CorrectionsView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               PageHeader(
-                title: 'Grade Correction Petitions',
-                subtitle:
-                    'Audit and act upon grade amendment requests filed by instructors for completed evaluation periods.',
-                action: ElevatedButton.icon(
-                  onPressed: () => context
-                      .read<CorrectionsBloc>()
-                      .add(LoadCorrections()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Refresh'),
-                ),
+                title: 'Grade Corrections',
+                subtitle: 'Teacher requests to change a submitted grade.',
+                onRefresh: () => context.read<CorrectionsBloc>().add(LoadCorrections()),
               ),
               Expanded(
                 child: _buildContent(context, state),
@@ -127,8 +111,6 @@ class _CorrectionsViewState extends State<CorrectionsView> {
         ),
       );
     }
-
-    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
@@ -207,7 +189,7 @@ class _CorrectionsViewState extends State<CorrectionsView> {
                                   ),
                                 ),
                                 Text(
-                                  dateFormat.format(c.dateRequested.toLocal()),
+                                  formatDateTime(c.dateRequested.toLocal()),
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: Color(0xFF94A3B8),

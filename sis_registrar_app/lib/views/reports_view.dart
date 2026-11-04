@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../injection.dart';
 import '../models/setup_models.dart';
-import '../repositories/enrollment_repository.dart';
+import '../services/current_term.dart';
 import '../repositories/report_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/csv.dart';
 import '../utils/error_handler.dart';
 import '../utils/file_download.dart';
+import 'widgets/activity_log_browser.dart';
 import 'widgets/page_header.dart';
 
 /// The four term reports. Each tab shows a table and can be downloaded as CSV (opens in Excel).
@@ -38,41 +39,43 @@ class ReportTable {
 String _num(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
 
 class ReportsView extends StatefulWidget {
-  const ReportsView({super.key});
+  /// Which tab is showing (0 term reports, 1 activity log); links elsewhere in the app can change it.
+  final ValueNotifier<int>? tab;
+
+  const ReportsView({super.key, this.tab});
 
   @override
   State<ReportsView> createState() => _ReportsViewState();
 }
 
-class _ReportsViewState extends State<ReportsView> {
-  List<AcademicTermModel> _terms = [];
-  AcademicTermModel? _term;
+class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(length: 2, vsync: this, initialIndex: widget.tab?.value ?? 0);
   ReportKind _kind = ReportKind.enrollment;
-  ReportTable? _table;
-  bool _loading = false;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadTerms();
+    widget.tab?.addListener(_followLink);
   }
+
+  void _followLink() => _tabs.animateTo(widget.tab!.value);
+
+  @override
+  void dispose() {
+    widget.tab?.removeListener(_followLink);
+    _tabs.dispose();
+    super.dispose();
+  }
+  ReportTable? _table;
+  bool _loading = false;
+  String? _error;
+
+  AcademicTermModel? get _term => currentTerm.term;
+
+  @override
+  void onTermChanged(String termId) => _loadReport();
 
   String _message(Object e) => e is ApiException ? e.message : e.toString();
-
-  Future<void> _loadTerms() async {
-    try {
-      final terms = await getIt<AcademicSetupRepository>().getTerms();
-      if (!mounted) return;
-      setState(() {
-        _terms = terms;
-        _term = terms.isEmpty ? null : terms.firstWhere((t) => t.isActive, orElse: () => terms.first);
-      });
-      await _loadReport();
-    } catch (e) {
-      if (mounted) setState(() => _error = _message(e));
-    }
-  }
 
   Future<void> _loadReport() async {
     final term = _term;
@@ -182,53 +185,69 @@ class _ReportsViewState extends State<ReportsView> {
         children: [
           const PageHeader(
             title: 'Reports',
-            subtitle: 'Term reports for the Registrar and the Dean. Download any report as CSV to open it in Excel.',
+            subtitle: 'Term reports (download as CSV for Excel) and the log of who did what.',
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              key: const ValueKey('reports_tabs'),
+              controller: _tabs,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.primary,
+              labelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontWeight: FontWeight.w700, fontSize: 14),
+              tabs: const [Tab(text: 'Term reports'), Tab(text: 'Activity log')],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
               children: [
-                SizedBox(
-                  width: 280,
-                  child: DropdownButtonFormField<String>(
-                    key: const ValueKey('report_term_dropdown'),
-                    initialValue: _term?.termId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Term', isDense: true, border: OutlineInputBorder()),
-                    items: [
-                      for (final t in _terms)
-                        DropdownMenuItem(value: t.termId, child: Text('${t.label}${t.isActive ? ' (Active)' : ''}')),
-                    ],
-                    onChanged: (v) {
-                      setState(() => _term = _terms.firstWhere((t) => t.termId == v));
-                      _loadReport();
-                    },
-                  ),
-                ),
-                SegmentedButton<ReportKind>(
-                  key: const ValueKey('report_kind_selector'),
-                  segments: [
-                    for (final k in ReportKind.values) ButtonSegment(value: k, label: Text(k.title)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          // Shared with the other pages: changing it here changes it everywhere.
+                          if (currentTerm.terms.isNotEmpty) CurrentTermPicker(term: currentTerm, width: 280),
+                          SegmentedButton<ReportKind>(
+                            key: const ValueKey('report_kind_selector'),
+                            segments: [
+                              for (final k in ReportKind.values) ButtonSegment(value: k, label: Text(k.title)),
+                            ],
+                            selected: {_kind},
+                            onSelectionChanged: (s) {
+                              setState(() => _kind = s.first);
+                              _loadReport();
+                            },
+                          ),
+                          OutlinedButton.icon(
+                            key: const ValueKey('download_csv_button'),
+                            icon: const Icon(Icons.download_rounded, size: 18),
+                            label: const Text('Download CSV'),
+                            onPressed: (_table == null || _loading || _table!.rows.isEmpty) ? null : _download,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(child: _buildBody()),
                   ],
-                  selected: {_kind},
-                  onSelectionChanged: (s) {
-                    setState(() => _kind = s.first);
-                    _loadReport();
-                  },
                 ),
-                OutlinedButton.icon(
-                  key: const ValueKey('download_csv_button'),
-                  icon: const Icon(Icons.download_rounded, size: 18),
-                  label: const Text('Download CSV'),
-                  onPressed: (_table == null || _loading || _table!.rows.isEmpty) ? null : _download,
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(24, 16, 24, 16),
+                  child: ActivityLogBrowser(),
                 ),
               ],
             ),
           ),
-          Expanded(child: _buildBody()),
         ],
       ),
     );
@@ -238,7 +257,7 @@ class _ReportsViewState extends State<ReportsView> {
     if (_error != null) {
       return Center(child: Text(_error!, style: const TextStyle(color: AppColors.error)));
     }
-    if (_terms.isEmpty && !_loading && _table == null) {
+    if (currentTerm.isLoaded && currentTerm.terms.isEmpty) {
       return const Center(child: Text('No academic terms yet.', style: TextStyle(color: AppColors.textSecondary)));
     }
     final table = _table;
@@ -263,7 +282,7 @@ class _ReportsViewState extends State<ReportsView> {
           scrollDirection: Axis.horizontal,
           child: DataTable(
             key: const ValueKey('report_table'),
-            headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
             columns: [for (final h in table.headers) DataColumn(label: Text(h, style: const TextStyle(fontWeight: FontWeight.w700)))],
             rows: [
               for (final r in table.rows)

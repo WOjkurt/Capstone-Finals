@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../blocs/staff_bloc.dart';
 import '../injection.dart';
 import '../models/setup_models.dart';
@@ -10,6 +9,7 @@ import '../repositories/enrollment_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import '../utils/formatters.dart';
 
 class StaffManagementView extends StatefulWidget {
   const StaffManagementView({super.key});
@@ -141,7 +141,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Password setup link copied to clipboard!'),
-                    backgroundColor: Color(0xFF10B981),
+                    backgroundColor: AppColors.success,
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -820,7 +820,6 @@ class _StaffManagementViewState extends State<StaffManagementView> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('MMM dd, yyyy');
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -846,7 +845,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.successMessage!),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -861,7 +860,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                     Expanded(child: Text(state.errorMessage!)),
                   ],
                 ),
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 4),
               ),
@@ -1084,7 +1083,7 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                                 ),
                                                 DataCell(
                                                   Text(
-                                                    dateFormat.format(s.createdAt.toLocal()),
+                                                    formatDate(s.createdAt.toLocal()),
                                                     style: const TextStyle(fontSize: 13),
                                                   ),
                                                 ),

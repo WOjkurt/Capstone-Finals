@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/dashboard_bloc.dart';
 import '../theme/app_theme.dart';
+import 'widgets/dashboard_today.dart';
 import 'widgets/page_header.dart';
 
 class DashboardView extends StatefulWidget {
-  final Function(int)? onNavigate;
+  /// Opens a page by its menu title, e.g. 'Pending loads'.
+  final void Function(String pageTitle)? onNavigate;
 
   const DashboardView({super.key, this.onNavigate});
 
@@ -31,15 +33,10 @@ class _DashboardViewState extends State<DashboardView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PageHeader(
-            title: 'Registrar Dashboard',
-            subtitle:
-                'Overview of enrollment pipeline, student applications, and grade governance.',
-            action: IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Refresh Dashboard',
-              onPressed: () =>
-                  context.read<DashboardBloc>().add(LoadDashboardData()),
-            ),
+            title: 'Dashboard',
+            subtitle: 'What needs your attention today. Click a card to open it.',
+            onRefresh: () =>
+                context.read<DashboardBloc>().add(LoadDashboardData()),
           ),
           Expanded(
             child: BlocBuilder<DashboardBloc, DashboardState>(
@@ -111,7 +108,7 @@ class _DashboardViewState extends State<DashboardView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Operational Summary',
+                        'Waiting for you',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -121,8 +118,11 @@ class _DashboardViewState extends State<DashboardView> {
                       const SizedBox(height: 16),
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final isWide = constraints.maxWidth > 800;
-                          final count = isWide ? 4 : 2;
+                          final count = constraints.maxWidth > 1100
+                              ? 5
+                              : constraints.maxWidth > 700
+                                  ? 3
+                                  : 2;
                           final width = (constraints.maxWidth - (count - 1) * 20) / count;
 
                           return Wrap(
@@ -130,108 +130,106 @@ class _DashboardViewState extends State<DashboardView> {
                             runSpacing: 20,
                             children: [
                               _buildMetricCard(
-                                title: 'Unprocessed Responses',
+                                title: 'New Responses',
                                 count: loaded.unprocessedResponsesCount,
                                 icon: Icons.mark_email_unread_outlined,
                                 color: AppColors.accentAmber,
-                                subtitle: 'Awaiting conversion to application',
+                                subtitle: 'To turn into applications',
                                 width: width,
-                                onTap: () => widget.onNavigate?.call(1),
+                                onTap: () => widget.onNavigate?.call('Form responses'),
                               ),
                               _buildMetricCard(
-                                title: 'Pending Applications',
+                                title: 'Applications',
                                 count: loaded.pendingApplicationsCount,
                                 icon: Icons.pending_actions_rounded,
                                 color: AppColors.primary,
-                                subtitle: 'Awaiting registrar review',
+                                subtitle: 'Waiting for your review',
                                 width: width,
-                                onTap: () => widget.onNavigate?.call(2),
+                                onTap: () => widget.onNavigate?.call('Applications'),
                               ),
                               _buildMetricCard(
-                                title: 'Approved Applications',
+                                title: 'Need a Login',
                                 count: loaded.approvedApplicationsCount,
                                 icon: Icons.how_to_reg_rounded,
                                 color: AppColors.accentGreen,
-                                subtitle: 'Ready for account linking',
+                                subtitle: 'Approved applicants',
                                 width: width,
-                                onTap: () => widget.onNavigate?.call(3),
+                                onTap: () => widget.onNavigate?.call('Create logins'),
+                              ),
+                              _buildMetricCard(
+                                title: 'Pending Loads',
+                                count: loaded.pendingLoadsCount,
+                                icon: Icons.fact_check_outlined,
+                                color: const Color(0xFF7C3AED),
+                                subtitle: 'Students to finalize',
+                                width: width,
+                                onTap: () => widget.onNavigate?.call('Pending loads'),
                               ),
                               _buildMetricCard(
                                 title: 'Grade Corrections',
                                 count: loaded.pendingCorrectionsCount,
                                 icon: Icons.assignment_late_outlined,
                                 color: const Color(0xFFEF4444), // Red
-                                subtitle: 'Instructor requests pending review',
+                                subtitle: 'Teacher requests',
                                 width: width,
-                                onTap: () => widget.onNavigate?.call(6),
+                                onTap: () => widget.onNavigate?.call('Grade corrections'),
                               ),
                             ],
                           );
                         },
                       ),
-                      const SizedBox(height: 36),
-                      // Quick Action Guide
+                      const SizedBox(height: 28),
+                      DashboardToday(onNavigate: widget.onNavigate),
+                      const SizedBox(height: 28),
+                      // The workflow guide is reference material, so it starts folded away.
                       Container(
-                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.02),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.flash_on_rounded,
-                                    color: AppColors.primary),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Registrar Workflow Guide',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                              ],
+                        child: Theme(
+                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            key: const ValueKey('workflow_guide'),
+                            leading: const Icon(Icons.help_outline_rounded, color: AppColors.primary),
+                            title: const Text(
+                              'How enrollment works',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                             ),
-                            const SizedBox(height: 16),
-                            _buildStepRow(
-                              step: '1',
-                              title: 'Intake Responses',
-                              description:
-                                  'View Google Forms responses submitted by applicants and convert them into formal Enrollment Applications.',
-                            ),
-                            const Divider(height: 24),
-                            _buildStepRow(
-                              step: '2',
-                              title: 'Review & Decision',
-                              description:
-                                  'Inspect full biographical and contact records under Applications. Approve or Reject with notes.',
-                            ),
-                            const Divider(height: 24),
-                            _buildStepRow(
-                              step: '3',
-                              title: 'Link Student Accounts',
-                              description:
-                                  'Assign verified student credentials to approved applicants so their portal logins activate seamlessly.',
-                            ),
-                            const Divider(height: 24),
-                            _buildStepRow(
-                              step: '4',
-                              title: 'Grade Clearances & Corrections',
-                              description:
-                                  'Control term clearance to gate enrollment and grade view, and approve grade correction petitions.',
-                            ),
-                          ],
+                            childrenPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                            children: [
+                              _buildStepRow(
+                                step: '1',
+                                title: 'Form responses',
+                                description: 'Turn the Google Form answers into enrollment applications.',
+                              ),
+                              const Divider(height: 24),
+                              _buildStepRow(
+                                step: '2',
+                                title: 'Applications',
+                                description: 'Check each application, then approve or reject it.',
+                              ),
+                              const Divider(height: 24),
+                              _buildStepRow(
+                                step: '3',
+                                title: 'Create logins',
+                                description: 'Give each approved applicant a student login for the student portal.',
+                              ),
+                              const Divider(height: 24),
+                              _buildStepRow(
+                                step: '4',
+                                title: 'Study loads',
+                                description: 'College Heads build study loads; finalize them under Pending loads.',
+                              ),
+                              const Divider(height: 24),
+                              _buildStepRow(
+                                step: '5',
+                                title: 'Grades',
+                                description: 'Release each term\'s grades in the student\'s Grade release tab, and review grade corrections.',
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],

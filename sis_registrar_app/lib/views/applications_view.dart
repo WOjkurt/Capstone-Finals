@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../blocs/applications_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
@@ -9,9 +8,13 @@ import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/edit_lrn_dialog.dart';
 import 'widgets/edit_school_email_dialog.dart';
+import '../utils/formatters.dart';
 
 class ApplicationsView extends StatefulWidget {
-  const ApplicationsView({super.key});
+  /// False inside the Admissions page, whose tabs already name this page.
+  final bool showHeader;
+
+  const ApplicationsView({super.key, this.showHeader = true});
 
   @override
   State<ApplicationsView> createState() => _ApplicationsViewState();
@@ -45,7 +48,7 @@ class _ApplicationsViewState extends State<ApplicationsView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -53,7 +56,7 @@ class _ApplicationsViewState extends State<ApplicationsView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: const Color(0xFFEF4444),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -63,28 +66,15 @@ class _ApplicationsViewState extends State<ApplicationsView> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PageHeader(
-                title: 'Enrollment Applications',
-                subtitle:
-                    'Manage formal enrollment petitions, inspect biographical documents, and decide admissions.',
-                action: ElevatedButton.icon(
-                  onPressed: () => context.read<ApplicationsBloc>().add(
-                      LoadApplications(
-                          statusFilter: (state is ApplicationsLoaded)
-                              ? state.statusFilter
-                              : null)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Refresh'),
-                ),
+              if (widget.showHeader)
+                PageHeader(
+                title: 'Applications',
+                subtitle: 'Review enrollment applications and approve or reject them.',
+                onRefresh: () => context.read<ApplicationsBloc>().add(
+                    LoadApplications(
+                        statusFilter: (state is ApplicationsLoaded)
+                            ? state.statusFilter
+                            : null)),
               ),
               // Status Filter Tabs & Search
               _buildFilterTabs(context, state),
@@ -736,8 +726,6 @@ class _ApplicationDetailDialog extends StatelessWidget {
                     termId: '', schoolYear: '—', semester: 0))
             .label;
 
-        final dateFormat = DateFormat('MMMM dd, yyyy');
-
         return Dialog(
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
@@ -820,7 +808,7 @@ class _ApplicationDetailDialog extends StatelessWidget {
                               Expanded(
                                 child: _buildInfoPair(
                                     'Submission Date',
-                                    dateFormat.format(detail.createdAt)),
+                                    formatDate(detail.createdAt)),
                               ),
                             ],
                           ),

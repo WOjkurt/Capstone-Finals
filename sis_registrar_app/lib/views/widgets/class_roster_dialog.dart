@@ -236,7 +236,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
             content: Text(
               '${student.displayName} updated to $statusName successfully.',
             ),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -251,7 +251,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to update status: $e'),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );

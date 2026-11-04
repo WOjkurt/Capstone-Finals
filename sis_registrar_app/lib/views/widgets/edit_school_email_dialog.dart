@@ -111,7 +111,7 @@ class _EditSchoolEmailDialogState extends State<EditSchoolEmailDialog> {
             content: Text(clean == null
                 ? 'School email cleared successfully.'
                 : 'School email updated successfully ($clean).'),
-            backgroundColor: const Color(0xFF10B981),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );

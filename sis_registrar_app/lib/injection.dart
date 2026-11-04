@@ -10,6 +10,7 @@ import 'blocs/staff_bloc.dart';
 import 'repositories/class_repository.dart';
 import 'repositories/enrollment_repository.dart';
 import 'repositories/grading_repository.dart';
+import 'repositories/activity_log_repository.dart';
 import 'repositories/report_repository.dart';
 import 'repositories/staff_repository.dart';
 import 'services/auth_service.dart';
@@ -41,6 +42,8 @@ void setupLocator() {
       () => PromotionRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<ReportRepository>(
       () => ReportRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<ActivityLogRepository>(
+      () => ActivityLogRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<ClassRepository>(
       () => ClassRepository(getIt<AuthService>()));
 
@@ -48,6 +51,7 @@ void setupLocator() {
   getIt.registerFactory<DashboardBloc>(() => DashboardBloc(
         getIt<EnrollmentRepository>(),
         getIt<GradeCorrectionRepository>(),
+        getIt<ClassRepository>(),
       ));
   getIt.registerFactory<ResponsesBloc>(() => ResponsesBloc(
         getIt<EnrollmentRepository>(),

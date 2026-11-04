@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../blocs/responses_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import '../utils/formatters.dart';
 
 class ResponsesView extends StatefulWidget {
-  const ResponsesView({super.key});
+  /// False inside the Admissions page, whose tabs already name this page.
+  final bool showHeader;
+
+  const ResponsesView({super.key, this.showHeader = true});
 
   @override
   State<ResponsesView> createState() => _ResponsesViewState();
@@ -43,7 +46,7 @@ class _ResponsesViewState extends State<ResponsesView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -51,7 +54,7 @@ class _ResponsesViewState extends State<ResponsesView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),
-                backgroundColor: const Color(0xFFEF4444),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -65,25 +68,11 @@ class _ResponsesViewState extends State<ResponsesView> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PageHeader(
-                title: 'Enrollment Responses',
-                subtitle:
-                    'Incoming Google Forms submissions awaiting conversion into formal applications.',
-                action: ElevatedButton.icon(
-                  onPressed: () =>
-                      context.read<ResponsesBloc>().add(LoadResponses()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Refresh'),
-                ),
+              if (widget.showHeader)
+                PageHeader(
+                title: 'Form Responses',
+                subtitle: 'Google Forms submissions waiting to become enrollment applications.',
+                onRefresh: () => context.read<ResponsesBloc>().add(LoadResponses()),
               ),
               _buildSearchBar(context, totalCount),
               Expanded(
@@ -273,8 +262,6 @@ class _ResponsesViewState extends State<ResponsesView> {
       );
     }
 
-    final dateFormat = DateFormat('MMM dd, yyyy • hh:mm a');
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Container(
@@ -341,7 +328,7 @@ class _ResponsesViewState extends State<ResponsesView> {
                             ),
                           ),
                           DataCell(
-                            Text(dateFormat.format(r.timestamp.toLocal())),
+                            Text(formatDateTime(r.timestamp.toLocal())),
                           ),
                           DataCell(
                             StatusBadge.pending(label: 'Unprocessed'),
@@ -822,7 +809,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please check the required fields before submitting.'),
-          backgroundColor: Color(0xFFEF4444),
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -832,7 +819,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select Program and Term in Enrollment Details.'),
-          backgroundColor: Color(0xFFEF4444),
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );

@@ -1,3 +1,5 @@
+import '../utils/formatters.dart';
+
 class AcademicProgramModel {
   final int programId;
   final String programCode;
@@ -50,11 +52,7 @@ class AcademicTermModel {
         'semester': semester,
       };
 
-  String get label {
-    final semLabel =
-        semester == 1 ? '1st Sem' : semester == 2 ? '2nd Sem' : 'Summer';
-    return '$schoolYear — $semLabel';
-  }
+  String get label => formatTermLabel(schoolYear, semester);
 }
 
 class PrerequisiteModel {
