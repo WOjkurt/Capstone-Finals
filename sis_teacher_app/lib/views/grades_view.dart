@@ -114,6 +114,7 @@ class _GradesViewState extends State<GradesView> {
         PageHeader(
           title: 'Grades',
           subtitle: 'Input, calculate, and submit student midterm and final grades.',
+          onRefresh: _fetchClasses,
           action: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -150,22 +151,7 @@ class _GradesViewState extends State<GradesView> {
                 ),
                 const SizedBox(width: 12),
               ],
-              OutlinedButton.icon(
-                onPressed: () {
-                  _fetchClasses();
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-            ],
+                          ],
           ),
         ),
         Expanded(
@@ -275,7 +261,7 @@ class _GradesViewState extends State<GradesView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.actionSuccessMessage!),
-                backgroundColor: const Color(0xFF16A34A),
+                backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -286,7 +272,7 @@ class _GradesViewState extends State<GradesView> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.actionErrorMessage!),
-                backgroundColor: const Color(0xFFDC2626),
+                backgroundColor: AppColors.error,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -655,7 +641,7 @@ class _GradesViewState extends State<GradesView> {
                                   '${grade.studentName ?? 'student'} — $periodLabel grade.',
                                 ),
                                 backgroundColor:
-                                    const Color(0xFF16A34A),
+                                    AppColors.success,
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
@@ -668,7 +654,7 @@ class _GradesViewState extends State<GradesView> {
                                 content: Text(
                                     'Failed to submit request: ${e.toString()}'),
                                 backgroundColor:
-                                    const Color(0xFFDC2626),
+                                    AppColors.error,
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );

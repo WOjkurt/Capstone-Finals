@@ -1,3 +1,5 @@
+import '../utils/formatters.dart';
+
 class ClassScheduleModel {
   final String scheduleId;
   final String classId;
@@ -124,15 +126,9 @@ class ClassModel {
 
   String get termLabel {
     if (termSchoolYear == null || termSchoolYear!.isEmpty) return 'N/A';
-    final sem = termSemester == 1
-        ? '1st Sem'
-        : termSemester == 2
-            ? '2nd Sem'
-            : termSemester == 3
-                ? 'Summer'
-                : '';
-    return sem.isNotEmpty ? '$termSchoolYear · $sem' : termSchoolYear!;
+    return formatTermLabel(termSchoolYear!, termSemester);
   }
+
 
   String get scheduleSummary {
     if (schedules.isEmpty) return 'No schedule assigned';

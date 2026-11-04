@@ -5,6 +5,7 @@ import '../blocs/program_overview_bloc.dart';
 import '../models/class_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
+import 'widgets/page_header.dart';
 
 enum _FacultyFilterMode { all, withClasses, zeroClasses }
 
@@ -88,7 +89,6 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
         children: [
           // ── Header ──────────────────────────────────────────────────────────
           _buildHeader(context),
-          const Divider(height: 1, color: AppColors.border),
 
           // ── Content ─────────────────────────────────────────────────────────
           Expanded(
@@ -122,7 +122,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                           ),
                         ],
                       ),
-                      backgroundColor: const Color(0xFFDC2626),
+                      backgroundColor: AppColors.error,
                       behavior: SnackBarBehavior.floating,
                       duration: const Duration(seconds: 5),
                     ),
@@ -350,59 +350,10 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
   // ── Header Bar ─────────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.badge_outlined,
-                color: AppColors.primary, size: 22),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Department Faculty',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Instructors roster and teaching workload in your academic program',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-            tooltip: 'Refresh Faculty Roster',
-            onPressed: () =>
-                context.read<FacultyBloc>().add(LoadFacultyEvent()),
-            style: IconButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-              hoverColor: AppColors.primaryLight,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(color: AppColors.border),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return PageHeader(
+      title: 'Faculty',
+      subtitle: 'Teachers in your program and the classes they handle.',
+      onRefresh: () => context.read<FacultyBloc>().add(LoadFacultyEvent()),
     );
   }
 

@@ -58,19 +58,7 @@ class _MyClassesViewState extends State<MyClassesView> {
         PageHeader(
           title: 'My Classes',
           subtitle: 'View your assigned subject offerings, weekly schedules, and student rosters.',
-          action: OutlinedButton.icon(
-            onPressed: _loadClasses,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Refresh', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
+          onRefresh: _loadClasses,
         ),
         Expanded(
           child: BlocBuilder<ClassesBloc, ClassesState>(

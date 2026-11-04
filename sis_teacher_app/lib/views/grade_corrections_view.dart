@@ -28,21 +28,7 @@ class _GradeCorrectionsViewState extends State<GradeCorrectionsView> {
         PageHeader(
           title: 'Grade Corrections',
           subtitle: 'Track the status of your submitted grade correction requests.',
-          action: OutlinedButton.icon(
-            onPressed: () =>
-                context.read<GradeCorrectionsBloc>().add(LoadMyCorrectionsEvent()),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Refresh',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
+          onRefresh: () => context.read<GradeCorrectionsBloc>().add(LoadMyCorrectionsEvent()),
         ),
         Expanded(
           child: BlocBuilder<GradeCorrectionsBloc, GradeCorrectionsState>(
