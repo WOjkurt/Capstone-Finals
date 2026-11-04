@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.Common;
 using Api.DTOs.Enrollment;
 using Api.Repositories;
@@ -204,6 +205,13 @@ public class UserDetailsController : ControllerBase
         var oldYearLevel = userDetails.YearLevel;
         userDetails.YearLevel = dto.YearLevel;
         await _userDetailsRepository.UpdateAsync(userDetails);
+
+        var log = this.ActivityLog();
+        if (log != null && oldYearLevel != dto.YearLevel)
+        {
+            await log.LogAsync(callerUserId, ActivityActions.YearLevelChanged,
+                $"Year level {(oldYearLevel.HasValue ? oldYearLevel.Value.ToString() : "not set")} -> {dto.YearLevel}", userId);
+        }
 
         _logger.LogInformation(
             "YearLevel updated: TargetUserID={TargetUserId}, CallerID={CallerId}, OldYearLevel={Old}, NewYearLevel={New}",

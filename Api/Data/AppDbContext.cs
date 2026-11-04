@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<StudyLoad> StudyLoads { get; set; }
     public DbSet<OverloadApproval> OverloadApprovals { get; set; }
     public DbSet<CreditedSubject> CreditedSubjects { get; set; }
+    public DbSet<Api.Domain.Audit.ActivityLog> ActivityLogs { get; set; }
 
     // IdentityAccess
     public DbSet<User> Users { get; set; }
@@ -311,6 +312,14 @@ public class AppDbContext : DbContext
         });
 
         // ── GradeClearance ──────────────────────────────────────────
+        // Activity log rows keep names as text and have no foreign keys, so deleting people or terms never touches the log.
+        modelBuilder.Entity<Api.Domain.Audit.ActivityLog>(entity =>
+        {
+            entity.HasIndex(l => l.OccurredAt).HasDatabaseName("IX_ActivityLogs_OccurredAt");
+            entity.HasIndex(l => l.StudentUserID).HasDatabaseName("IX_ActivityLogs_StudentUserID");
+            entity.HasIndex(l => l.Action).HasDatabaseName("IX_ActivityLogs_Action");
+        });
+
         modelBuilder.Entity<CreditedSubject>(entity =>
         {
             entity.HasIndex(c => new { c.UserID, c.SubjectID })

@@ -10,6 +10,7 @@ public interface ICreditedSubjectService
     Task<List<CreditedSubjectDto>> GetByStudentAsync(Guid userId);
     Task<CreditedSubjectDto> CreateAsync(CreateCreditedSubjectDto dto, Guid recordedByUserId);
     Task DeleteAsync(Guid creditedSubjectId);
+    Task<CreditedSubjectDto?> GetByIdAsync(Guid creditedSubjectId);
 }
 
 public class CreditedSubjectService : ICreditedSubjectService
@@ -112,6 +113,13 @@ public class CreditedSubjectService : ICreditedSubjectService
         await _context.SaveChangesAsync();
 
         return await MapAsync(credit, subject);
+    }
+
+    public async Task<CreditedSubjectDto?> GetByIdAsync(Guid creditedSubjectId)
+    {
+        var c = await _context.CreditedSubjects.AsNoTracking().Include(x => x.Subject)
+            .FirstOrDefaultAsync(x => x.CreditedSubjectID == creditedSubjectId);
+        return c == null ? null : await MapAsync(c, c.Subject);
     }
 
     public async Task DeleteAsync(Guid creditedSubjectId)

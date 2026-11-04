@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.DTOs.Credits;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -35,7 +36,15 @@ public class CreditedSubjectsController : ControllerBase
 
         try
         {
-            return Ok(await _service.CreateAsync(dto, callerId));
+            var credit = await _service.CreateAsync(dto, callerId);
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(callerId, ActivityActions.CreditAdded,
+                    $"Credited {credit.SubjectCode} from {credit.SourceSchool}{(credit.Grade != null ? $" (grade {credit.Grade})" : "")}",
+                    credit.UserId);
+            }
+            return Ok(credit);
         }
         catch (KeyNotFoundException ex)
         {
@@ -53,7 +62,14 @@ public class CreditedSubjectsController : ControllerBase
     {
         try
         {
+            var log = this.ActivityLog();
+            var credit = log != null ? await _service.GetByIdAsync(id) : null;
             await _service.DeleteAsync(id);
+            if (log != null && credit != null)
+            {
+                await log.LogAsync(this.CallerId(), ActivityActions.CreditRemoved,
+                    $"Removed credit for {credit.SubjectCode} from {credit.SourceSchool}", credit.UserId);
+            }
             return NoContent();
         }
         catch (KeyNotFoundException ex)

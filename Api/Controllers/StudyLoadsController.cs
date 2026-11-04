@@ -1,4 +1,6 @@
 using Api.Auth;
+using Api.Domain.Audit;
+using Api.Domain.Enrollment;
 using Api.DTOs.StudyLoad;
 using Api.Repositories;
 using Api.Services;
@@ -60,7 +62,25 @@ public class StudyLoadsController : ControllerBase
 
         try
         {
+            var startedAt = DateTime.UtcNow;
             var result = await _studyLoadService.EnrollBatchAsync(dto, createdByUserId, callerRole);
+
+            var log = this.ActivityLog();
+            int saved = result.Count(r => r.Enrolled);
+            if (log != null && saved > 0)
+            {
+                bool pending = callerRole == RoleUtils.CollegeHead || dto.AsPending;
+                await log.LogAsync(createdByUserId, ActivityActions.LoadsSaved,
+                    pending ? $"Saved {saved} subject(s) as Pending" : $"Enrolled {saved} subject(s)",
+                    dto.UserId, dto.TermId);
+                var overload = await log.RecentOverloadAsync(dto.UserId, dto.TermId, createdByUserId, startedAt);
+                if (overload.HasValue)
+                {
+                    await log.LogAsync(createdByUserId, ActivityActions.OverloadApproved,
+                        $"Approved overload {overload.Value.Units:0.#} of {overload.Value.MaxUnits:0.#} units: {overload.Value.Reason}",
+                        dto.UserId, dto.TermId);
+                }
+            }
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -87,6 +107,21 @@ public class StudyLoadsController : ControllerBase
         try
         {
             var result = await _studyLoadService.EnrollSingleAsync(dto, createdByUserId, callerRole);
+
+            var log = this.ActivityLog();
+            if (log != null && result.Success && result.StudyLoadId.HasValue)
+            {
+                var load = await log.DescribeLoadAsync(result.StudyLoadId.Value);
+                if (load.HasValue)
+                {
+                    await log.LogAsync(createdByUserId,
+                        dto.Force ? ActivityActions.ForcedEnrollment : ActivityActions.LoadsSaved,
+                        dto.Force
+                            ? $"Forced {load.Value.Label}: {dto.ForceReason}"
+                            : $"Added {load.Value.Label} as {ActivityLogControllerExtensions.LoadStatusText(load.Value.Status)}",
+                        load.Value.StudentId, load.Value.TermId);
+                }
+            }
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -121,6 +156,13 @@ public class StudyLoadsController : ControllerBase
             {
                 return BadRequest(result);
             }
+            var log = this.ActivityLog();
+            if (log != null && result.FinalizedLoads.Count > 0)
+            {
+                await log.LogAsync(callerUserId, ActivityActions.LoadsFinalized,
+                    $"Finalized {result.FinalizedLoads.Count} subject(s): {string.Join(", ", result.FinalizedLoads.Select(l => l.SubjectCode))}",
+                    dto.UserId, dto.TermId);
+            }
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -150,7 +192,20 @@ public class StudyLoadsController : ControllerBase
     {
         try
         {
+            var log = this.ActivityLog();
+            var before = log != null
+                ? await log.YearLevelsAsync(dto.Changes.Select(c => c.UserId))
+                : new Dictionary<Guid, int?>();
             var updated = await _studyLoadService.ApplyYearLevelsAsync(dto.Changes);
+            if (log != null)
+            {
+                foreach (var c in dto.Changes)
+                {
+                    var old = before.GetValueOrDefault(c.UserId);
+                    await log.LogAsync(this.CallerId(), ActivityActions.YearLevelChanged,
+                        $"Year level {(old.HasValue ? old.Value.ToString() : "not set")} -> {c.YearLevel} (Promotion page)", c.UserId);
+                }
+            }
             return Ok(new { updated });
         }
         catch (KeyNotFoundException ex)
@@ -217,7 +272,15 @@ public class StudyLoadsController : ControllerBase
         int? callerRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
         try
         {
+            var log = this.ActivityLog();
+            var before = log != null ? await log.DescribeLoadAsync(id) : null;
             var result = await _studyLoadService.UpdateStatusAsync(id, dto.LoadStatus, callerRole);
+            if (log != null && before.HasValue && before.Value.Status != dto.LoadStatus)
+            {
+                await log.LogAsync(this.CallerId(), ActivityActions.LoadStatusChanged,
+                    $"{before.Value.Label}: {ActivityLogControllerExtensions.LoadStatusText(before.Value.Status)} -> {ActivityLogControllerExtensions.LoadStatusText(dto.LoadStatus)}",
+                    before.Value.StudentId, before.Value.TermId);
+            }
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

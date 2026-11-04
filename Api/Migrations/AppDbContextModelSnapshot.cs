@@ -22,6 +22,60 @@ namespace Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Api.Domain.Audit.ActivityLog", b =>
+                {
+                    b.Property<Guid>("ActivityLogID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("ActorRole")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ActorUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StudentName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("StudentUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("TermID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ActivityLogID");
+
+                    b.HasIndex("Action")
+                        .HasDatabaseName("IX_ActivityLogs_Action");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("IX_ActivityLogs_OccurredAt");
+
+                    b.HasIndex("StudentUserID")
+                        .HasDatabaseName("IX_ActivityLogs_StudentUserID");
+
+                    b.ToTable("ActivityLogs");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.AcademicProgram", b =>
                 {
                     b.Property<int>("ProgramID")

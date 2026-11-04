@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.DTOs.Grading;
 using Api.Repositories;
 using Api.Services;
@@ -36,6 +37,12 @@ public class GradeClearancesController : ControllerBase
         try
         {
             var result = await _clearanceService.SetClearanceAsync(userId, termId, dto.IsCleared, reviewerUserId);
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(reviewerUserId, ActivityActions.ClearanceChanged,
+                    dto.IsCleared ? "Marked grades as cleared" : "Marked grades as not cleared (withheld)", userId, termId);
+            }
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -61,6 +68,12 @@ public class GradeClearancesController : ControllerBase
         {
             var isCleared = dto.IsCleared ?? false;
             var result = await _clearanceService.CreateClearanceAsync(dto.UserId, dto.TermId, isCleared, creatorUserId);
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(creatorUserId, ActivityActions.ClearanceChanged,
+                    isCleared ? "Started clearance as cleared" : "Started clearance (not cleared)", dto.UserId, dto.TermId);
+            }
             return StatusCode(StatusCodes.Status201Created, result);
         }
         catch (KeyNotFoundException ex)

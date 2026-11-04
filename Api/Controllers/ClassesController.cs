@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.DTOs.Class;
 using Api.Repositories;
 using Api.Services;
@@ -275,6 +276,14 @@ public class ClassesController : ControllerBase
         try
         {
             var classDto = await _classService.AssignTeacherAsync(id, dto.UserID);
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                string target = $"{classDto.SubjectCode} ({classDto.ClassName})";
+                await log.LogAsync(authUserId, ActivityActions.TeacherAssigned,
+                    dto.UserID.HasValue ? $"Assigned {classDto.TeacherName ?? "a teacher"} to {target}" : $"Removed the teacher from {target}",
+                    termId: classDto.TermID);
+            }
             return Ok(classDto);
         }
         catch (KeyNotFoundException ex)

@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.DTOs.Grading;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -66,6 +67,18 @@ public class GradeCorrectionsController : ControllerBase
         return Ok(list);
     }
 
+    private async Task LogReviewAsync(Guid reviewerUserId, GradeCorrectionResponseDto result, bool approved)
+    {
+        var log = this.ActivityLog();
+        if (log == null) return;
+        var grade = await log.DescribeGradeAsync(result.GradeId);
+        await log.LogAsync(reviewerUserId,
+            approved ? ActivityActions.GradeCorrectionApproved : ActivityActions.GradeCorrectionRejected,
+            $"{(approved ? "Approved" : "Rejected")} {result.CorrectionPeriodLabel} correction for {result.SubjectCode}: " +
+            $"{result.OldGrade:0.00} -> {result.NewGrade:0.00} (requested by {result.RequesterName ?? "teacher"})",
+            grade?.StudentId, grade?.TermId);
+    }
+
     [HttpPatch("{id:guid}/approve")]
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> ApproveCorrection(Guid id)
@@ -78,6 +91,7 @@ public class GradeCorrectionsController : ControllerBase
         try
         {
             var result = await _correctionService.ApproveCorrectionAsync(id, reviewerUserId);
+            await LogReviewAsync(reviewerUserId, result, approved: true);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -102,6 +116,7 @@ public class GradeCorrectionsController : ControllerBase
         try
         {
             var result = await _correctionService.RejectCorrectionAsync(id, reviewerUserId, dto?.Reason);
+            await LogReviewAsync(reviewerUserId, result, approved: false);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
