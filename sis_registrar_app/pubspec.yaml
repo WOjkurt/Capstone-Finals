@@ -19,6 +19,7 @@ dependencies:
   pdf: ^3.11.3
   printing: ^5.14.2
   image: ">=4.3.0 <4.6.0"
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

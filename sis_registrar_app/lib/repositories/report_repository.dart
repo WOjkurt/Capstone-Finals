@@ -1,0 +1,40 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
+import '../models/report_models.dart';
+import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
+
+class ReportRepository {
+  final AuthService _auth;
+  final http.Client _client;
+  ReportRepository(this._auth, {http.Client? client}) : _client = client ?? http.Client();
+
+  Future<List<Map<String, dynamic>>> _get(String report, String termId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/reports/$report').replace(queryParameters: {'termId': termId}),
+      headers: headers,
+    );
+    if (res.statusCode != 200) {
+      String message = 'Request failed (${res.statusCode}).';
+      try {
+        message = (jsonDecode(res.body) as Map<String, dynamic>)['message'] as String? ?? message;
+      } catch (_) {}
+      throw ApiException(statusCode: res.statusCode, message: message);
+    }
+    return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<List<EnrollmentSummaryRow>> enrollmentSummary(String termId) async =>
+      (await _get('enrollment-summary', termId)).map(EnrollmentSummaryRow.fromJson).toList();
+
+  Future<List<ClassSizeRow>> classSizes(String termId) async =>
+      (await _get('class-sizes', termId)).map(ClassSizeRow.fromJson).toList();
+
+  Future<List<FailedStudentRow>> failedStudents(String termId) async =>
+      (await _get('failed-students', termId)).map(FailedStudentRow.fromJson).toList();
+
+  Future<List<TeacherLoadRow>> teacherLoads(String termId) async =>
+      (await _get('teacher-loads', termId)).map(TeacherLoadRow.fromJson).toList();
+}

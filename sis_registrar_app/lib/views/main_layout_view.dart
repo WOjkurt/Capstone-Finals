@@ -9,6 +9,7 @@ import 'dashboard_view.dart';
 import 'link_accounts_view.dart';
 import 'pending_loads_view.dart';
 import 'promotion_view.dart';
+import 'reports_view.dart';
 import 'responses_view.dart';
 import 'setup_view.dart';
 import 'staff_management_view.dart';
@@ -33,6 +34,7 @@ class MainLayoutView extends StatefulWidget {
       {'title': 'Corrections', 'icon': Icons.assignment_late_outlined, 'activeIcon': Icons.assignment_late_rounded},
       {'title': 'Pending loads', 'icon': Icons.pending_actions_outlined, 'activeIcon': Icons.pending_actions_rounded},
       {'title': 'Promotion', 'icon': Icons.trending_up_outlined, 'activeIcon': Icons.trending_up_rounded},
+      {'title': 'Reports', 'icon': Icons.bar_chart_outlined, 'activeIcon': Icons.bar_chart_rounded},
     ];
 
     if (isAdmin) {
@@ -129,6 +131,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                 const CorrectionsView(),
                 const PendingLoadsView(),
                 const PromotionView(),
+                const ReportsView(),
                 if (_isAdmin) const StaffManagementView(),
               ],
             ),
