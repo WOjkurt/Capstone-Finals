@@ -137,6 +137,32 @@ public class StudyLoadsController : ControllerBase
         }
     }
 
+    [HttpGet("year-level-suggestions")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> GetYearLevelSuggestions([FromQuery] int programId, [FromQuery] int? yearLevel)
+    {
+        return Ok(await _studyLoadService.GetYearLevelSuggestionsAsync(programId, yearLevel));
+    }
+
+    [HttpPost("apply-year-levels")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> ApplyYearLevels([FromBody] ApplyYearLevelsRequestDto dto)
+    {
+        try
+        {
+            var updated = await _studyLoadService.ApplyYearLevelsAsync(dto.Changes);
+            return Ok(new { updated });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("unit-limit")]
     [RequireRegistrarCollegeHeadOrAdmin]
     public async Task<IActionResult> GetUnitLimit([FromQuery] Guid userId, [FromQuery] Guid termId)

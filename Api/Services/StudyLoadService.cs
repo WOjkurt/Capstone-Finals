@@ -659,6 +659,117 @@ public class StudyLoadService : IStudyLoadService
             .Where(s => s.ProgramID == userDetails.ProgramID.Value)
             .ToListAsync();
 
+        var currentSubjects = programSubjects.Where(s => s.YearLevel == current).ToList();
+        var statuses = new Dictionary<Guid, SubjectCompletionStatus>();
+        foreach (var subject in currentSubjects)
+        {
+            statuses[subject.SubjectID] = (await HasSatisfiedSubjectAsync(userId, subject.SubjectID)).Status;
+        }
+
+        return BuildYearLevelSuggestion(current, programSubjects, s => statuses[s.SubjectID]);
+    }
+
+    /// <summary>
+    /// Suggestions for every active student of a program (optionally one year level), for end-of-year promotion.
+    /// Loads all attempts at once instead of per subject; the status rule is the same <see cref="ClassifyAttempts"/>.
+    /// </summary>
+    public async Task<List<StudentYearLevelSuggestionDto>> GetYearLevelSuggestionsAsync(int programId, int? yearLevel)
+    {
+        var students = await _context.UserDetails
+            .AsNoTracking()
+            .Where(ud => ud.ProgramID == programId && ud.YearLevel != null &&
+                         ud.User != null && ud.User.Role == RoleUtils.Student && ud.User.IsActive &&
+                         (yearLevel == null || ud.YearLevel == yearLevel))
+            .ToListAsync();
+        if (students.Count == 0)
+        {
+            return new List<StudentYearLevelSuggestionDto>();
+        }
+
+        var programSubjects = await _context.Subjects.AsNoTracking().Where(s => s.ProgramID == programId).ToListAsync();
+        var subjectIds = programSubjects.Select(s => s.SubjectID).ToList();
+        var userIds = students.Select(s => s.UserID).ToList();
+
+        var attempts = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => userIds.Contains(sl.UserID) && sl.Class != null && subjectIds.Contains(sl.Class.SubjectID))
+            .Select(sl => new { sl.StudyLoadID, sl.UserID, SubjectID = sl.Class!.SubjectID, sl.LoadStatus })
+            .ToListAsync();
+        var loadIds = attempts.Select(a => a.StudyLoadID).ToList();
+        var remarks = await _context.Grades
+            .AsNoTracking()
+            .Where(g => loadIds.Contains(g.StudyLoadID))
+            .ToDictionaryAsync(g => g.StudyLoadID, g => g.Remarks);
+        var credited = (await _context.CreditedSubjects
+                .AsNoTracking()
+                .Where(c => userIds.Contains(c.UserID) && subjectIds.Contains(c.SubjectID))
+                .Select(c => new { c.UserID, c.SubjectID })
+                .ToListAsync())
+            .Select(c => (c.UserID, c.SubjectID))
+            .ToHashSet();
+        var attemptsBy = attempts.ToLookup(a => (a.UserID, a.SubjectID));
+
+        var result = new List<StudentYearLevelSuggestionDto>();
+        foreach (var student in students.OrderBy(s => s.YearLevel).ThenBy(s => s.Lastname).ThenBy(s => s.Firstname))
+        {
+            var suggestion = BuildYearLevelSuggestion(student.YearLevel!.Value, programSubjects, subject =>
+                ClassifyAttempts(
+                    credited.Contains((student.UserID, subject.SubjectID)),
+                    attemptsBy[(student.UserID, subject.SubjectID)]
+                        .Select(a => (a.LoadStatus, remarks.TryGetValue(a.StudyLoadID, out var r) ? r : null))));
+
+            result.Add(new StudentYearLevelSuggestionDto
+            {
+                UserId = student.UserID,
+                FullName = $"{student.Firstname} {student.Lastname}".Trim(),
+                Lrn = student.LRN,
+                Suggestion = suggestion
+            });
+        }
+        return result;
+    }
+
+    /// <summary>Sets several students' year levels at once. All-or-nothing: one invalid entry saves nothing.</summary>
+    public async Task<int> ApplyYearLevelsAsync(List<YearLevelChangeDto> changes)
+    {
+        if (changes.Count == 0)
+        {
+            return 0;
+        }
+        if (changes.Select(c => c.UserId).Distinct().Count() != changes.Count)
+        {
+            throw new InvalidOperationException("Each student may appear only once.");
+        }
+        var bad = changes.FirstOrDefault(c => c.YearLevel < 1 || c.YearLevel > 5);
+        if (bad != null)
+        {
+            throw new InvalidOperationException("Year level must be between 1 and 5.");
+        }
+
+        var ids = changes.Select(c => c.UserId).ToList();
+        var details = await _context.UserDetails
+            .Include(ud => ud.User)
+            .Where(ud => ids.Contains(ud.UserID))
+            .ToListAsync();
+        var students = details.Where(ud => ud.User?.Role == RoleUtils.Student).ToDictionary(ud => ud.UserID);
+        if (students.Count != changes.Count)
+        {
+            throw new KeyNotFoundException("One or more students were not found.");
+        }
+
+        foreach (var change in changes)
+        {
+            var ud = students[change.UserId];
+            _logger.LogInformation("Bulk YearLevel update: UserID={UserId}, Old={Old}, New={New}", ud.UserID, ud.YearLevel, change.YearLevel);
+            ud.YearLevel = change.YearLevel;
+        }
+        await _context.SaveChangesAsync();
+        return changes.Count;
+    }
+
+    private static YearLevelSuggestionDto BuildYearLevelSuggestion(
+        int current, List<Subject> programSubjects, Func<Subject, SubjectCompletionStatus> statusOf)
+    {
         var result = new YearLevelSuggestionDto { CurrentYearLevel = current, SuggestedYearLevel = current };
         int finalYear = programSubjects.Count > 0 ? programSubjects.Max(s => s.YearLevel) : current;
         result.IsFinalYear = current >= finalYear;
@@ -670,8 +781,7 @@ public class StudyLoadService : IStudyLoadService
             result.TotalUnits += units;
             if (!s.IsMinor) result.TotalMajorUnits += units;
 
-            var satisfaction = await HasSatisfiedSubjectAsync(userId, s.SubjectID);
-            switch (satisfaction.Status)
+            switch (statusOf(s))
             {
                 case SubjectCompletionStatus.Passed:
                     result.PassedSubjects++;
@@ -978,6 +1088,25 @@ public class StudyLoadService : IStudyLoadService
         }
 
         return findings;
+    }
+
+    /// <summary>
+    /// The pass/fail rule for one subject, given whether it is credited and the student's study loads of it
+    /// (load status and final-grade remarks). Pending and Rejected loads are not evidence; a pass anywhere wins.
+    /// </summary>
+    private static SubjectCompletionStatus ClassifyAttempts(bool credited, IEnumerable<(int LoadStatus, int? Remarks)> attempts)
+    {
+        if (credited) return SubjectCompletionStatus.Passed;
+
+        var counted = attempts
+            .Where(a => a.LoadStatus != StudyLoadStatus.Pending && a.LoadStatus != StudyLoadStatus.Rejected)
+            .ToList();
+        if (counted.Any(a => a.LoadStatus == StudyLoadStatus.Enrolled && a.Remarks == 1)) return SubjectCompletionStatus.Passed;
+        if (counted.Any(a => a.LoadStatus == StudyLoadStatus.Enrolled && a.Remarks is not (1 or 2))) return SubjectCompletionStatus.InProgress;
+        if (counted.Any(a => a.LoadStatus == StudyLoadStatus.Enrolled && a.Remarks == 2)) return SubjectCompletionStatus.Failed;
+        if (counted.Any(a => a.LoadStatus == StudyLoadStatus.Dropped || a.LoadStatus == StudyLoadStatus.Withdrawn))
+            return SubjectCompletionStatus.DroppedOrWithdrawn;
+        return SubjectCompletionStatus.NeverTaken;
     }
 
     private async Task<SubjectSatisfactionResult> HasSatisfiedSubjectAsync(Guid userId, Guid subjectId)

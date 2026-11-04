@@ -276,4 +276,125 @@ public class YearLevelSuggestionTests : IDisposable
         Assert.Equal(0m, r.TotalMajorUnits);
         Assert.Equal(3, r.SuggestedYearLevel);
     }
+
+    // ── Whole-program list and bulk apply ───────────────────────────
+
+    private async Task<Guid> AddStudent(string first, int year, int program = 1, bool active = true, int role = RoleUtils.Student)
+    {
+        var id = Guid.NewGuid();
+        _context.Users.Add(new User { UserID = id, FirebaseUID = "fb-" + id, Email = id + "@x.com", Role = role, IsActive = active });
+        _context.UserDetails.Add(new UserDetails { UserDetailID = Guid.NewGuid(), UserID = id, Firstname = first, Lastname = "Z", ProgramID = program, YearLevel = year });
+        await _context.SaveChangesAsync();
+        return id;
+    }
+
+    private static void AssertSame(YearLevelSuggestionDto a, YearLevelSuggestionDto b)
+    {
+        Assert.Equal(a.SuggestedYearLevel, b.SuggestedYearLevel);
+        Assert.Equal(a.PassedUnits, b.PassedUnits);
+        Assert.Equal(a.PassedMajorUnits, b.PassedMajorUnits);
+        Assert.Equal(a.UngradedSubjects, b.UngradedSubjects);
+        Assert.Equal(a.FailedSubjectCodes, b.FailedSubjectCodes);
+        Assert.Equal(a.NotTakenSubjectCodes, b.NotTakenSubjectCodes);
+        Assert.Equal(a.Reason, b.Reason);
+    }
+
+    [Fact]
+    public async Task List_GivesTheSameAnswerAsTheSingleStudentCheck()
+    {
+        // Retake passed, pending, dropped, ungraded and credited attempts all mixed together.
+        await Took("IT 101", 2);
+        await Took("IT 101", 1);
+        await Took("IT 102", null);
+        await Took("GEC 101", 1, StudyLoadStatus.Pending);
+        await Took("THEO 101", 1, StudyLoadStatus.Dropped);
+        _context.CreditedSubjects.Add(new CreditedSubject
+        {
+            CreditedSubjectID = Guid.NewGuid(), UserID = _studentId, SubjectID = _subjects["GEC 101"].SubjectID,
+            SourceSchool = "Other", RecordedByUserID = _studentId, RecordedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var single = await _service.GetYearLevelSuggestionAsync(_studentId);
+        var row = Assert.Single(await _service.GetYearLevelSuggestionsAsync(1, null));
+
+        Assert.Equal(_studentId, row.UserId);
+        Assert.Equal("Ana Cruz", row.FullName);
+        AssertSame(single, row.Suggestion);
+    }
+
+    [Fact]
+    public async Task List_OnlyActiveStudentsOfTheProgram_AndOptionalYear()
+    {
+        var second = await AddStudent("Ben", 2);
+        await AddStudent("Inactive", 1, active: false);
+        await AddStudent("OtherProgram", 1, program: 2);
+        await AddStudent("Teacher", 1, role: RoleUtils.Teacher);
+
+        var all = await _service.GetYearLevelSuggestionsAsync(1, null);
+        Assert.Equal(new[] { _studentId, second }, all.Select(r => r.UserId));
+
+        var year2 = await _service.GetYearLevelSuggestionsAsync(1, 2);
+        Assert.Equal(second, Assert.Single(year2).UserId);
+    }
+
+    [Fact]
+    public async Task Apply_UpdatesAllListedStudents()
+    {
+        var second = await AddStudent("Ben", 2);
+
+        var updated = await _service.ApplyYearLevelsAsync(new List<YearLevelChangeDto>
+        {
+            new() { UserId = _studentId, YearLevel = 2 },
+            new() { UserId = second, YearLevel = 3 },
+        });
+
+        Assert.Equal(2, updated);
+        Assert.Equal(2, (await _context.UserDetails.AsNoTracking().FirstAsync(u => u.UserID == _studentId)).YearLevel);
+        Assert.Equal(3, (await _context.UserDetails.AsNoTracking().FirstAsync(u => u.UserID == second)).YearLevel);
+    }
+
+    [Fact]
+    public async Task Apply_OneBadEntry_SavesNothing()
+    {
+        var teacher = await AddStudent("Teacher", 1, role: RoleUtils.Teacher);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.ApplyYearLevelsAsync(new List<YearLevelChangeDto>
+        {
+            new() { UserId = _studentId, YearLevel = 2 },
+            new() { UserId = _studentId, YearLevel = 3 },
+        }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.ApplyYearLevelsAsync(new List<YearLevelChangeDto>
+        {
+            new() { UserId = _studentId, YearLevel = 6 },
+        }));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.ApplyYearLevelsAsync(new List<YearLevelChangeDto>
+        {
+            new() { UserId = _studentId, YearLevel = 2 },
+            new() { UserId = teacher, YearLevel = 2 },
+        }));
+
+        Assert.Equal(1, (await _context.UserDetails.AsNoTracking().FirstAsync(u => u.UserID == _studentId)).YearLevel);
+    }
+
+    [Fact]
+    public async Task Controller_BulkEndpoints_AreRegistrarOnly_AndMapErrors()
+    {
+        var t = typeof(StudyLoadsController);
+        Assert.NotEmpty(t.GetMethod(nameof(StudyLoadsController.GetYearLevelSuggestions))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
+        Assert.NotEmpty(t.GetMethod(nameof(StudyLoadsController.ApplyYearLevels))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
+
+        Assert.IsType<OkObjectResult>(await _controller.ApplyYearLevels(new ApplyYearLevelsRequestDto
+        {
+            Changes = { new YearLevelChangeDto { UserId = _studentId, YearLevel = 2 } }
+        }));
+        Assert.IsType<BadRequestObjectResult>(await _controller.ApplyYearLevels(new ApplyYearLevelsRequestDto
+        {
+            Changes = { new YearLevelChangeDto { UserId = _studentId, YearLevel = 0 } }
+        }));
+        Assert.IsType<NotFoundObjectResult>(await _controller.ApplyYearLevels(new ApplyYearLevelsRequestDto
+        {
+            Changes = { new YearLevelChangeDto { UserId = Guid.NewGuid(), YearLevel = 2 } }
+        }));
+    }
 }

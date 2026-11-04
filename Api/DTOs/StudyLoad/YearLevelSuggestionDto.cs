@@ -22,3 +22,23 @@ public class YearLevelSuggestionDto
     public bool IsFinalYear { get; set; }
     public string Reason { get; set; } = string.Empty;
 }
+
+/// <summary>One row of the end-of-year promotion list.</summary>
+public class StudentYearLevelSuggestionDto
+{
+    public Guid UserId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string? Lrn { get; set; }
+    public YearLevelSuggestionDto Suggestion { get; set; } = new();
+}
+
+public class YearLevelChangeDto
+{
+    public Guid UserId { get; set; }
+    public int YearLevel { get; set; }
+}
+
+public class ApplyYearLevelsRequestDto
+{
+    public List<YearLevelChangeDto> Changes { get; set; } = new();
+}
