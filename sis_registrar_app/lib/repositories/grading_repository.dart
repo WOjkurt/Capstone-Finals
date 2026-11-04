@@ -304,3 +304,52 @@ class CreditedSubjectRepository {
     }
   }
 }
+
+/// End-of-year promotion: suggestions for a whole program, and saving many year levels at once.
+class PromotionRepository {
+  final AuthService _auth;
+  final http.Client _client;
+  PromotionRepository(this._auth, {http.Client? client})
+      : _client = client ?? http.Client();
+
+  Future<List<StudentPromotionModel>> getSuggestions(
+      {required int programId, int? yearLevel}) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/studyloads/year-level-suggestions').replace(
+        queryParameters: {
+          'programId': '$programId',
+          if (yearLevel != null) 'yearLevel': '$yearLevel',
+        },
+      ),
+      headers: headers,
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => StudentPromotionModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// [changes] maps userId to the new year level. Returns how many were updated.
+  Future<int> applyYearLevels(Map<String, int> changes) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/studyloads/apply-year-levels'),
+      headers: headers,
+      body: jsonEncode({
+        'changes': [
+          for (final e in changes.entries) {'userId': e.key, 'yearLevel': e.value}
+        ],
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['updated'] as int? ?? 0;
+  }
+}

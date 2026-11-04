@@ -208,6 +208,9 @@ class YearLevelSuggestionModel {
   final bool isFinalYear;
   final String reason;
   final List<String> failedSubjectCodes;
+  final double passedUnits;
+  final double totalUnits;
+  final int ungradedSubjects;
 
   const YearLevelSuggestionModel({
     required this.currentYearLevel,
@@ -215,7 +218,12 @@ class YearLevelSuggestionModel {
     required this.isFinalYear,
     required this.reason,
     this.failedSubjectCodes = const [],
+    this.passedUnits = 0,
+    this.totalUnits = 0,
+    this.ungradedSubjects = 0,
   });
+
+  bool get movesUp => suggestedYearLevel > currentYearLevel;
 
   factory YearLevelSuggestionModel.fromJson(Map<String, dynamic> json) {
     return YearLevelSuggestionModel(
@@ -225,6 +233,9 @@ class YearLevelSuggestionModel {
       reason: json['reason'] as String? ?? '',
       failedSubjectCodes:
           (json['failedSubjectCodes'] as List?)?.cast<String>() ?? const [],
+      passedUnits: (json['passedUnits'] as num?)?.toDouble() ?? 0,
+      totalUnits: (json['totalUnits'] as num?)?.toDouble() ?? 0,
+      ungradedSubjects: (json['ungradedSubjects'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -345,6 +356,31 @@ class CreditedSubjectModel {
       grade: json['grade'] as String?,
       schoolYear: json['schoolYear'] as String?,
       recordedBy: json['recordedBy'] as String?,
+    );
+  }
+}
+
+/// One row of the end-of-year promotion list.
+class StudentPromotionModel {
+  final String userId;
+  final String fullName;
+  final String? lrn;
+  final YearLevelSuggestionModel suggestion;
+
+  const StudentPromotionModel({
+    required this.userId,
+    required this.fullName,
+    this.lrn,
+    required this.suggestion,
+  });
+
+  factory StudentPromotionModel.fromJson(Map<String, dynamic> json) {
+    return StudentPromotionModel(
+      userId: json['userId']?.toString() ?? '',
+      fullName: json['fullName'] as String? ?? '',
+      lrn: json['lrn'] as String?,
+      suggestion: YearLevelSuggestionModel.fromJson(
+          json['suggestion'] as Map<String, dynamic>),
     );
   }
 }
