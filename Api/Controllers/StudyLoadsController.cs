@@ -62,16 +62,34 @@ public class StudyLoadsController : ControllerBase
 
         try
         {
+            bool pending = callerRole == RoleUtils.CollegeHead || dto.AsPending;
+            var changes = this.LoadChanges();
+            // Enrolling more subjects for a student who is already enrolled this term is an "add".
+            bool isAdd = !pending && changes != null && await changes.IsEnrolledInTermAsync(dto.UserId, dto.TermId);
+            if (isAdd && string.IsNullOrWhiteSpace(dto.ChangeReason))
+            {
+                return BadRequest(new { message = AddReasonRequired });
+            }
+
             var startedAt = DateTime.UtcNow;
             var result = await _studyLoadService.EnrollBatchAsync(dto, createdByUserId, callerRole);
+
+            if (isAdd)
+            {
+                foreach (var r in result.Where(r => r.Enrolled && r.StudyLoadId.HasValue))
+                {
+                    await changes!.RecordAddedIfNewAsync(r.StudyLoadId!.Value, startedAt, dto.ChangeReason, createdByUserId);
+                }
+            }
 
             var log = this.ActivityLog();
             int saved = result.Count(r => r.Enrolled);
             if (log != null && saved > 0)
             {
-                bool pending = callerRole == RoleUtils.CollegeHead || dto.AsPending;
                 await log.LogAsync(createdByUserId, ActivityActions.LoadsSaved,
-                    pending ? $"Saved {saved} subject(s) as Pending" : $"Enrolled {saved} subject(s)",
+                    pending ? $"Saved {saved} subject(s) as Pending"
+                    : isAdd ? $"Added {saved} subject(s) after enrollment: {dto.ChangeReason!.Trim()}"
+                    : $"Enrolled {saved} subject(s)",
                     dto.UserId, dto.TermId);
                 var overload = await log.RecentOverloadAsync(dto.UserId, dto.TermId, createdByUserId, startedAt);
                 if (overload.HasValue)
@@ -106,7 +124,21 @@ public class StudyLoadsController : ControllerBase
 
         try
         {
+            var changes = this.LoadChanges();
+            var termId = changes != null ? await changes.TermOfClassAsync(dto.ClassId) : null;
+            bool isAdd = callerRole != RoleUtils.CollegeHead && !dto.AsPending && termId.HasValue &&
+                         await changes!.IsEnrolledInTermAsync(dto.UserId, termId.Value);
+            if (isAdd && string.IsNullOrWhiteSpace(dto.ChangeReason))
+            {
+                return BadRequest(new { message = AddReasonRequired });
+            }
+
+            var startedAt = DateTime.UtcNow;
             var result = await _studyLoadService.EnrollSingleAsync(dto, createdByUserId, callerRole);
+            if (isAdd && result.Success && result.StudyLoadId.HasValue)
+            {
+                await changes!.RecordAddedIfNewAsync(result.StudyLoadId.Value, startedAt, dto.ChangeReason, createdByUserId);
+            }
 
             var log = this.ActivityLog();
             if (log != null && result.Success && result.StudyLoadId.HasValue)
@@ -118,7 +150,9 @@ public class StudyLoadsController : ControllerBase
                         dto.Force ? ActivityActions.ForcedEnrollment : ActivityActions.LoadsSaved,
                         dto.Force
                             ? $"Forced {load.Value.Label}: {dto.ForceReason}"
-                            : $"Added {load.Value.Label} as {ActivityLogControllerExtensions.LoadStatusText(load.Value.Status)}",
+                            : isAdd
+                                ? $"Added {load.Value.Label} after enrollment: {dto.ChangeReason!.Trim()}"
+                                : $"Added {load.Value.Label} as {ActivityLogControllerExtensions.LoadStatusText(load.Value.Status)}",
                         load.Value.StudentId, load.Value.TermId);
                 }
             }
@@ -270,15 +304,36 @@ public class StudyLoadsController : ControllerBase
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStudyLoadStatusDto dto)
     {
         int? callerRole = HttpContext.Items.TryGetValue("role", out var roleObj) && roleObj is int role ? role : null;
+        if ((dto.LoadStatus == StudyLoadStatus.Dropped || dto.LoadStatus == StudyLoadStatus.Withdrawn) &&
+            string.IsNullOrWhiteSpace(dto.Reason))
+        {
+            return BadRequest(new { message = "Give a reason for dropping or withdrawing the subject." });
+        }
         try
         {
             var log = this.ActivityLog();
+            var changes = this.LoadChanges();
             var before = log != null ? await log.DescribeLoadAsync(id) : null;
+            var oldStatus = changes != null ? await changes.StatusOfAsync(id) : null;
             var result = await _studyLoadService.UpdateStatusAsync(id, dto.LoadStatus, callerRole);
+
+            var kind = dto.LoadStatus switch
+            {
+                StudyLoadStatus.Dropped => StudyLoadChangeKinds.Dropped,
+                StudyLoadStatus.Withdrawn => StudyLoadChangeKinds.Withdrawn,
+                StudyLoadStatus.Enrolled when oldStatus is StudyLoadStatus.Dropped or StudyLoadStatus.Withdrawn => StudyLoadChangeKinds.Reenrolled,
+                _ => null
+            };
+            if (changes != null && kind != null && oldStatus != dto.LoadStatus)
+            {
+                await changes.RecordAsync(id, kind, dto.Reason, this.CallerId());
+            }
+
             if (log != null && before.HasValue && before.Value.Status != dto.LoadStatus)
             {
+                var why = string.IsNullOrWhiteSpace(dto.Reason) ? "" : $" ({dto.Reason.Trim()})";
                 await log.LogAsync(this.CallerId(), ActivityActions.LoadStatusChanged,
-                    $"{before.Value.Label}: {ActivityLogControllerExtensions.LoadStatusText(before.Value.Status)} -> {ActivityLogControllerExtensions.LoadStatusText(dto.LoadStatus)}",
+                    $"{before.Value.Label}: {ActivityLogControllerExtensions.LoadStatusText(before.Value.Status)} -> {ActivityLogControllerExtensions.LoadStatusText(dto.LoadStatus)}{why}",
                     before.Value.StudentId, before.Value.TermId);
             }
             return Ok(result);
@@ -295,6 +350,17 @@ public class StudyLoadsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    private const string AddReasonRequired = "This student is already enrolled for the term. Give a reason for adding the subject.";
+
+    /// <summary>Subjects added, dropped, withdrawn or re-enrolled after enrollment (the Adding/Dropping form).</summary>
+    [HttpGet("changes")]
+    [RequireRegistrarCollegeHeadOrAdmin]
+    public async Task<IActionResult> GetChanges([FromQuery] Guid userId, [FromQuery] Guid termId)
+    {
+        var changes = this.LoadChanges();
+        return Ok(changes == null ? new List<StudyLoadChangeDto>() : await changes.GetAsync(userId, termId));
     }
 
     [HttpGet("student/{userId:guid}")]

@@ -727,6 +727,46 @@ namespace Api.Migrations
                     b.ToTable("StudyLoads");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.StudyLoadChange", b =>
+                {
+                    b.Property<Guid>("ChangeID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ChangedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("StudyLoadID")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TermID")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ChangeID");
+
+                    b.HasIndex("StudyLoadID");
+
+                    b.HasIndex("UserID", "TermID")
+                        .HasDatabaseName("IX_StudyLoadChanges_UserID_TermID");
+
+                    b.ToTable("StudyLoadChanges");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.Subject", b =>
                 {
                     b.Property<Guid>("SubjectID")
@@ -1240,6 +1280,17 @@ namespace Api.Migrations
                     b.Navigation("ForcedByUser");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.StudyLoadChange", b =>
+                {
+                    b.HasOne("Api.Domain.Enrollment.StudyLoad", "StudyLoad")
+                        .WithMany()
+                        .HasForeignKey("StudyLoadID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StudyLoad");
                 });
 
             modelBuilder.Entity("Api.Domain.Enrollment.Subject", b =>

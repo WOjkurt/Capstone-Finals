@@ -67,7 +67,10 @@ public class ActivityLogTests : IDisposable
     {
         var http = new DefaultHttpContext
         {
-            RequestServices = new ServiceCollection().AddSingleton<IActivityLogService>(_log).BuildServiceProvider()
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IActivityLogService>(_log)
+                .AddSingleton<IStudyLoadChangeService>(new StudyLoadChangeService(_context))
+                .BuildServiceProvider()
         };
         http.Items["user_id"] = _registrar;
         http.Items["role"] = RoleUtils.Registrar;
@@ -131,6 +134,51 @@ public class ActivityLogTests : IDisposable
     }
 
     [Fact]
+    public async Task AddingAfterEnrollment_NeedsAReason_AndIsRecorded()
+    {
+        var controller = StudyLoadsController();
+        // First enrollment for the term: no reason needed, nothing recorded as an add.
+        Assert.IsType<OkObjectResult>(await controller.EnrollBatch(new EnrollBatchRequestDto { UserId = _student, TermId = _term, ClassIds = { await OpenClass("IT 101") } }));
+        Assert.Empty(_context.StudyLoadChanges);
+
+        var it102 = await OpenClass("IT 102");
+        var refused = Assert.IsType<BadRequestObjectResult>(await controller.EnrollBatch(new EnrollBatchRequestDto { UserId = _student, TermId = _term, ClassIds = { it102 } }));
+        Assert.Contains("reason", refused.Value!.ToString()!);
+        Assert.IsType<BadRequestObjectResult>(await controller.EnrollSingle(new EnrollSingleRequestDto { UserId = _student, ClassId = it102 }));
+
+        Assert.IsType<OkObjectResult>(await controller.EnrollBatch(new EnrollBatchRequestDto { UserId = _student, TermId = _term, ClassIds = { it102 }, ChangeReason = "Late add, approved" }));
+        Assert.IsType<OkObjectResult>(await controller.EnrollSingle(new EnrollSingleRequestDto { UserId = _student, ClassId = await OpenClass("IT 103"), ChangeReason = "Retake" }));
+        // Asking again for a class the student already has is not a new add.
+        Assert.IsType<OkObjectResult>(await controller.EnrollSingle(new EnrollSingleRequestDto { UserId = _student, ClassId = it102, ChangeReason = "again" }));
+
+        var changes = Assert.IsType<List<StudyLoadChangeDto>>(Assert.IsType<OkObjectResult>(await controller.GetChanges(_student, _term)).Value);
+        Assert.Equal(new[] { ("Added", "IT 102", "Late add, approved"), ("Added", "IT 103", "Retake") },
+            changes.Select(c => (c.Kind, c.SubjectCode, c.Reason)));
+        Assert.All(changes, c => Assert.Equal("Rita Reg", c.ChangedBy));
+        Assert.Contains(await Entries(), e => e.Summary == "Added 1 subject(s) after enrollment: Late add, approved");
+    }
+
+    [Fact]
+    public async Task DropAndWithdraw_NeedAReason_AndReenrollIsRecorded()
+    {
+        var controller = StudyLoadsController();
+        await controller.EnrollBatch(new EnrollBatchRequestDto { UserId = _student, TermId = _term, ClassIds = { await OpenClass("IT 101"), await OpenClass("IT 102") } });
+        var loads = await _context.StudyLoads.AsNoTracking().ToListAsync();
+
+        Assert.IsType<BadRequestObjectResult>(await controller.UpdateStatus(loads[0].StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Dropped, Reason = "  " }));
+        Assert.IsType<BadRequestObjectResult>(await controller.UpdateStatus(loads[1].StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Withdrawn }));
+        Assert.Equal(StudyLoadStatus.Enrolled, (await _context.StudyLoads.AsNoTracking().FirstAsync(l => l.StudyLoadID == loads[0].StudyLoadID)).LoadStatus);
+
+        await controller.UpdateStatus(loads[0].StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Dropped, Reason = "Schedule conflict" });
+        await controller.UpdateStatus(loads[1].StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Withdrawn, Reason = "Medical" });
+        await controller.UpdateStatus(loads[0].StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Enrolled });
+
+        var changes = await new StudyLoadChangeService(_context).GetAsync(_student, _term);
+        Assert.Equal(new[] { ("Dropped", "Schedule conflict"), ("Withdrawn", "Medical"), ("Re-enrolled", (string?)null) },
+            changes.Select(c => (c.Kind, c.Reason)));
+    }
+
+    [Fact]
     public async Task FinalizeAndDrop_AreLogged()
     {
         var classId = await OpenClass("IT 101");
@@ -139,11 +187,11 @@ public class ActivityLogTests : IDisposable
         var loadId = (await _context.StudyLoads.FirstAsync()).StudyLoadID;
 
         Assert.IsType<OkObjectResult>(await controller.FinalizeBatch(new FinalizeStudyLoadsRequestDto { UserId = _student, TermId = _term }));
-        Assert.IsType<OkObjectResult>(await controller.UpdateStatus(loadId, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Dropped }));
+        Assert.IsType<OkObjectResult>(await controller.UpdateStatus(loadId, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Dropped, Reason = "Schedule conflict" }));
 
         var entries = await Entries();
         Assert.Equal("Finalized 1 subject(s): IT 101", entries.Single(e => e.Action == ActivityActions.LoadsFinalized).Summary);
-        Assert.Equal("IT 101 (BSIT 1A): Enrolled -> Dropped", entries.Single(e => e.Action == ActivityActions.LoadStatusChanged).Summary);
+        Assert.Equal("IT 101 (BSIT 1A): Enrolled -> Dropped (Schedule conflict)", entries.Single(e => e.Action == ActivityActions.LoadStatusChanged).Summary);
     }
 
     [Fact]

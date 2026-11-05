@@ -10,4 +10,8 @@ public class EnrollBatchRequestDto
     /// <summary>Required when the save takes the student over the term's unit limit; recorded as the overload approval.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(Api.Constants.ValidationConstants.NotesMax)]
     public string? OverloadReason { get; set; }
+
+    /// <summary>Why subjects are added after the student is already enrolled for the term. Required in that case.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(500)]
+    public string? ChangeReason { get; set; }
 }

@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<CreditedSubject> CreditedSubjects { get; set; }
     public DbSet<StudentPersonalDetails> StudentPersonalDetails { get; set; }
     public DbSet<AccreditedSchool> AccreditedSchools { get; set; }
+    public DbSet<StudyLoadChange> StudyLoadChanges { get; set; }
     public DbSet<Api.Domain.Audit.ActivityLog> ActivityLogs { get; set; }
 
     // IdentityAccess
@@ -342,6 +343,15 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(c => c.RecordedByUserID)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StudyLoadChange>(entity =>
+        {
+            entity.HasOne(c => c.StudyLoad)
+                .WithMany()
+                .HasForeignKey(c => c.StudyLoadID)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(c => new { c.UserID, c.TermID }).HasDatabaseName("IX_StudyLoadChanges_UserID_TermID");
         });
 
         modelBuilder.Entity<AccreditedSchool>(entity =>

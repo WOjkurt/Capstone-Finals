@@ -8,6 +8,10 @@ public class UpdateStudyLoadStatusDto : IValidatableObject
 {
     public int LoadStatus { get; set; }
 
+    /// <summary>Why the subject is dropped, withdrawn or re-enrolled. Required to drop or withdraw an Enrolled subject.</summary>
+    [MaxLength(500)]
+    public string? Reason { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (LoadStatus == StudyLoadStatus.Pending)

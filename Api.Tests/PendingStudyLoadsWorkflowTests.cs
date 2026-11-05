@@ -510,7 +510,7 @@ public class PendingStudyLoadsWorkflowTests : IDisposable
         _clearanceMock.Verify(c => c.EnsureClearanceAsync(student.UserID, _term.TermID), Times.Once);
 
         // 2. Pending -> Dropped: works without error (rejection)
-        var patch2 = await _studyLoadsController.UpdateStatus(sl2.StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Dropped });
+        var patch2 = await _studyLoadsController.UpdateStatus(sl2.StudyLoadID, new UpdateStudyLoadStatusDto { LoadStatus = StudyLoadStatus.Dropped, Reason = "Student request" });
         Assert.IsType<OkObjectResult>(patch2);
         var inDb2 = await _context.StudyLoads.FindAsync(sl2.StudyLoadID);
         Assert.Equal(StudyLoadStatus.Dropped, inDb2!.LoadStatus);
