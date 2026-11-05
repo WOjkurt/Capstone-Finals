@@ -300,6 +300,60 @@ public class StudentEvaluationTests : IDisposable
     }
 
     [Fact]
+    public async Task Shift_MovesTheProgram_KeepsTheRecord_AndReportsOpenLoads()
+    {
+        await Take("IT 101", _sem1, StudyLoadStatus.Enrolled, 2.0m);
+        await Take("IT 102", _sem2, StudyLoadStatus.Enrolled);        // taking it now
+        await Take("IT 103", _sem2, StudyLoadStatus.Pending);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _records.ShiftProgramAsync(_student, new Api.DTOs.Records.ShiftProgramDto { ProgramId = 2, Reason = " " }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _records.ShiftProgramAsync(_student, new Api.DTOs.Records.ShiftProgramDto { ProgramId = 1, Reason = "x" }));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _records.ShiftProgramAsync(_student, new Api.DTOs.Records.ShiftProgramDto { ProgramId = 99, Reason = "x" }));
+
+        var r = await _records.ShiftProgramAsync(_student, new Api.DTOs.Records.ShiftProgramDto { ProgramId = 2, Reason = "Changed course" });
+
+        Assert.Equal(("BSIT", "BSME", 1, 1), (r.FromProgramCode, r.ProgramCode, r.InProgressSubjects, r.PendingSubjects));
+        var e = await _records.GetEvaluationAsync(_student);
+        Assert.Equal("BSME", e.ProgramCode);
+        Assert.Equal(new[] { "ME 101" }, e.Subjects.Select(s => s.SubjectCode));
+        var t = await _records.GetTranscriptAsync(_student);
+        Assert.Contains(t.Terms.SelectMany(x => x.Rows), row => row.SubjectCode == "IT 101" && row.Final == "2.00");
+    }
+
+    [Fact]
+    public async Task PreviousProgramSubjects_SuggestMatchesByCodeThenTitle()
+    {
+        // BSME has its own "IT 101" (same code) and a subject with IT 103's title under another code.
+        AddSubject("IT 101", 1, 1, 2, 0, program: 2);
+        var sameTitle = new Subject { SubjectID = Guid.NewGuid(), SubjectCode = "ME 103", SubjectTitle = "IT 103 title", LecUnits = 3, ProgramID = 2, YearLevel = 1, DefaultSemester = 1 };
+        _context.Subjects.Add(sameTitle);
+        await _context.SaveChangesAsync();
+        var bsmeIt101 = _subjects["IT 101"];
+        var bsitIt101 = await _context.Subjects.FirstAsync(s => s.SubjectCode == "IT 101" && s.ProgramID == 1);
+        _subjects["IT 101"] = bsitIt101;
+
+        await Take("IT 101", _sem1, StudyLoadStatus.Enrolled, 5.0m);
+        await Take("IT 101", _sem2, StudyLoadStatus.Enrolled, 2.25m);  // retake passed
+        await Take("IT 102", _sem1, StudyLoadStatus.Enrolled, 5.0m);   // failed only: not offered
+        await Take("IT 103", _sem2, StudyLoadStatus.Enrolled);         // in progress
+        await Take("IT 104", _sem1, StudyLoadStatus.Enrolled, 1.5m);   // no match
+        await _records.ShiftProgramAsync(_student, new Api.DTOs.Records.ShiftProgramDto { ProgramId = 2, Reason = "Changed course" });
+
+        var rows = await _records.GetPreviousProgramSubjectsAsync(_student);
+
+        Assert.Equal(new[] { "IT 101", "IT 103", "IT 104" }, rows.Select(r => r.SubjectCode));
+        Assert.Equal(("Passed", 2.25m, bsmeIt101.SubjectID, 2m, "BSIT"), (rows[0].Status, rows[0].FinalGrade ?? 0, rows[0].SuggestedSubjectId ?? default, rows[0].SuggestedUnits ?? 0, rows[0].ProgramCode));
+        Assert.Equal(("InProgress", "ME 103", "2025-2026 (2nd Sem)"), (rows[1].Status, rows[1].SuggestedSubjectCode, rows[1].TermLabel));
+        Assert.Null(rows[2].SuggestedSubjectId);
+
+        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = bsmeIt101.SubjectID, SourceSchool = "DBTC", CreditedUnits = 2, RecordedByUserID = _teacher });
+        await _context.SaveChangesAsync();
+        var after = await _records.GetPreviousProgramSubjectsAsync(_student);
+        Assert.True(after.Single(r => r.SubjectCode == "IT 101").AlreadyCredited);
+        Assert.Equal("IT 101", after.Last().SubjectCode);   // already done goes last
+    }
+
+    [Fact]
     public async Task Transcript_WithoutForm_FallsBackToTheAccountName()
     {
         var t = await _records.GetTranscriptAsync(_student);

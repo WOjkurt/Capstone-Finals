@@ -76,6 +76,24 @@ public class StudentRecordsController : ControllerBase
     [HttpGet("irregular")]
     public Task<IActionResult> Irregular() => Run(() => _records.GetIrregularStudentsAsync());
 
+    /// <summary>Moves the student to another program (logged). Their subjects and grades stay on record.</summary>
+    [HttpPost("{userId:guid}/shift")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Shift(Guid userId, [FromBody] ShiftProgramDto dto)
+    {
+        var result = await Run(() => _records.ShiftProgramAsync(userId, dto));
+        var log = this.ActivityLog();
+        if (result is OkObjectResult ok && ok.Value is ShiftResultDto shift && log != null)
+        {
+            await log.LogAsync(this.CallerId(), ActivityActions.ProgramShifted,
+                $"Shifted from {shift.FromProgramCode ?? "no program"} to {shift.ProgramCode}: {dto.Reason.Trim()}", userId);
+        }
+        return result;
+    }
+
+    [HttpGet("{userId:guid}/previous-program-subjects")]
+    public Task<IActionResult> PreviousProgramSubjects(Guid userId) => Run(() => _records.GetPreviousProgramSubjectsAsync(userId));
+
     [HttpGet("{userId:guid}/standing")]
     public Task<IActionResult> Standing(Guid userId) => Run(() => _records.GetStandingAsync(userId));
 

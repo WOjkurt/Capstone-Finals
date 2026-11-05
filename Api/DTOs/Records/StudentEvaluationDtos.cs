@@ -172,3 +172,42 @@ public class IrregularStudentDto
     public decimal BackMajorUnitsPassed { get; set; }
     public bool ReadyToBeRegular { get; set; }
 }
+
+public class ShiftProgramDto
+{
+    public int ProgramId { get; set; }
+
+    [System.ComponentModel.DataAnnotations.MaxLength(500)]
+    public string Reason { get; set; } = string.Empty;
+}
+
+/// <summary>What the shift changed, and what the Registrar should look at next.</summary>
+public class ShiftResultDto
+{
+    public string? FromProgramCode { get; set; }
+    public int ProgramId { get; set; }
+    public string ProgramCode { get; set; } = string.Empty;
+    /// <summary>Old-program subjects the student is enrolled in and has no grade for yet.</summary>
+    public int InProgressSubjects { get; set; }
+    /// <summary>Old-program subjects still Pending; they may need rejecting.</summary>
+    public int PendingSubjects { get; set; }
+}
+
+/// <summary>A subject passed or being taken in a previous program, which the Registrar may credit to the current one.</summary>
+public class PreviousProgramSubjectDto
+{
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectTitle { get; set; } = string.Empty;
+    public string ProgramCode { get; set; } = string.Empty;
+    public decimal Units { get; set; }
+    /// <summary>Passed or InProgress.</summary>
+    public string Status { get; set; } = string.Empty;
+    public decimal? FinalGrade { get; set; }
+    public string SchoolYear { get; set; } = string.Empty;
+    public string TermLabel { get; set; } = string.Empty;
+    /// <summary>The current program's subject with the same code or title, if any.</summary>
+    public Guid? SuggestedSubjectId { get; set; }
+    public string? SuggestedSubjectCode { get; set; }
+    public decimal? SuggestedUnits { get; set; }
+    public bool AlreadyCredited { get; set; }
+}

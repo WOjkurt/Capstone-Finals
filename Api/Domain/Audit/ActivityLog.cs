@@ -51,11 +51,12 @@ public static class ActivityActions
     public const string ClearanceChanged = "CLEARANCE_CHANGED";
     public const string PersonalDetailsUpdated = "PERSONAL_DETAILS_UPDATED";
     public const string StandingChanged = "STANDING_CHANGED";
+    public const string ProgramShifted = "PROGRAM_SHIFTED";
 
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditRemoved, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
-        PersonalDetailsUpdated, StandingChanged
+        PersonalDetailsUpdated, StandingChanged, ProgramShifted
     };
 }

@@ -18,6 +18,8 @@ public interface IStudentRecordService
     Task<StandingDto> GetStandingAsync(Guid userId);
     Task<StandingDto> SetStandingAsync(Guid userId, bool isRegular);
     Task<List<IrregularStudentDto>> GetIrregularStudentsAsync();
+    Task<ShiftResultDto> ShiftProgramAsync(Guid userId, ShiftProgramDto dto);
+    Task<List<PreviousProgramSubjectDto>> GetPreviousProgramSubjectsAsync(Guid userId);
 }
 
 /// <summary>Read-only views of a student's academic record for the Registrar.</summary>
@@ -516,6 +518,120 @@ public class StudentRecordService : IStudentRecordService
         else if (dto.IsRegular && dto.UnresolvedSubjects.Count > 0)
             dto.Suggestion = "MarkIrregular";
         return dto;
+    }
+
+    /// <summary>
+    /// Moves the student to another program. Their study loads and grades stay as they are, so the transcript
+    /// keeps the full history; the Registrar then credits what applies to the new program.
+    /// </summary>
+    public async Task<ShiftResultDto> ShiftProgramAsync(Guid userId, ShiftProgramDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Reason))
+        {
+            throw new InvalidOperationException("Give a reason for the shift.");
+        }
+        var student = await _context.UserDetails
+            .Include(ud => ud.Program)
+            .FirstOrDefaultAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student)
+            ?? throw new KeyNotFoundException("Student not found.");
+        var program = await _context.AcademicPrograms.AsNoTracking().FirstOrDefaultAsync(p => p.ProgramID == dto.ProgramId)
+            ?? throw new KeyNotFoundException("Program not found.");
+        if (student.ProgramID == dto.ProgramId)
+        {
+            throw new InvalidOperationException($"The student is already in {program.ProgramCode}.");
+        }
+
+        var result = new ShiftResultDto
+        {
+            FromProgramCode = student.Program?.ProgramCode,
+            ProgramId = program.ProgramID,
+            ProgramCode = program.ProgramCode
+        };
+        student.ProgramID = dto.ProgramId;
+        await _context.SaveChangesAsync();
+
+        var loads = await _context.StudyLoads.AsNoTracking()
+            .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.Subject != null && sl.Class.Subject.ProgramID != dto.ProgramId &&
+                         (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Pending))
+            .Select(sl => new { sl.StudyLoadID, sl.LoadStatus })
+            .ToListAsync();
+        var ids = loads.Select(l => l.StudyLoadID).ToList();
+        var graded = (await _context.Grades.AsNoTracking()
+                .Where(g => ids.Contains(g.StudyLoadID) && g.Remarks != null)
+                .Select(g => g.StudyLoadID)
+                .ToListAsync())
+            .ToHashSet();
+        result.PendingSubjects = loads.Count(l => l.LoadStatus == StudyLoadStatus.Pending);
+        result.InProgressSubjects = loads.Count(l => l.LoadStatus == StudyLoadStatus.Enrolled && !graded.Contains(l.StudyLoadID));
+        return result;
+    }
+
+    /// <summary>
+    /// Subjects outside the student's current program that they passed or are taking, each with the current
+    /// program's matching subject (same code, else same title). The Registrar decides what to credit and how many units.
+    /// </summary>
+    public async Task<List<PreviousProgramSubjectDto>> GetPreviousProgramSubjectsAsync(Guid userId)
+    {
+        var student = await _context.UserDetails.AsNoTracking()
+            .FirstOrDefaultAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student)
+            ?? throw new KeyNotFoundException("Student not found.");
+        if (student.ProgramID == null) return new List<PreviousProgramSubjectDto>();
+
+        var attempts = await _context.StudyLoads.AsNoTracking()
+            .Where(sl => sl.UserID == userId && sl.LoadStatus == StudyLoadStatus.Enrolled &&
+                         sl.Class != null && sl.Class.Term != null && sl.Class.Subject != null &&
+                         sl.Class.Subject.ProgramID != student.ProgramID)
+            .Select(sl => new
+            {
+                sl.StudyLoadID,
+                sl.Class!.SubjectID,
+                sl.Class.Subject!.SubjectCode,
+                sl.Class.Subject.SubjectTitle,
+                ProgramCode = sl.Class.Subject.Program != null ? sl.Class.Subject.Program.ProgramCode : string.Empty,
+                Units = sl.Class.Subject.LecUnits + sl.Class.Subject.LabUnits,
+                sl.Class.Term!.SchoolYear,
+                sl.Class.Term.Semester
+            })
+            .ToListAsync();
+        var ids = attempts.Select(a => a.StudyLoadID).ToList();
+        var grades = await _context.Grades.AsNoTracking()
+            .Where(g => ids.Contains(g.StudyLoadID))
+            .ToDictionaryAsync(g => g.StudyLoadID, g => new { g.Remarks, g.FinalGrade });
+        var curriculum = await _context.Subjects.AsNoTracking().Where(s => s.ProgramID == student.ProgramID).ToListAsync();
+        var credited = (await _context.CreditedSubjects.AsNoTracking()
+                .Where(c => c.UserID == userId)
+                .Select(c => c.SubjectID)
+                .ToListAsync())
+            .ToHashSet();
+
+        var rows = new List<PreviousProgramSubjectDto>();
+        foreach (var subject in attempts.GroupBy(a => a.SubjectID))
+        {
+            var passed = subject.Where(a => grades.GetValueOrDefault(a.StudyLoadID)?.Remarks == 1)
+                .OrderBy(a => grades[a.StudyLoadID].FinalGrade).FirstOrDefault();
+            var taking = subject.FirstOrDefault(a => grades.GetValueOrDefault(a.StudyLoadID)?.Remarks is not (1 or 2));
+            var shown = passed ?? taking;
+            if (shown == null) continue;   // failed only: nothing to credit
+
+            var match = curriculum.FirstOrDefault(s => string.Equals(s.SubjectCode, shown.SubjectCode, StringComparison.OrdinalIgnoreCase))
+                ?? curriculum.FirstOrDefault(s => string.Equals(s.SubjectTitle.Trim(), shown.SubjectTitle.Trim(), StringComparison.OrdinalIgnoreCase));
+            rows.Add(new PreviousProgramSubjectDto
+            {
+                SubjectCode = shown.SubjectCode,
+                SubjectTitle = shown.SubjectTitle,
+                ProgramCode = shown.ProgramCode,
+                Units = shown.Units,
+                Status = passed != null ? "Passed" : "InProgress",
+                FinalGrade = passed != null ? grades[passed.StudyLoadID].FinalGrade : null,
+                SchoolYear = shown.SchoolYear,
+                TermLabel = TermLabel.Format(shown.SchoolYear, shown.Semester),
+                SuggestedSubjectId = match?.SubjectID,
+                SuggestedSubjectCode = match?.SubjectCode,
+                SuggestedUnits = match == null ? null : match.LecUnits + match.LabUnits,
+                AlreadyCredited = match != null && credited.Contains(match.SubjectID)
+            });
+        }
+        return rows.OrderBy(r => r.AlreadyCredited).ThenBy(r => r.SubjectCode, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>Every active irregular student with their back major units passed; those at 6 or more first.</summary>
