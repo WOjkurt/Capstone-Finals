@@ -10,6 +10,7 @@ import 'package:sis_registrar_app/models/report_models.dart';
 import 'package:sis_registrar_app/models/setup_models.dart';
 import 'package:sis_registrar_app/repositories/enrollment_repository.dart';
 import 'package:sis_registrar_app/repositories/report_repository.dart';
+import 'package:sis_registrar_app/repositories/student_record_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
 import 'package:sis_registrar_app/utils/csv.dart';
 import 'package:sis_registrar_app/utils/file_download.dart';
@@ -88,6 +89,7 @@ void main() {
   group('ReportsView', () {
     late List<String> requested;
     late List<(String, Uint8List)> downloads;
+    late List<String> sexSaved;
 
     setUp(() async {
       await getIt.reset();
@@ -95,6 +97,14 @@ void main() {
       downloads = [];
       downloadFile = (bytes, name, type) => downloads.add((name, bytes));
       getIt.registerSingleton<AcademicSetupRepository>(FakeSetupRepo());
+      sexSaved = [];
+      getIt.registerSingleton<StudentRecordRepository>(StudentRecordRepository(
+        FakeAuthService(),
+        client: MockClient((req) async {
+          sexSaved.add('${req.url.pathSegments[req.url.pathSegments.length - 2]}=${(jsonDecode(req.body) as Map)['sex']}');
+          return http.Response(jsonEncode({'saved': true}), 200);
+        }),
+      ));
       getIt.registerSingleton<ReportRepository>(ReportRepository(
         FakeAuthService(),
         client: MockClient((req) async {
@@ -103,6 +113,10 @@ void main() {
             'enrollment-summary' => [
                 {'programCode': 'BSIT', 'yearLevel': 1, 'enrolledStudents': 40, 'pendingOnlyStudents': 2},
                 {'programCode': 'BSME', 'yearLevel': 1, 'enrolledStudents': 30, 'pendingOnlyStudents': 0},
+              ],
+            'missing-sex' => [
+                {'userId': 'u7', 'studentName': 'LIM, Ben', 'programCode': 'BSIT', 'yearLevel': 1},
+                {'userId': 'u8', 'studentName': 'TAN, Cy', 'programCode': 'BSIT', 'yearLevel': 2},
               ],
             'enrollment-statistics' => [
                 {'programCode': 'BSIT', 'male': [10, 8, 6, 4], 'female': [5, 4, 3, 2], 'sexNotRecorded': 2},
@@ -159,6 +173,20 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
       await tester.pumpAndSettle();
       expect(printed, ['Enrollment_Statistics_2026_2027_1st_Sem_.pdf']);
+
+      // Fill in the missing ones: one click each saves; Done reloads the statistics.
+      await tester.tap(find.byKey(const ValueKey('fill_missing_sex_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('LIM, Ben'), findsOneWidget);
+      expect(find.text('2 student(s) left. Each choice is saved right away to the student\'s Details.'), findsOneWidget);
+      await tester.tap(find.descendant(of: find.byKey(const ValueKey('sex_choice_u7')), matching: find.text('Male')));
+      await tester.pumpAndSettle();
+      expect(sexSaved, ['u7=Male']);
+      expect(find.textContaining('1 student(s) left'), findsOneWidget);
+      final before = requested.length;
+      await tester.tap(find.byKey(const ValueKey('missing_sex_done')));
+      await tester.pumpAndSettle();
+      expect(requested.skip(before), contains('enrollment-statistics:t-now'));
     });
 
     testWidgets('switching report loads it; empty reports say so and cannot be downloaded', (tester) async {

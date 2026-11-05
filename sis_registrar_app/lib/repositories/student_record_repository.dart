@@ -22,6 +22,9 @@ class StudentRecordRepository {
   Future<PersonalDetails> savePersonalDetails(String userId, Map<String, String?> values) async =>
       PersonalDetails.fromJson(await _send('$userId/personal-details', values));
 
+  /// Saves only the student's sex ("Male" or "Female"); their other details stay as they are.
+  Future<void> setSex(String userId, String sex) => _send('$userId/sex', {'sex': sex});
+
   Future<Map<String, dynamic>> _get(String path) => _send(path, null);
 
   Future<Map<String, dynamic>> _send(String path, Object? putBody) async {

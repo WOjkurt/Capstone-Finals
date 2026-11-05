@@ -11,6 +11,7 @@ import '../utils/file_download.dart';
 import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import 'widgets/activity_log_browser.dart';
+import 'widgets/missing_sex_dialog.dart';
 import 'widgets/page_header.dart';
 
 /// The four term reports. Each tab shows a table and can be downloaded as CSV (opens in Excel).
@@ -39,7 +40,10 @@ class ReportTable {
   final List<String> headers;
   final List<List<Object?>> rows;
   final String? note;
-  const ReportTable(this.headers, this.rows, {this.note});
+
+  /// Enrolled students with no sex on record (Statistics); offers the "Fill in missing sex" list.
+  final int missingSex;
+  const ReportTable(this.headers, this.rows, {this.note, this.missingSex = 0});
 }
 
 String _num(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
@@ -180,6 +184,7 @@ class _ReportsViewState extends State<ReportsView>
             if (rows.isNotEmpty)
               cells('TOTAL', sum((r) => r.male), sum((r) => r.female)),
           ],
+          missingSex: noSex,
           note: noSex + noYear == 0
               ? null
               : '${[
@@ -456,10 +461,27 @@ class _ReportsViewState extends State<ReportsView>
           if (table.note != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                table.note!,
-                key: const ValueKey('report_note'),
-                style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      table.note!,
+                      key: const ValueKey('report_note'),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                    ),
+                  ),
+                  if (table.missingSex > 0 && _term != null)
+                    TextButton.icon(
+                      key: const ValueKey('fill_missing_sex_button'),
+                      icon: const Icon(Icons.edit_note_rounded, size: 18),
+                      label: Text('Fill in missing sex (${table.missingSex})'),
+                      onPressed: () async {
+                        final term = _term!;
+                        final changed = await MissingSexDialog.show(context, termId: term.termId, termLabel: term.label);
+                        if (changed == true) _loadReport();
+                      },
+                    ),
+                ],
               ),
             ),
           Container(

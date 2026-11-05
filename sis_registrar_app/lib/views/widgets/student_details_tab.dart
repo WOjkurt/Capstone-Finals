@@ -23,7 +23,7 @@ const _fields = [
   ('suffix', 'Suffix', 'e.g. Jr., III'),
   ('address', 'Address', 'House/Street, Barangay, City, Province'),
   ('placeOfBirth', 'Place of birth', null),
-  ('sex', 'Sex', 'Male or Female'),
+  ('sex', 'Sex', null),
   ('nationality', 'Nationality', null),
   ('entranceData', 'Entrance data', 'Last school attended before DBTC'),
   ('dateAdmitted', 'Date admitted', 'e.g. 1st Semester, 2024-2025'),
@@ -225,7 +225,26 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
   }
 
   Widget _buildForm(PersonalDetails d) {
-    Widget field(String key, String label, String? hint) => Padding(
+    Widget field(String key, String label, String? hint) => key == 'sex'
+        // A fixed choice keeps statistics and class lists exact (no "Femal" or "m").
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: DropdownButtonFormField<String>(
+              key: const ValueKey('details_sex'),
+              initialValue: const ['Male', 'Female'].contains(_c['sex']!.text) ? _c['sex']!.text : '',
+              decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), isDense: true),
+              items: [
+                DropdownMenuItem(
+                  value: '',
+                  child: Text(_data?.fromForm.contains('sex') == true ? 'Use the enrollment form' : 'Not set'),
+                ),
+                const DropdownMenuItem(value: 'Male', child: Text('Male')),
+                const DropdownMenuItem(value: 'Female', child: Text('Female')),
+              ],
+              onChanged: (v) => _c['sex']!.text = v ?? '',
+            ),
+          )
+        : Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: TextField(
             key: ValueKey('details_$key'),

@@ -10,10 +10,11 @@ class ReportRepository {
   final http.Client _client;
   ReportRepository(this._auth, {http.Client? client}) : _client = client ?? http.Client();
 
-  Future<List<Map<String, dynamic>>> _get(String report, String? termId) async {
+  Future<List<Map<String, dynamic>>> _get(String report, String? termId, {Map<String, String> extra = const {}}) async {
     final headers = await _auth.getAuthHeaders();
+    final query = {if (termId != null) 'termId': termId, ...extra};
     final res = await _client.get(
-      Uri.parse('$baseUrl/api/reports/$report').replace(queryParameters: termId == null ? null : {'termId': termId}),
+      Uri.parse('$baseUrl/api/reports/$report').replace(queryParameters: query.isEmpty ? null : query),
       headers: headers,
     );
     if (res.statusCode != 200) {
@@ -40,6 +41,13 @@ class ReportRepository {
 
   Future<List<EnrollmentStatisticsRow>> enrollmentStatistics(String termId) async =>
       (await _get('enrollment-statistics', termId)).map(EnrollmentStatisticsRow.fromJson).toList();
+
+  /// Every class of the term, or just [classId].
+  Future<List<ClassList>> classLists(String termId, {String? classId}) async =>
+      (await _get('class-lists', termId, extra: {if (classId != null) 'classId': classId})).map(ClassList.fromJson).toList();
+
+  Future<List<MissingSexRow>> studentsMissingSex(String termId) async =>
+      (await _get('missing-sex', termId)).map(MissingSexRow.fromJson).toList();
 
   /// Not tied to a term.
   Future<List<TransfereeRow>> transferees() async =>

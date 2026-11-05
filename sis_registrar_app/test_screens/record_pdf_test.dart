@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sis_registrar_app/models/class_models.dart';
 import 'package:sis_registrar_app/models/grading_models.dart';
+import 'package:sis_registrar_app/models/report_models.dart';
 import 'package:sis_registrar_app/models/record_models.dart';
 import 'package:sis_registrar_app/utils/report_pdf.dart';
 import 'package:sis_registrar_app/utils/student_record_pdf.dart';
@@ -78,6 +79,19 @@ void main() {
       note: '3 enrolled student(s) have no sex on record and are not counted above.',
       printedAt: DateTime(2026, 11, 5),
     ));
+
+    const names = ['ABELLA, Mark', 'BACALSO, Joy', 'CRUZ, Ana', 'DELA CRUZ, Paolo', 'ESPINA, Leah', 'FLORES, Jun', 'GARCIA, Mae', 'HERRERA, Rico'];
+    await File('$out/class_list.pdf').writeAsBytes(await buildClassListsPdf([
+      ClassList(
+        classId: 'c1', className: 'BTVTED 2A', subjectCode: 'FT 208', subjectTitle: 'Wood Finishing Techniques', units: 3,
+        termLabel: '2026-2027 (1st Sem)', teacherName: 'Ben Teach',
+        schedules: const ['M/W 8:00 AM - 9:30 AM · Shop 2', 'F 1:00 PM - 4:00 PM · Shop 2'],
+        students: [
+          for (final (i, n) in names.indexed)
+            ClassListStudent(name: n, lrn: '1234567890${10 + i}', programCode: 'BTVTED', yearLevel: 2, sex: i == 7 ? null : (i.isEven ? 'M' : 'F')),
+        ],
+      ),
+    ], printedAt: DateTime(2026, 11, 5)));
 
     const titles = ['Basic Occupational Safety and Health', 'Engineering Drawing', 'Wood and Lumber (Wood Joints and Wood Cuts)',
       'Basic Machine Tools & Bench Work', 'Teaching ICT as an Exploratory Course', 'Teaching the Common Competencies in ICT',

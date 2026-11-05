@@ -190,3 +190,81 @@ class EnrollmentStatisticsRow {
         yearNotRecorded: _i(j['yearNotRecorded']),
       );
 }
+
+/// One student on a printed class list.
+class ClassListStudent {
+  /// "LASTNAME, Firstname".
+  final String name;
+  final String? lrn;
+  final String? programCode;
+  final int? yearLevel;
+
+  /// "M", "F", or null when not on record.
+  final String? sex;
+
+  const ClassListStudent({required this.name, this.lrn, this.programCode, this.yearLevel, this.sex});
+
+  factory ClassListStudent.fromJson(Map<String, dynamic> j) => ClassListStudent(
+        name: j['name'] as String? ?? '',
+        lrn: j['lrn'] as String?,
+        programCode: j['programCode'] as String?,
+        yearLevel: (j['yearLevel'] as num?)?.toInt(),
+        sex: j['sex'] as String?,
+      );
+}
+
+/// A class with its Enrolled students, ready to print.
+class ClassList {
+  final String classId;
+  final String className;
+  final String subjectCode;
+  final String subjectTitle;
+  final double units;
+  final String termLabel;
+  final String? teacherName;
+  final List<String> schedules;
+  final List<ClassListStudent> students;
+
+  const ClassList({
+    required this.classId,
+    required this.className,
+    required this.subjectCode,
+    required this.subjectTitle,
+    this.units = 0,
+    this.termLabel = '',
+    this.teacherName,
+    this.schedules = const [],
+    this.students = const [],
+  });
+
+  factory ClassList.fromJson(Map<String, dynamic> j) => ClassList(
+        classId: j['classId']?.toString() ?? '',
+        className: j['className'] as String? ?? '',
+        subjectCode: j['subjectCode'] as String? ?? '',
+        subjectTitle: j['subjectTitle'] as String? ?? '',
+        units: _d(j['units']),
+        termLabel: j['termLabel'] as String? ?? '',
+        teacherName: j['teacherName'] as String?,
+        schedules: [for (final s in (j['schedules'] as List?) ?? []) s.toString()],
+        students: [for (final s in (j['students'] as List?) ?? []) ClassListStudent.fromJson(s as Map<String, dynamic>)],
+      );
+}
+
+/// An enrolled student with no sex on record.
+class MissingSexRow {
+  final String userId;
+  final String studentName;
+  final String? lrn;
+  final String? programCode;
+  final int? yearLevel;
+
+  const MissingSexRow({required this.userId, required this.studentName, this.lrn, this.programCode, this.yearLevel});
+
+  factory MissingSexRow.fromJson(Map<String, dynamic> j) => MissingSexRow(
+        userId: j['userId']?.toString() ?? '',
+        studentName: j['studentName'] as String? ?? '',
+        lrn: j['lrn'] as String?,
+        programCode: j['programCode'] as String?,
+        yearLevel: (j['yearLevel'] as num?)?.toInt(),
+      );
+}

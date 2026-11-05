@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../models/report_models.dart';
 import 'study_load_pdf.dart' show pdfSafe;
 
 /// A plain printed report: school header, title, one bordered table, page numbers.
@@ -163,5 +164,124 @@ Future<Uint8List> buildEnrollmentStatisticsPdf({
         pw.Padding(padding: const pw.EdgeInsets.only(top: 6), child: pw.Text(pdfSafe(note), style: const pw.TextStyle(fontSize: 8))),
     ],
   ));
+  return doc.save();
+}
+
+/// Class lists, one class per page (a long class continues on the next page): class details,
+/// a numbered list of Enrolled students, Male/Female/Total counts and the teacher's signature line.
+Future<Uint8List> buildClassListsPdf(
+  List<ClassList> classes, {
+  Uint8List? logo,
+  bool compress = true,
+  DateTime? printedAt,
+}) {
+  final when = printedAt ?? DateTime.now();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final doc = pw.Document(compress: compress, title: 'Class Lists');
+  final label = const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700);
+  final value = pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold);
+
+  pw.Widget info(String l, String v) => pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 2),
+        child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.SizedBox(width: 60, child: pw.Text(l, style: label)),
+          pw.Expanded(child: pw.Text(pdfSafe(v), style: value)),
+        ]),
+      );
+
+  for (final c in classes) {
+    final male = c.students.where((s) => s.sex == 'M').length;
+    final female = c.students.where((s) => s.sex == 'F').length;
+    doc.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.letter,
+      margin: const pw.EdgeInsets.all(32),
+      header: (ctx) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+        pw.Row(children: [
+          if (logo != null)
+            pw.Container(width: 36, height: 36, margin: const pw.EdgeInsets.only(right: 8), child: pw.Image(pw.MemoryImage(logo))),
+          pw.Expanded(
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text('DON BOSCO TECHNICAL COLLEGE - CEBU', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Office of the Registrar', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+            ]),
+          ),
+        ]),
+        pw.SizedBox(height: 6),
+        pw.Center(child: pw.Text('CLASS LIST', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold))),
+        pw.SizedBox(height: 8),
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Expanded(child: pw.Column(children: [
+            info('Subject', '${c.subjectCode} - ${c.subjectTitle}'),
+            info('Section', c.className),
+            info('Units', c.units.toStringAsFixed(c.units.truncateToDouble() == c.units ? 0 : 1)),
+          ])),
+          pw.SizedBox(width: 16),
+          pw.Expanded(child: pw.Column(children: [
+            info('Term', c.termLabel),
+            info('Teacher', c.teacherName ?? 'TBA'),
+            info('Schedule', c.schedules.isEmpty ? 'TBA' : c.schedules.join('\n')),
+          ])),
+        ]),
+        pw.SizedBox(height: 8),
+      ]),
+      footer: (ctx) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+        pw.Text(pdfSafe('${c.subjectCode} ${c.className} · Printed ${months[when.month - 1]} ${when.day}, ${when.year}'),
+            style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 7)),
+      ]),
+      build: (ctx) => [
+        pw.TableHelper.fromTextArray(
+          headers: ['No.', 'Student name', 'LRN', 'Program & Year', 'Sex'],
+          data: [
+            for (final (i, s) in c.students.indexed)
+              [
+                '${i + 1}',
+                pdfSafe(s.name),
+                s.lrn ?? '',
+                [s.programCode, if (s.yearLevel != null) '${s.yearLevel}'].whereType<String>().join(' '),
+                s.sex ?? '',
+              ],
+          ],
+          headerStyle: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          cellStyle: const pw.TextStyle(fontSize: 8.5),
+          cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey600),
+          columnWidths: const {
+            0: pw.FixedColumnWidth(30),
+            1: pw.FlexColumnWidth(3),
+            2: pw.FixedColumnWidth(90),
+            3: pw.FixedColumnWidth(80),
+            4: pw.FixedColumnWidth(32),
+          },
+          cellAlignments: const {0: pw.Alignment.center, 4: pw.Alignment.center},
+        ),
+        if (c.students.isEmpty)
+          pw.Padding(padding: const pw.EdgeInsets.only(top: 6), child: pw.Text('No enrolled students.', style: label)),
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 8),
+          child: pw.Text(
+            'Male: $male    Female: $female    Total: ${c.students.length}'
+            '${c.students.length - male - female > 0 ? '    (sex not on record: ${c.students.length - male - female})' : ''}',
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 40),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+            pw.Column(children: [
+              pw.Container(width: 180, height: 0.5, color: PdfColors.black),
+              pw.SizedBox(height: 3),
+              pw.Text(pdfSafe(c.teacherName ?? 'Teacher'), style: value),
+              pw.Text('Teacher', style: label),
+            ]),
+          ]),
+        ),
+      ],
+    ));
+  }
+  if (classes.isEmpty) {
+    doc.addPage(pw.Page(build: (_) => pw.Center(child: pw.Text('No classes in this term.'))));
+  }
   return doc.save();
 }

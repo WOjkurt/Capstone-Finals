@@ -11,6 +11,9 @@ import 'widgets/open_term_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/accredited_schools_tab.dart';
+import '../repositories/report_repository.dart';
+import '../utils/report_pdf.dart';
+import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 
 class SetupView extends StatefulWidget {
   const SetupView({super.key});
@@ -1699,6 +1702,30 @@ class _ClassesTab extends StatefulWidget {
 class _ClassesTabState extends State<_ClassesTab> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedTermId;
+  bool _printing = false;
+
+  /// Prints the class list of one class, or of every class in the chosen term.
+  Future<void> _printClassLists({String? classId}) async {
+    final termId = _selectedTermId;
+    if (termId == null) return;
+    setState(() => _printing = true);
+    try {
+      final lists = await getIt<ReportRepository>().classLists(termId, classId: classId);
+      final bytes = await buildClassListsPdf(lists, logo: await loadSchoolLogo());
+      final name = classId != null && lists.isNotEmpty
+          ? 'Class_List_${lists.first.subjectCode}_${lists.first.className}'
+          : 'Class_Lists_${lists.isEmpty ? '' : lists.first.termLabel}';
+      await printPdf(bytes, '${name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not print: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
   List<ClassModel> _classes = [];
   bool _isLoading = false;
   String? _error;
@@ -1881,6 +1908,16 @@ class _ClassesTabState extends State<_ClassesTab> {
                     ),
                   ),
                 ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                key: const ValueKey('print_all_class_lists_button'),
+                icon: const Icon(Icons.print_outlined, size: 16),
+                label: const Text('Print all class lists'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                onPressed: (_printing || _selectedTermId == null) ? null : () => _printClassLists(),
+              ),
               const SizedBox(width: 12),
               // Open Classes for Term Button
               ElevatedButton.icon(
@@ -2277,7 +2314,14 @@ class _ClassesTabState extends State<_ClassesTab> {
                                   ),
                                 ),
                                 // Actions
-                                DataCell(
+                                DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                                  IconButton(
+                                    key: ValueKey('print_class_list_${c.classId}'),
+                                    tooltip: 'Print class list',
+                                    icon: const Icon(Icons.print_outlined, size: 18, color: AppColors.primary),
+                                    onPressed: _printing ? null : () => _printClassLists(classId: c.classId),
+                                  ),
+                                  const SizedBox(width: 4),
                                   ElevatedButton.icon(
                                     onPressed: () {
                                       ClassRosterDialog.show(
@@ -2307,7 +2351,7 @@ class _ClassesTabState extends State<_ClassesTab> {
                                       ),
                                     ),
                                   ),
-                                ),
+                                ])),
                               ],
                             );
                           }).toList(),
