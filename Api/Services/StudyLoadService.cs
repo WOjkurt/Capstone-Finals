@@ -700,9 +700,11 @@ public class StudyLoadService : IStudyLoadService
             .AsNoTracking()
             .Where(g => loadIds.Contains(g.StudyLoadID))
             .ToDictionaryAsync(g => g.StudyLoadID, g => g.Remarks);
+        // Only credits with the subject's full units count as passed.
         var credited = (await _context.CreditedSubjects
                 .AsNoTracking()
-                .Where(c => userIds.Contains(c.UserID) && subjectIds.Contains(c.SubjectID))
+                .Where(c => userIds.Contains(c.UserID) && subjectIds.Contains(c.SubjectID) &&
+                            c.CreditedUnits >= c.Subject!.LecUnits + c.Subject.LabUnits)
                 .Select(c => new { c.UserID, c.SubjectID })
                 .ToListAsync())
             .Select(c => (c.UserID, c.SubjectID))
@@ -1111,8 +1113,9 @@ public class StudyLoadService : IStudyLoadService
 
     private async Task<SubjectSatisfactionResult> HasSatisfiedSubjectAsync(Guid userId, Guid subjectId)
     {
-        // A subject credited from another school counts as passed.
-        if (await _context.CreditedSubjects.AnyAsync(c => c.UserID == userId && c.SubjectID == subjectId))
+        // A subject credited from another school with its full units counts as passed; a partial credit does not.
+        if (await _context.CreditedSubjects.AnyAsync(c => c.UserID == userId && c.SubjectID == subjectId &&
+                                                          c.CreditedUnits >= c.Subject!.LecUnits + c.Subject.LabUnits))
         {
             return new SubjectSatisfactionResult { Status = SubjectCompletionStatus.Passed };
         }

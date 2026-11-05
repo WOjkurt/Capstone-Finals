@@ -68,6 +68,7 @@ public class StudentRecordService : IStudentRecordService
             .ToDictionaryAsync(g => g.StudyLoadID, g => new { g.Remarks, g.FinalGrade });
         var credits = (await _context.CreditedSubjects
                 .AsNoTracking()
+                .Include(c => c.Term)
                 .Where(c => c.UserID == userId)
                 .ToListAsync())
             .GroupBy(c => c.SubjectID)
@@ -124,12 +125,18 @@ public class StudentRecordService : IStudentRecordService
                 .OrderByDescending(a => a.SchoolYear).ThenByDescending(a => a.Semester)
                 .ToList();
 
-            if (credits.TryGetValue(subject.SubjectID, out var credit))
+            credits.TryGetValue(subject.SubjectID, out var credit);
+            if (credit != null)
             {
-                row.Status = "Credited";
                 row.CreditedFrom = credit.SourceSchool;
                 row.CreditedGrade = credit.Grade;
-                row.TermLabel = credit.SchoolYear;
+                row.CreditedUnits = credit.CreditedUnits;
+            }
+            if (credit != null && credit.CreditedUnits >= units)
+            {
+                bool cross = credit.Kind == CreditKinds.CrossEnrollment;
+                row.Status = cross ? "CrossEnrolled" : "Credited";
+                row.TermLabel = cross && credit.Term != null ? TermLabel.Format(credit.Term.SchoolYear, credit.Term.Semester) : credit.SchoolYear;
             }
             else
             {
@@ -157,10 +164,18 @@ public class StudentRecordService : IStudentRecordService
                     row.FinalGrade = decider.FinalGrade;
                     row.TermLabel = TermLabel.Format(decider.SchoolYear, decider.Semester);
                 }
+                // A partial credit still leaves the subject to take, unless it is being taken or was failed at DBTC.
+                if (credit != null && row.Status is "NotTaken" or "Dropped")
+                {
+                    row.Status = "PartiallyCredited";
+                    row.FinalGrade = null;
+                    row.TermLabel = credit.SchoolYear;
+                }
             }
 
             result.TotalUnits += units;
-            if (row.Status is "Passed" or "Credited") result.EarnedUnits += units;
+            if (row.Status is "Passed" or "Credited" or "CrossEnrolled") result.EarnedUnits += units;
+            else if (credit != null) result.EarnedUnits += credit.CreditedUnits;   // partial credit
             if (row.Status == "InProgress") result.InProgressUnits += units;
             result.Subjects.Add(row);
         }
@@ -221,12 +236,26 @@ public class StudentRecordService : IStudentRecordService
             DateAdmitted = details.DateAdmitted ?? details.FirstTermEnrolled
         };
 
-        foreach (var term in loads.GroupBy(l => (l.SchoolYear, l.Semester)).OrderBy(g => g.Key.SchoolYear).ThenBy(g => g.Key.Semester))
-        {
-            result.Terms.Add(new TranscriptTermDto
+        var credits = await _context.CreditedSubjects
+            .AsNoTracking()
+            .Where(c => c.UserID == userId && c.Subject != null)
+            .Select(c => new
             {
-                Heading = Heading(term.Key.SchoolYear, term.Key.Semester),
-                Rows = term.OrderBy(l => l.SubjectCode).Select(l => new TranscriptRowDto
+                c.Kind,
+                c.SourceSchool,
+                c.Subject!.SubjectCode,
+                c.Subject.SubjectTitle,
+                Units = c.CreditedUnits,
+                c.Grade,
+                TermYear = c.Term != null ? c.Term.SchoolYear : null,
+                TermSemester = c.Term != null ? (int?)c.Term.Semester : null
+            })
+            .ToListAsync();
+
+        // DBTC subjects and cross-enrolled subjects, together under the term they were taken in.
+        var rows = loads.Select(l => (
+                Key: (l.SchoolYear, l.Semester),
+                Row: new TranscriptRowDto
                 {
                     SubjectCode = l.SubjectCode,
                     SubjectTitle = l.SubjectTitle,
@@ -237,16 +266,29 @@ public class StudentRecordService : IStudentRecordService
                         StudyLoadStatus.Withdrawn => "W",
                         _ => finals.TryGetValue(l.StudyLoadID, out var f) && f.HasValue ? f.Value.ToString("0.00") : string.Empty
                     }
-                }).ToList()
+                }))
+            .Concat(credits
+                .Where(c => c.Kind == CreditKinds.CrossEnrollment && c.TermYear != null)
+                .Select(c => (
+                    Key: (c.TermYear!, c.TermSemester!.Value),
+                    Row: new TranscriptRowDto
+                    {
+                        SubjectCode = c.SubjectCode,
+                        SubjectTitle = $"{c.SubjectTitle} (cross-enrolled at {c.SourceSchool.Trim()})",
+                        Units = c.Units,
+                        Final = c.Grade?.Trim() ?? string.Empty
+                    })));
+        foreach (var term in rows.GroupBy(r => r.Key).OrderBy(g => g.Key.Item1).ThenBy(g => g.Key.Item2))
+        {
+            result.Terms.Add(new TranscriptTermDto
+            {
+                Heading = Heading(term.Key.Item1, term.Key.Item2),
+                Rows = term.Select(r => r.Row).OrderBy(r => r.SubjectCode).ToList()
             });
         }
 
-        var credits = await _context.CreditedSubjects
-            .AsNoTracking()
-            .Where(c => c.UserID == userId && c.Subject != null)
-            .Select(c => new { c.SourceSchool, c.Subject!.SubjectCode, c.Subject.SubjectTitle, Units = c.Subject.LecUnits + c.Subject.LabUnits, c.Grade })
-            .ToListAsync();
         result.Credits = credits
+            .Where(c => c.Kind != CreditKinds.CrossEnrollment || c.TermYear == null)
             .GroupBy(c => c.SourceSchool.Trim())
             .OrderBy(g => g.Key)
             .Select(g => new TranscriptCreditGroupDto

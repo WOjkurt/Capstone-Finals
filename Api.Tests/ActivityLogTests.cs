@@ -152,7 +152,7 @@ public class ActivityLogTests : IDisposable
         Assert.IsType<OkObjectResult>(await controller.EnrollSingle(new EnrollSingleRequestDto { UserId = _student, ClassId = it102, ChangeReason = "again" }));
 
         var changes = Assert.IsType<List<StudyLoadChangeDto>>(Assert.IsType<OkObjectResult>(await controller.GetChanges(_student, _term)).Value);
-        Assert.Equal(new[] { ("Added", "IT 102", "Late add, approved"), ("Added", "IT 103", "Retake") },
+        Assert.Equal(new (string, string, string?)[] { ("Added", "IT 102", "Late add, approved"), ("Added", "IT 103", "Retake") },
             changes.Select(c => (c.Kind, c.SubjectCode, c.Reason)));
         Assert.All(changes, c => Assert.Equal("Rita Reg", c.ChangedBy));
         Assert.Contains(await Entries(), e => e.Summary == "Added 1 subject(s) after enrollment: Late add, approved");
@@ -214,12 +214,12 @@ public class ActivityLogTests : IDisposable
 
         var ok = Assert.IsType<OkObjectResult>(await controller.Create(new CreateCreditedSubjectDto
         {
-            UserId = _student, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", Grade = "1.5"
+            UserId = _student, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", Grade = "1.5", CreditedUnits = 3
         }));
         await controller.Delete(((CreditedSubjectDto)ok.Value!).CreditedSubjectId);
 
         var entries = await Entries();
-        Assert.Equal("Credited IT 101 from Cebu Tech (grade 1.5)", entries[0].Summary);
+        Assert.Equal("Credited IT 101 (3 of 3 units) from Cebu Tech (grade 1.5)", entries[0].Summary);
         Assert.Equal("Removed credit for IT 101 from Cebu Tech", entries[1].Summary);
     }
 

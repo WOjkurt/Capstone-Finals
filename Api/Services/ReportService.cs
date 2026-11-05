@@ -194,10 +194,11 @@ public class ReportService : IReportService
     /// </summary>
     public async Task<List<TransfereeRowDto>> GetTransfereesAsync()
     {
+        // Cross-enrolled subjects are not transfers; they are left out here.
         var credits = await _context.CreditedSubjects
             .AsNoTracking()
-            .Where(c => c.Subject != null)
-            .Select(c => new { c.UserID, c.SourceSchool, c.Subject!.SubjectCode, Units = c.Subject.LecUnits + c.Subject.LabUnits })
+            .Where(c => c.Subject != null && c.Kind == CreditKinds.Transfer)
+            .Select(c => new { c.UserID, c.SourceSchool, c.Subject!.SubjectCode, Units = c.CreditedUnits })
             .ToListAsync();
         var creditedIds = credits.Select(c => c.UserID).Distinct().ToList();
 

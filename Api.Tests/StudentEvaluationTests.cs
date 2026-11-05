@@ -86,7 +86,7 @@ public class StudentEvaluationTests : IDisposable
         await Take("IT 103", _sem2, StudyLoadStatus.Enrolled);         // no grade yet
         await Take("IT 104", _sem2, StudyLoadStatus.Dropped);
         await Take("IT 201", _sem2, StudyLoadStatus.Pending);          // pending is not an attempt
-        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = _subjects["GE 1"].SubjectID, SourceSchool = "USC", Grade = "1.5", SchoolYear = "2024-2025", RecordedByUserID = _teacher });
+        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = _subjects["GE 1"].SubjectID, SourceSchool = "USC", Grade = "1.5", SchoolYear = "2024-2025", CreditedUnits = 3, RecordedByUserID = _teacher });
         await _context.SaveChangesAsync();
 
         var e = await _records.GetEvaluationAsync(_student);
@@ -132,7 +132,7 @@ public class StudentEvaluationTests : IDisposable
         await Take("IT 104", _sem1, StudyLoadStatus.Withdrawn);
         await Take("IT 201", _sem2, StudyLoadStatus.Enrolled);   // no grade yet
         await Take("GE 1", _sem2, StudyLoadStatus.Pending);      // not on a transcript
-        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = _subjects["GE 1"].SubjectID, SourceSchool = "USC", Grade = "1.5", RecordedByUserID = _teacher });
+        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = _subjects["GE 1"].SubjectID, SourceSchool = "USC", Grade = "1.5", CreditedUnits = 3, RecordedByUserID = _teacher });
         await _context.SaveChangesAsync();
 
         var t = await _records.GetTranscriptAsync(_student);
@@ -226,6 +226,33 @@ public class StudentEvaluationTests : IDisposable
         Assert.Null(t.DateAdmitted);
         Assert.Empty(t.Terms);
         Assert.IsType<NotFoundObjectResult>(await new StudentRecordsController(_records).Transcript(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task PartialAndCrossEnrolledCredits_ShowOnEvaluationAndTranscript()
+    {
+        await Take("IT 101", _sem1, StudyLoadStatus.Enrolled, 2.0m);
+        _context.CreditedSubjects.AddRange(
+            new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = _subjects["IT 103"].SubjectID, SourceSchool = "CTU", Grade = "1.5", CreditedUnits = 2, SchoolYear = "2024-2025", RecordedByUserID = _teacher },
+            new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = _student, SubjectID = _subjects["GE 1"].SubjectID, SourceSchool = "USC", Grade = "1.25", CreditedUnits = 3, Kind = CreditKinds.CrossEnrollment, TermID = _sem1, SchoolYear = "2025-2026", RecordedByUserID = _teacher });
+        await _context.SaveChangesAsync();
+
+        var e = await _records.GetEvaluationAsync(_student);
+        var by = e.Subjects.ToDictionary(s => s.SubjectCode);
+        Assert.Equal(("PartiallyCredited", 2m), (by["IT 103"].Status, by["IT 103"].CreditedUnits ?? 0));
+        Assert.Equal(("CrossEnrolled", "2025-2026 (1st Sem)", "USC"), (by["GE 1"].Status, by["GE 1"].TermLabel, by["GE 1"].CreditedFrom));
+        Assert.Equal(3m + 2m + 3m, e.EarnedUnits);   // IT 101 passed, IT 103 partly, GE 1 cross-enrolled
+
+        var t = await _records.GetTranscriptAsync(_student);
+        var sem1 = Assert.Single(t.Terms);
+        Assert.Equal("1st Semester, 2025-2026", sem1.Heading);
+        Assert.Equal(new[] { "GE 1", "IT 101" }, sem1.Rows.Select(r => r.SubjectCode));
+        Assert.Equal(("GE 1 title (cross-enrolled at USC)", "1.25", 3m), (sem1.Rows[0].SubjectTitle, sem1.Rows[0].Final, sem1.Rows[0].Units));
+        var ctu = Assert.Single(t.Credits);
+        Assert.Equal(("CTU", 2m), (ctu.SourceSchool, ctu.Rows.Single().Units));
+
+        var transferees = await new ReportService(_context).GetTransfereesAsync();
+        Assert.Equal(new[] { "CTU" }, Assert.Single(transferees).PreviousSchools);
     }
 
     [Fact]

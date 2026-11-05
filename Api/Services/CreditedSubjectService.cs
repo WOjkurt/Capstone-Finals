@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Common;
 using Api.Domain.Enrollment;
 using Api.DTOs.Credits;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ public class CreditedSubjectService : ICreditedSubjectService
         var credits = await _context.CreditedSubjects
             .AsNoTracking()
             .Include(c => c.Subject)
+            .Include(c => c.Term)
             .Where(c => c.UserID == userId)
             .ToListAsync();
 
@@ -70,6 +72,30 @@ public class CreditedSubjectService : ICreditedSubjectService
             throw new InvalidOperationException($"{subject.SubjectCode} is not in the student's program curriculum.");
         }
 
+        var subjectUnits = subject.LecUnits + subject.LabUnits;
+        if (dto.CreditedUnits <= 0)
+        {
+            throw new InvalidOperationException("Enter the units to credit (more than 0).");
+        }
+        if (dto.CreditedUnits > subjectUnits)
+        {
+            throw new InvalidOperationException($"{subject.SubjectCode} has only {subjectUnits:0.#} units; credit {subjectUnits:0.#} or fewer.");
+        }
+        if (dto.Kind is not (CreditKinds.Transfer or CreditKinds.CrossEnrollment))
+        {
+            throw new InvalidOperationException("Choose whether the subject was taken before DBTC or cross-enrolled.");
+        }
+        AcademicTerm? term = null;
+        if (dto.Kind == CreditKinds.CrossEnrollment)
+        {
+            if (dto.TermId == null)
+            {
+                throw new InvalidOperationException("Choose the DBTC term the subject was cross-enrolled in.");
+            }
+            term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == dto.TermId)
+                ?? throw new KeyNotFoundException("Term not found.");
+        }
+
         if (await _context.CreditedSubjects.AnyAsync(c => c.UserID == dto.UserId && c.SubjectID == dto.SubjectId))
         {
             throw new InvalidOperationException($"{subject.SubjectCode} is already credited to this student.");
@@ -108,7 +134,11 @@ public class CreditedSubjectService : ICreditedSubjectService
             SourceSchool = school,
             SourceSubjectCode = Blank(dto.SourceSubjectCode),
             Grade = Blank(dto.Grade),
-            SchoolYear = Blank(dto.SchoolYear),
+            // A cross-enrollment's school year is the DBTC term's.
+            SchoolYear = term?.SchoolYear ?? Blank(dto.SchoolYear),
+            CreditedUnits = dto.CreditedUnits,
+            Kind = dto.Kind,
+            TermID = term?.TermID,
             RecordedByUserID = recordedByUserId,
             RecordedAt = DateTime.UtcNow
         };
@@ -120,7 +150,7 @@ public class CreditedSubjectService : ICreditedSubjectService
 
     public async Task<CreditedSubjectDto?> GetByIdAsync(Guid creditedSubjectId)
     {
-        var c = await _context.CreditedSubjects.AsNoTracking().Include(x => x.Subject)
+        var c = await _context.CreditedSubjects.AsNoTracking().Include(x => x.Subject).Include(x => x.Term)
             .FirstOrDefaultAsync(x => x.CreditedSubjectID == creditedSubjectId);
         return c == null ? null : await MapAsync(c, c.Subject);
     }
@@ -137,6 +167,9 @@ public class CreditedSubjectService : ICreditedSubjectService
 
     private async Task<CreditedSubjectDto> MapAsync(CreditedSubject c, Subject? subject)
     {
+        var term = c.Term ?? (c.TermID.HasValue
+            ? await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == c.TermID)
+            : null);
         var recorder = await _context.UserDetails.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == c.RecordedByUserID);
         return new CreditedSubjectDto
         {
@@ -152,7 +185,12 @@ public class CreditedSubjectService : ICreditedSubjectService
             Grade = c.Grade,
             SchoolYear = c.SchoolYear,
             RecordedBy = recorder != null ? $"{recorder.Firstname} {recorder.Lastname}".Trim() : null,
-            RecordedAt = c.RecordedAt
+            RecordedAt = c.RecordedAt,
+            CreditedUnits = c.CreditedUnits,
+            IsPartial = c.CreditedUnits < (subject?.LecUnits ?? 0) + (subject?.LabUnits ?? 0),
+            Kind = c.Kind,
+            TermId = c.TermID,
+            TermLabel = term != null ? TermLabel.Format(term.SchoolYear, term.Semester) : null
         };
     }
 }

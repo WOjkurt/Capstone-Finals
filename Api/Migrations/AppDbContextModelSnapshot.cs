@@ -282,9 +282,15 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("CreditedUnits")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Grade")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("RecordedAt")
                         .HasColumnType("timestamp with time zone");
@@ -308,6 +314,9 @@ namespace Api.Migrations
                     b.Property<Guid>("SubjectID")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("TermID")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("UserID")
                         .HasColumnType("uuid");
 
@@ -316,6 +325,8 @@ namespace Api.Migrations
                     b.HasIndex("RecordedByUserID");
 
                     b.HasIndex("SubjectID");
+
+                    b.HasIndex("TermID");
 
                     b.HasIndex("UserID", "SubjectID")
                         .IsUnique()
@@ -1131,6 +1142,10 @@ namespace Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Api.Domain.Enrollment.AcademicTerm", "Term")
+                        .WithMany()
+                        .HasForeignKey("TermID");
+
                     b.HasOne("Api.Domain.IdentityAccess.User", "User")
                         .WithMany()
                         .HasForeignKey("UserID")
@@ -1140,6 +1155,8 @@ namespace Api.Migrations
                     b.Navigation("RecordedByUser");
 
                     b.Navigation("Subject");
+
+                    b.Navigation("Term");
 
                     b.Navigation("User");
                 });

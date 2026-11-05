@@ -1,5 +1,6 @@
 using Api.Auth;
 using Api.Domain.Audit;
+using Api.Domain.Enrollment;
 using Api.DTOs.Credits;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -41,7 +42,9 @@ public class CreditedSubjectsController : ControllerBase
             if (log != null)
             {
                 await log.LogAsync(callerId, ActivityActions.CreditAdded,
-                    $"Credited {credit.SubjectCode} from {credit.SourceSchool}{(credit.Grade != null ? $" (grade {credit.Grade})" : "")}",
+                    $"Credited {credit.SubjectCode} ({credit.CreditedUnits:0.#} of {credit.Units:0.#} units) " +
+                    (credit.Kind == CreditKinds.CrossEnrollment ? $"cross-enrolled at {credit.SourceSchool} in {credit.TermLabel}" : $"from {credit.SourceSchool}") +
+                    (credit.Grade != null ? $" (grade {credit.Grade})" : ""),
                     credit.UserId);
             }
             return Ok(credit);

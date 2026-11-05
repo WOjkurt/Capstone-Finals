@@ -33,7 +33,7 @@ public class EvaluationSubjectDto
     public int YearLevel { get; set; }
     public int Semester { get; set; }
     public bool IsMinor { get; set; }
-    /// <summary>Passed, Credited, InProgress, Failed, Dropped or NotTaken.</summary>
+    /// <summary>Passed, Credited, CrossEnrolled, PartiallyCredited, InProgress, Failed, Dropped or NotTaken.</summary>
     public string Status { get; set; } = string.Empty;
     /// <summary>The final grade of the attempt that decided the status (a pass beats a fail).</summary>
     public decimal? FinalGrade { get; set; }
@@ -41,6 +41,8 @@ public class EvaluationSubjectDto
     /// <summary>For credited subjects: the other school and its grade as written.</summary>
     public string? CreditedFrom { get; set; }
     public string? CreditedGrade { get; set; }
+    /// <summary>Units the Registrar credited (can be fewer than <see cref="Units"/>).</summary>
+    public decimal? CreditedUnits { get; set; }
 }
 
 /// <summary>Everything printed on the Transcript of Records.</summary>

@@ -76,7 +76,7 @@ public class CreditedSubjectTests : IDisposable
     private Task<CreditedSubjectDto> Credit(string code, string school = "  Cebu Tech  ") =>
         _credits.CreateAsync(new CreateCreditedSubjectDto
         {
-            UserId = _studentId, SubjectId = _s[code].SubjectID, SourceSchool = school, SourceSubjectCode = "CS1", Grade = "1.75", SchoolYear = "2025-2026"
+            UserId = _studentId, SubjectId = _s[code].SubjectID, SourceSchool = school, SourceSubjectCode = "CS1", Grade = "1.75", SchoolYear = "2025-2026", CreditedUnits = 3
         }, _registrarId);
 
     private async Task Took(string code, int status, int? remarks)
@@ -182,10 +182,10 @@ public class CreditedSubjectTests : IDisposable
         http.Items["user_id"] = _registrarId;
         controller.ControllerContext = new ControllerContext { HttpContext = http };
 
-        var ok = await controller.Create(new CreateCreditedSubjectDto { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech" });
+        var ok = await controller.Create(new CreateCreditedSubjectDto { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", CreditedUnits = 3 });
         Assert.IsType<OkObjectResult>(ok);
-        Assert.IsType<BadRequestObjectResult>(await controller.Create(new CreateCreditedSubjectDto { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech" }));
-        Assert.IsType<NotFoundObjectResult>(await controller.Create(new CreateCreditedSubjectDto { UserId = Guid.NewGuid(), SubjectId = _s["IT 101"].SubjectID, SourceSchool = "X" }));
+        Assert.IsType<BadRequestObjectResult>(await controller.Create(new CreateCreditedSubjectDto { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", CreditedUnits = 3 }));
+        Assert.IsType<NotFoundObjectResult>(await controller.Create(new CreateCreditedSubjectDto { UserId = Guid.NewGuid(), SubjectId = _s["IT 101"].SubjectID, SourceSchool = "X", CreditedUnits = 3 }));
         Assert.IsType<NotFoundObjectResult>(await controller.Delete(Guid.NewGuid()));
     }
 
@@ -196,5 +196,46 @@ public class CreditedSubjectTests : IDisposable
         Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.GetByStudent))!.GetCustomAttributes(typeof(RequireRegistrarCollegeHeadOrAdminAttribute), false));
         Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.Create))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
         Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.Delete))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
+    }
+
+    [Fact]
+    public async Task CreditedUnits_MustBeBetweenZeroAndTheSubjectsUnits()
+    {
+        Task<CreditedSubjectDto> Make(decimal units) => _credits.CreateAsync(new CreateCreditedSubjectDto
+            { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", CreditedUnits = units }, _registrarId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Make(0));
+        var tooMany = await Assert.ThrowsAsync<InvalidOperationException>(() => Make(4));
+        Assert.Contains("only 3 units", tooMany.Message);
+
+        var partial = await Make(1.5m);
+        Assert.Equal((1.5m, 3m, true), (partial.CreditedUnits, partial.Units, partial.IsPartial));
+    }
+
+    [Fact]
+    public async Task PartialCredit_DoesNotSatisfyPrerequisitesOrPromotion()
+    {
+        await _credits.CreateAsync(new CreateCreditedSubjectDto
+            { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", CreditedUnits = 2 }, _registrarId);
+
+        var block = await _studyLoads.GetProposedBlockAsync(_studentId, _termId);
+        var it102 = block.Single(b => b.SubjectCode == "IT 102");
+        Assert.NotEmpty(it102.PrerequisiteMessages);
+    }
+
+    [Fact]
+    public async Task CrossEnrollment_NeedsATerm_AndUsesItsSchoolYear()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _credits.CreateAsync(new CreateCreditedSubjectDto
+            { UserId = _studentId, SubjectId = _s["GEC 101"].SubjectID, SourceSchool = "USC", CreditedUnits = 3, Kind = CreditKinds.CrossEnrollment }, _registrarId));
+
+        var c = await _credits.CreateAsync(new CreateCreditedSubjectDto
+        {
+            UserId = _studentId, SubjectId = _s["GEC 101"].SubjectID, SourceSchool = "USC", CreditedUnits = 3,
+            Kind = CreditKinds.CrossEnrollment, TermId = _termId, SchoolYear = "ignored"
+        }, _registrarId);
+
+        Assert.Equal((CreditKinds.CrossEnrollment, "2026-2027", "2026-2027 (2nd Sem)"), (c.Kind, c.SchoolYear, c.TermLabel));
+        Assert.False(c.IsPartial);
     }
 }

@@ -58,7 +58,7 @@ public class AccreditedSchoolTests : IDisposable
 
     private void Credit(Guid student, string code, string school)
     {
-        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = student, SubjectID = _s[code].SubjectID, SourceSchool = school, RecordedByUserID = _registrar });
+        _context.CreditedSubjects.Add(new CreditedSubject { CreditedSubjectID = Guid.NewGuid(), UserID = student, SubjectID = _s[code].SubjectID, SourceSchool = school, CreditedUnits = _s[code].LecUnits, RecordedByUserID = _registrar });
         _context.SaveChanges();
     }
 
@@ -81,7 +81,7 @@ public class AccreditedSchoolTests : IDisposable
         await _schools.CreateAsync(new SaveAccreditedSchoolDto { Name = "Cebu Normal University" });
         var ana = Student("Ana");
 
-        var credit = await _credits.CreateAsync(new CreateCreditedSubjectDto { UserId = ana, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "cebu  normal university" }, _registrar);
+        var credit = await _credits.CreateAsync(new CreateCreditedSubjectDto { UserId = ana, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "cebu  normal university", CreditedUnits = 3 }, _registrar);
         Assert.Equal("Cebu Normal University", credit.SourceSchool);
 
         Credit(ana, "GEC 101", "Old School A");
