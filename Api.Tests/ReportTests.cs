@@ -170,4 +170,45 @@ public class ReportTests : IDisposable
         Assert.IsType<OkObjectResult>(await controller.TeacherLoads(_term));
         Assert.NotEmpty(typeof(ReportsController).GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
     }
+
+    [Fact]
+    public async Task EnrollmentStatistics_CountsEnrolledStudentsByYearAndSex()
+    {
+        var ana = await Student("Ana", 1, 1);
+        var ben = await Student("Ben", 1, 1);
+        var cy = await Student("Cy", 1, 2);
+        var dee = await Student("Dee", 1, 5);   // 5th year counts as 4th
+        var eve = await Student("Eve", 1, 3);   // pending only: not counted
+        var fay = await Student("Fay", 2, 1);   // no sex on record
+        foreach (var s in new[] { ana, ben, cy, dee, fay }) await Load(s, s == fay ? "ME 101 A" : "IT 101 A", StudyLoadStatus.Enrolled);
+        await Load(eve, "IT 101 A", StudyLoadStatus.Pending);
+        await Load(ben, "IT 102 A", StudyLoadStatus.Enrolled);  // two subjects, still one student
+
+        // Sex from the enrollment form, overridden by the Registrar's saved details.
+        foreach (var (id, sex) in new[] { (ana, "Female"), (ben, "Male"), (cy, "Female"), (dee, "male") })
+        {
+            var response = new EnrollmentResponse { ResponseID = Guid.NewGuid(), EmailAddress = id + "@f.com", Timestamp = DateTime.UtcNow };
+            var app = new EnrollmentApplication { ApplicationID = Guid.NewGuid(), ResponseID = response.ResponseID, ProgramID = 1, TermID = _term, StudentUserID = id, CreatedAt = DateTime.UtcNow };
+            _context.EnrollmentResponses.Add(response);
+            _context.EnrollmentApplications.Add(app);
+            _context.EnrollmentForms.Add(new EnrollmentForm
+            {
+                EnrollmentID = Guid.NewGuid(), ApplicationID = app.ApplicationID, FirstName = "x", MiddleName = "", LastName = "y", Suffix = "",
+                PlaceOfBirth = "Cebu", Sex = sex, CivilStatus = "Single", Nationality = "Filipino", MobileNumber = "0", Barangay = "b",
+                CityMunicipality = "c", Province = "p", ZipCode = "6000", LastSchoolAttended = "s", SchoolAddress = "a", PreviousCollege = "N/A", PreviousCourse = "N/A", YearLevel = 1
+            });
+        }
+        _context.StudentPersonalDetails.Add(new StudentPersonalDetails { UserID = cy, Sex = "Male", UpdatedByUserID = _teacher, UpdatedAt = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
+
+        var rows = await _reports.GetEnrollmentStatisticsAsync(_term);
+
+        Assert.Equal(new[] { "BSIT", "BSME" }, rows.Select(r => r.ProgramCode));
+        var it = rows[0];
+        Assert.Equal(new[] { 1, 1, 0, 1 }, it.Male);     // Ben (1st), Cy (2nd, overridden), Dee (5th -> 4th)
+        Assert.Equal(new[] { 1, 0, 0, 0 }, it.Female);   // Ana
+        Assert.Equal(0, it.SexNotRecorded);
+        Assert.Equal(1, rows[1].SexNotRecorded);
+        Assert.Equal(0, rows[1].Male.Sum() + rows[1].Female.Sum());
+    }
 }

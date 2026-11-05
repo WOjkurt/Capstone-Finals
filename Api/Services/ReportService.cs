@@ -11,6 +11,7 @@ public interface IReportService
     Task<List<FailedStudentRowDto>> GetFailedStudentsAsync(Guid termId);
     Task<List<TeacherLoadRowDto>> GetTeacherLoadsAsync(Guid termId);
     Task<List<TransfereeRowDto>> GetTransfereesAsync();
+    Task<List<EnrollmentStatisticsRowDto>> GetEnrollmentStatisticsAsync(Guid termId);
 }
 
 /// <summary>Read-only term reports for the Registrar. Rejected, dropped and withdrawn loads are not counted.</summary>
@@ -245,5 +246,60 @@ public class ReportService : IReportService
             })
             .OrderBy(r => r.ProgramCode).ThenBy(r => r.YearLevel).ThenBy(r => r.StudentName)
             .ToList();
+    }
+
+    /// <summary>
+    /// Officially enrolled students (at least one Enrolled subject in the term) per program, by year level and sex.
+    /// Sex comes from the Registrar's personal details, else the latest enrollment form. Every program is listed.
+    /// </summary>
+    public async Task<List<EnrollmentStatisticsRowDto>> GetEnrollmentStatisticsAsync(Guid termId)
+    {
+        await EnsureTermAsync(termId);
+        var enrolledIds = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.LoadStatus == StudyLoadStatus.Enrolled && sl.Class != null && sl.Class.TermID == termId)
+            .Select(sl => sl.UserID)
+            .Distinct()
+            .ToListAsync();
+        var students = await _context.UserDetails
+            .AsNoTracking()
+            .Where(u => enrolledIds.Contains(u.UserID))
+            .Select(u => new { u.UserID, u.ProgramID, u.YearLevel })
+            .ToListAsync();
+        var savedSex = await _context.StudentPersonalDetails
+            .AsNoTracking()
+            .Where(d => enrolledIds.Contains(d.UserID) && d.Sex != null)
+            .ToDictionaryAsync(d => d.UserID, d => d.Sex);
+        var formSex = (await _context.EnrollmentForms
+                .AsNoTracking()
+                .Where(f => f.Application != null && f.Application.StudentUserID != null && enrolledIds.Contains(f.Application.StudentUserID.Value))
+                .Select(f => new { UserID = f.Application!.StudentUserID!.Value, f.Sex, f.Application.CreatedAt })
+                .ToListAsync())
+            .GroupBy(f => f.UserID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(f => f.CreatedAt).First().Sex);
+
+        static char? SexOf(string? value)
+        {
+            var v = value?.Trim().ToUpperInvariant();
+            return string.IsNullOrEmpty(v) ? null : v[0] is 'M' ? 'M' : v[0] is 'F' ? 'F' : null;
+        }
+
+        var programs = await _context.AcademicPrograms.AsNoTracking().OrderBy(p => p.ProgramCode).ToListAsync();
+        var rows = programs.ToDictionary(p => p.ProgramID, p => new EnrollmentStatisticsRowDto { ProgramCode = p.ProgramCode, ProgramName = p.ProgramName });
+        foreach (var st in students)
+        {
+            if (st.ProgramID is not int pid || !rows.TryGetValue(pid, out var row)) continue;
+            var sex = SexOf(savedSex.GetValueOrDefault(st.UserID) ?? formSex.GetValueOrDefault(st.UserID));
+            if (st.YearLevel is not int year || year < 1)
+            {
+                row.YearNotRecorded++;
+                continue;
+            }
+            var i = Math.Min(year, 4) - 1;
+            if (sex == 'M') row.Male[i]++;
+            else if (sex == 'F') row.Female[i]++;
+            else row.SexNotRecorded++;
+        }
+        return rows.Values.ToList();
     }
 }

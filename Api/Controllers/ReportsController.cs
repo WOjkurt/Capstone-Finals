@@ -38,6 +38,9 @@ public class ReportsController : ControllerBase
     [HttpGet("failed-students")]
     public Task<IActionResult> FailedStudents([FromQuery] Guid termId) => Run(() => _reports.GetFailedStudentsAsync(termId));
 
+    [HttpGet("enrollment-statistics")]
+    public Task<IActionResult> EnrollmentStatistics([FromQuery] Guid termId) => Run(() => _reports.GetEnrollmentStatisticsAsync(termId));
+
     [HttpGet("transferees")]
     public async Task<IActionResult> Transferees() => Ok(await _reports.GetTransfereesAsync());
 

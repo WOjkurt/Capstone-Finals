@@ -62,3 +62,17 @@ public class TransfereeRowDto
     public decimal CreditedUnits { get; set; }
     public List<string> CreditedCodes { get; set; } = new();
 }
+
+/// <summary>Enrolled students of one program in a term, by year level (1st to 4th) and sex.</summary>
+public class EnrollmentStatisticsRowDto
+{
+    public string ProgramCode { get; set; } = string.Empty;
+    public string ProgramName { get; set; } = string.Empty;
+    /// <summary>Index 0 is 1st year ... index 3 is 4th year; 5th year and up are counted as 4th.</summary>
+    public int[] Male { get; set; } = new int[4];
+    public int[] Female { get; set; } = new int[4];
+    /// <summary>Enrolled students with no sex on record (counted in no column).</summary>
+    public int SexNotRecorded { get; set; }
+    /// <summary>Enrolled students with no year level (counted in no column).</summary>
+    public int YearNotRecorded { get; set; }
+}
