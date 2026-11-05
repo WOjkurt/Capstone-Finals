@@ -72,6 +72,31 @@ public class StudentRecordsController : ControllerBase
         return result;
     }
 
+    /// <summary>Irregular students and their progress back to regular (6 units of back majors).</summary>
+    [HttpGet("irregular")]
+    public Task<IActionResult> Irregular() => Run(() => _records.GetIrregularStudentsAsync());
+
+    [HttpGet("{userId:guid}/standing")]
+    public Task<IActionResult> Standing(Guid userId) => Run(() => _records.GetStandingAsync(userId));
+
+    /// <summary>Marks the student regular or irregular (logged).</summary>
+    [HttpPut("{userId:guid}/standing")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> SetStanding(Guid userId, [FromBody] SetStandingDto dto)
+    {
+        var result = await Run(() => _records.SetStandingAsync(userId, dto.IsRegular));
+        var log = this.ActivityLog();
+        if (result is OkObjectResult ok && ok.Value is StandingDto standing && log != null)
+        {
+            await log.LogAsync(this.CallerId(), ActivityActions.StandingChanged,
+                standing.IsRegular
+                    ? $"Marked regular ({standing.BackMajorUnitsPassed:0.#} back major units passed)"
+                    : "Marked irregular",
+                userId);
+        }
+        return result;
+    }
+
     private async Task<IActionResult> Run<T>(Func<Task<T>> read)
     {
         try

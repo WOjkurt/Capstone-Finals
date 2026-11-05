@@ -128,3 +128,47 @@ public class UpdatePersonalDetailsDto
     [System.ComponentModel.DataAnnotations.MaxLength(200)] public string? EntranceData { get; set; }
     [System.ComponentModel.DataAnnotations.MaxLength(60)] public string? DateAdmitted { get; set; }
 }
+
+/// <summary>
+/// Regular or irregular, and progress back to regular: an irregular student becomes regular again after
+/// passing 6 units of back major subjects (majors they had failed or dropped before).
+/// </summary>
+public class StandingDto
+{
+    public Guid UserId { get; set; }
+    public bool IsRegular { get; set; }
+    public DateTime? IrregularSince { get; set; }
+    /// <summary>Back major units passed since <see cref="IrregularSince"/>.</summary>
+    public decimal BackMajorUnitsPassed { get; set; }
+    public decimal UnitsToRegular { get; set; } = StandingRules.BackMajorUnitsToRegular;
+    /// <summary>The back major subjects counted in <see cref="BackMajorUnitsPassed"/>.</summary>
+    public List<string> CountedSubjects { get; set; } = new();
+    /// <summary>Subjects failed or dropped at DBTC and not yet passed or fully credited.</summary>
+    public List<string> UnresolvedSubjects { get; set; } = new();
+    /// <summary>"MarkRegular", "MarkIrregular", or null when the status fits.</summary>
+    public string? Suggestion { get; set; }
+}
+
+public class SetStandingDto
+{
+    public bool IsRegular { get; set; }
+}
+
+public static class StandingRules
+{
+    /// <summary>DBTC policy: units of back major subjects an irregular student must pass to be regular again.</summary>
+    public const decimal BackMajorUnitsToRegular = 6m;
+}
+
+/// <summary>An irregular student and their progress back to regular.</summary>
+public class IrregularStudentDto
+{
+    public Guid UserId { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string? Lrn { get; set; }
+    public string? ProgramCode { get; set; }
+    public int? YearLevel { get; set; }
+    public DateTime? IrregularSince { get; set; }
+    public decimal BackMajorUnitsPassed { get; set; }
+    public bool ReadyToBeRegular { get; set; }
+}

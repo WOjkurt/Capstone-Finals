@@ -243,6 +243,62 @@ public class StudentEvaluationTests : IDisposable
         Assert.Empty(await reports.GetStudentsMissingSexAsync(_sem2));   // not enrolled that term
     }
 
+    private void Graded(string code, Guid term, int status, decimal? final, DateTime submitted)
+    {
+        var cls = new Class { ClassID = Guid.NewGuid(), SubjectID = _subjects[code].SubjectID, TermID = term, ClassName = code + " A", CreatedAt = DateTime.UtcNow };
+        var load = new StudyLoad { StudyLoadID = Guid.NewGuid(), UserID = _student, ClassID = cls.ClassID, LoadStatus = status, CreatedAt = DateTime.UtcNow };
+        _context.Classes.Add(cls);
+        _context.StudyLoads.Add(load);
+        if (final.HasValue)
+            _context.Grades.Add(new Grade { GradeID = Guid.NewGuid(), StudyLoadID = load.StudyLoadID, FinalGrade = final, Remarks = final > 3.0m ? 2 : 1, SubmittedByUserID = _teacher, DateSubmitted = submitted });
+        _context.SaveChanges();
+    }
+
+    [Fact]
+    public async Task Standing_SuggestsIrregular_ThenRegularAfterSixUnitsOfBackMajorsPassed()
+    {
+        var old = DateTime.UtcNow.AddDays(-30);
+        Graded("IT 101", _sem1, StudyLoadStatus.Enrolled, 5.0m, old);   // failed major (3 units)
+        Graded("IT 104", _sem1, StudyLoadStatus.Dropped, null, old);    // dropped major (3 units)
+        Graded("GE 1", _sem1, StudyLoadStatus.Enrolled, 5.0m, old);     // failed minor (does not count)
+
+        var s1 = await _records.GetStandingAsync(_student);
+        Assert.True(s1.IsRegular);
+        Assert.Equal("MarkIrregular", s1.Suggestion);
+        Assert.Equal(new[] { "GE 1", "IT 101", "IT 104" }, s1.UnresolvedSubjects);
+
+        var s2 = await _records.SetStandingAsync(_student, isRegular: false);
+        Assert.NotNull(s2.IrregularSince);
+        Assert.Null(s2.Suggestion);
+
+        Graded("IT 101", _sem2, StudyLoadStatus.Enrolled, 2.0m, DateTime.UtcNow.AddMinutes(1));
+        Graded("GE 1", _sem2, StudyLoadStatus.Enrolled, 2.0m, DateTime.UtcNow.AddMinutes(1));
+        var s3 = await _records.GetStandingAsync(_student);
+        Assert.Equal((3m, (string?)null), (s3.BackMajorUnitsPassed, s3.Suggestion));   // minors don't count
+
+        Graded("IT 104", _sem2, StudyLoadStatus.Enrolled, 1.5m, DateTime.UtcNow.AddMinutes(1));
+        var s4 = await _records.GetStandingAsync(_student);
+        Assert.Equal((6m, "MarkRegular"), (s4.BackMajorUnitsPassed, s4.Suggestion));
+        Assert.Equal(new[] { "IT 101", "IT 104" }, s4.CountedSubjects);
+        Assert.True(Assert.Single(await _records.GetIrregularStudentsAsync()).ReadyToBeRegular);
+
+        var s5 = await _records.SetStandingAsync(_student, isRegular: true);
+        Assert.Equal((true, (DateTime?)null, (string?)null), (s5.IsRegular, s5.IrregularSince, s5.Suggestion));
+        Assert.Empty(await _records.GetIrregularStudentsAsync());
+    }
+
+    [Fact]
+    public async Task Standing_BackMajorsPassedBeforeBecomingIrregular_DoNotCount()
+    {
+        Graded("IT 101", _sem1, StudyLoadStatus.Enrolled, 5.0m, DateTime.UtcNow.AddDays(-30));
+        Graded("IT 101", _sem2, StudyLoadStatus.Enrolled, 2.0m, DateTime.UtcNow.AddDays(-10));
+
+        var s = await _records.SetStandingAsync(_student, isRegular: false);
+
+        Assert.Equal(0m, s.BackMajorUnitsPassed);
+        Assert.Empty(s.UnresolvedSubjects);
+    }
+
     [Fact]
     public async Task Transcript_WithoutForm_FallsBackToTheAccountName()
     {

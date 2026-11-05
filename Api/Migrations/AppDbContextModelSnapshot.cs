@@ -1027,6 +1027,9 @@ namespace Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("IrregularSince")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("IsRegular")
                         .HasColumnType("boolean");
 

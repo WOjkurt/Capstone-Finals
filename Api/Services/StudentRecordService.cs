@@ -15,6 +15,9 @@ public interface IStudentRecordService
     Task<PersonalDetailsDto> GetPersonalDetailsAsync(Guid userId);
     Task<PersonalDetailsDto> UpdatePersonalDetailsAsync(Guid userId, UpdatePersonalDetailsDto dto, Guid updatedBy);
     Task SetSexAsync(Guid userId, string sex, Guid updatedBy);
+    Task<StandingDto> GetStandingAsync(Guid userId);
+    Task<StandingDto> SetStandingAsync(Guid userId, bool isRegular);
+    Task<List<IrregularStudentDto>> GetIrregularStudentsAsync();
 }
 
 /// <summary>Read-only views of a student's academic record for the Registrar.</summary>
@@ -446,6 +449,117 @@ public class StudentRecordService : IStudentRecordService
         saved.UpdatedByUserID = updatedBy;
         saved.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+    }
+
+    public async Task<StandingDto> GetStandingAsync(Guid userId)
+    {
+        var student = await _context.UserDetails.AsNoTracking()
+            .FirstOrDefaultAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student)
+            ?? throw new KeyNotFoundException("Student not found.");
+
+        var attempts = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.Subject != null && sl.Class.Term != null &&
+                         sl.LoadStatus != StudyLoadStatus.Pending && sl.LoadStatus != StudyLoadStatus.Rejected)
+            .Select(sl => new
+            {
+                sl.StudyLoadID,
+                sl.LoadStatus,
+                sl.Class!.SubjectID,
+                sl.Class.Subject!.SubjectCode,
+                sl.Class.Subject.IsMinor,
+                Units = sl.Class.Subject.LecUnits + sl.Class.Subject.LabUnits,
+                sl.Class.Term!.SchoolYear,
+                sl.Class.Term.Semester
+            })
+            .ToListAsync();
+        var ids = attempts.Select(a => a.StudyLoadID).ToList();
+        var grades = await _context.Grades.AsNoTracking()
+            .Where(g => ids.Contains(g.StudyLoadID))
+            .ToDictionaryAsync(g => g.StudyLoadID, g => new { g.Remarks, g.DateSubmitted });
+        var fullCredits = await _context.CreditedSubjects.AsNoTracking()
+            .Where(c => c.UserID == userId && c.Subject != null && c.CreditedUnits >= c.Subject.LecUnits + c.Subject.LabUnits)
+            .Select(c => new { c.SubjectID, c.RecordedAt })
+            .ToListAsync();
+
+        var dto = new StandingDto { UserId = userId, IsRegular = student.IsRegular, IrregularSince = student.IrregularSince };
+        foreach (var subject in attempts.GroupBy(a => a.SubjectID))
+        {
+            var tries = subject
+                .Select(a => new { a, Grade = grades.GetValueOrDefault(a.StudyLoadID) })
+                .OrderBy(t => t.a.SchoolYear).ThenBy(t => t.a.Semester)
+                .ToList();
+            var setback = tries.FindIndex(t => t.a.LoadStatus is StudyLoadStatus.Dropped or StudyLoadStatus.Withdrawn ||
+                                              (t.a.LoadStatus == StudyLoadStatus.Enrolled && t.Grade?.Remarks == 2));
+            if (setback < 0) continue;   // never failed or dropped: not a back subject
+
+            var first = tries[0].a;
+            var credit = fullCredits.FirstOrDefault(c => c.SubjectID == first.SubjectID);
+            var passAfter = tries.Skip(setback + 1).FirstOrDefault(t => t.a.LoadStatus == StudyLoadStatus.Enrolled && t.Grade?.Remarks == 1);
+            if (passAfter == null && credit == null)
+            {
+                dto.UnresolvedSubjects.Add(first.SubjectCode);
+                continue;
+            }
+            var passedAt = passAfter?.Grade?.DateSubmitted ?? credit!.RecordedAt;
+            if (!first.IsMinor && student.IrregularSince is DateTime since && passedAt >= since)
+            {
+                dto.BackMajorUnitsPassed += first.Units;
+                dto.CountedSubjects.Add(first.SubjectCode);
+            }
+        }
+        dto.UnresolvedSubjects.Sort(StringComparer.OrdinalIgnoreCase);
+        dto.CountedSubjects.Sort(StringComparer.OrdinalIgnoreCase);
+
+        if (!dto.IsRegular && dto.BackMajorUnitsPassed >= StandingRules.BackMajorUnitsToRegular)
+            dto.Suggestion = "MarkRegular";
+        else if (dto.IsRegular && dto.UnresolvedSubjects.Count > 0)
+            dto.Suggestion = "MarkIrregular";
+        return dto;
+    }
+
+    /// <summary>Every active irregular student with their back major units passed; those at 6 or more first.</summary>
+    public async Task<List<IrregularStudentDto>> GetIrregularStudentsAsync()
+    {
+        var students = await _context.UserDetails.AsNoTracking()
+            .Include(u => u.Program)
+            .Where(u => !u.IsRegular && u.User != null && u.User.Role == RoleUtils.Student && u.User.IsActive)
+            .ToListAsync();
+        var rows = new List<IrregularStudentDto>();
+        foreach (var u in students)
+        {
+            var standing = await GetStandingAsync(u.UserID);
+            rows.Add(new IrregularStudentDto
+            {
+                UserId = u.UserID,
+                StudentName = $"{u.Lastname.Trim().ToUpperInvariant()}, {u.Firstname.Trim()}",
+                Lrn = u.LRN,
+                ProgramCode = u.Program?.ProgramCode,
+                YearLevel = u.YearLevel,
+                IrregularSince = u.IrregularSince,
+                BackMajorUnitsPassed = standing.BackMajorUnitsPassed,
+                ReadyToBeRegular = standing.Suggestion == "MarkRegular"
+            });
+        }
+        return rows
+            .OrderByDescending(r => r.ReadyToBeRegular)
+            .ThenBy(r => r.ProgramCode).ThenBy(r => r.StudentName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>Marking irregular starts the count of back major units; marking regular clears it.</summary>
+    public async Task<StandingDto> SetStandingAsync(Guid userId, bool isRegular)
+    {
+        var student = await _context.UserDetails
+            .FirstOrDefaultAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student)
+            ?? throw new KeyNotFoundException("Student not found.");
+        if (student.IsRegular != isRegular)
+        {
+            student.IsRegular = isRegular;
+            student.IrregularSince = isRegular ? null : DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+        return await GetStandingAsync(userId);
     }
 
     private static string Ordinal(int n) => n switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{n}th" };

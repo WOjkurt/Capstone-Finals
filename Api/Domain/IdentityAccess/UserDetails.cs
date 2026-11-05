@@ -29,4 +29,10 @@ public class UserDetails
     public Position? Position { get; set; }
 
     public bool IsRegular { get; set; } = true;
+
+    /// <summary>
+    /// For students: when they were marked irregular. Back major subjects passed since then count toward
+    /// becoming regular again (6 units). Empty while regular.
+    /// </summary>
+    public DateTime? IrregularSince { get; set; }
 }
