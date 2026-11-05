@@ -224,8 +224,9 @@ class EnrollmentFormModel {
         if (birthOrder != null) 'birthOrder': birthOrder,
         if (numberOfSiblings != null) 'numberOfSiblings': numberOfSiblings,
         if (familyStatus != null) 'familyStatus': familyStatus,
+        // The application form on the server calls these "family medical conditions".
         if (presentMedicalConditions != null)
-          'presentMedicalConditions': presentMedicalConditions,
+          'familyMedicalConditionsSelected': presentMedicalConditions,
         if (pastMedicalHistory != null)
           'pastMedicalHistory': pastMedicalHistory,
         if (immunizationHistory != null)
