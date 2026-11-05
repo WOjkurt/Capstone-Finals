@@ -47,3 +47,18 @@ public class TeacherLoadRowDto
     public int Students { get; set; }
     public List<string> SubjectCodes { get; set; } = new();
 }
+
+/// <summary>A transferee (or any student with credits from another school).</summary>
+public class TransfereeRowDto
+{
+    public Guid UserId { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string? Lrn { get; set; }
+    public string? ProgramCode { get; set; }
+    public int? YearLevel { get; set; }
+    /// <summary>Schools on their credits; when there are none, the previous college from the enrollment form.</summary>
+    public List<string> PreviousSchools { get; set; } = new();
+    public int CreditedSubjects { get; set; }
+    public decimal CreditedUnits { get; set; }
+    public List<string> CreditedCodes { get; set; } = new();
+}

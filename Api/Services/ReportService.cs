@@ -10,6 +10,7 @@ public interface IReportService
     Task<List<ClassSizeRowDto>> GetClassSizesAsync(Guid termId);
     Task<List<FailedStudentRowDto>> GetFailedStudentsAsync(Guid termId);
     Task<List<TeacherLoadRowDto>> GetTeacherLoadsAsync(Guid termId);
+    Task<List<TransfereeRowDto>> GetTransfereesAsync();
 }
 
 /// <summary>Read-only term reports for the Registrar. Rejected, dropped and withdrawn loads are not counted.</summary>
@@ -184,6 +185,64 @@ public class ReportService : IReportService
             })
             // Unassigned last, then teachers by name.
             .OrderBy(r => r.TeacherUserId == null).ThenBy(r => r.TeacherName)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Students marked as transferees on their record, plus anyone with credits from another school.
+    /// Not tied to a term. Sorted by program, year level and name.
+    /// </summary>
+    public async Task<List<TransfereeRowDto>> GetTransfereesAsync()
+    {
+        var credits = await _context.CreditedSubjects
+            .AsNoTracking()
+            .Where(c => c.Subject != null)
+            .Select(c => new { c.UserID, c.SourceSchool, c.Subject!.SubjectCode, Units = c.Subject.LecUnits + c.Subject.LabUnits })
+            .ToListAsync();
+        var creditedIds = credits.Select(c => c.UserID).Distinct().ToList();
+
+        var students = await _context.UserDetails
+            .AsNoTracking()
+            .Include(u => u.Program)
+            .Where(u => u.User != null && u.User.Role == Api.Auth.RoleUtils.Student &&
+                        (u.StudentType == 3 || creditedIds.Contains(u.UserID)))
+            .ToListAsync();
+        var ids = students.Select(s => s.UserID).ToList();
+        var previousCollege = (await _context.EnrollmentForms
+                .AsNoTracking()
+                .Where(f => f.Application != null && f.Application.StudentUserID != null && ids.Contains(f.Application.StudentUserID.Value))
+                .Select(f => new { UserID = f.Application!.StudentUserID!.Value, f.PreviousCollege, f.Application.CreatedAt })
+                .ToListAsync())
+            .GroupBy(f => f.UserID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(f => f.CreatedAt).First().PreviousCollege);
+        var creditsBy = credits.ToLookup(c => c.UserID);
+
+        static bool Meaningful(string? s) =>
+            !string.IsNullOrWhiteSpace(s) && !new[] { "N/A", "NA", "NONE", "-" }.Contains(s.Trim().ToUpperInvariant());
+
+        return students
+            .Select(s =>
+            {
+                var mine = creditsBy[s.UserID].ToList();
+                var schools = mine.Select(c => c.SourceSchool.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n).ToList();
+                if (schools.Count == 0 && previousCollege.TryGetValue(s.UserID, out var prev) && Meaningful(prev))
+                {
+                    schools.Add(prev.Trim());
+                }
+                return new TransfereeRowDto
+                {
+                    UserId = s.UserID,
+                    StudentName = $"{s.Firstname} {s.Lastname}".Trim(),
+                    Lrn = s.LRN,
+                    ProgramCode = s.Program?.ProgramCode,
+                    YearLevel = s.YearLevel,
+                    PreviousSchools = schools,
+                    CreditedSubjects = mine.Count,
+                    CreditedUnits = mine.Sum(c => c.Units),
+                    CreditedCodes = mine.Select(c => c.SubjectCode).OrderBy(c => c).ToList()
+                };
+            })
+            .OrderBy(r => r.ProgramCode).ThenBy(r => r.YearLevel).ThenBy(r => r.StudentName)
             .ToList();
     }
 }

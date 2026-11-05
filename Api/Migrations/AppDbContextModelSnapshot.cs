@@ -125,6 +125,33 @@ namespace Api.Migrations
                     b.ToTable("AcademicTerms");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.AccreditedSchool", b =>
+                {
+                    b.Property<Guid>("SchoolID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("SchoolID");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_AccreditedSchools_Name");
+
+                    b.ToTable("AccreditedSchools");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.Class", b =>
                 {
                     b.Property<Guid>("ClassID")

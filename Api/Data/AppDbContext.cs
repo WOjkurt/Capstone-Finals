@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<OverloadApproval> OverloadApprovals { get; set; }
     public DbSet<CreditedSubject> CreditedSubjects { get; set; }
     public DbSet<StudentPersonalDetails> StudentPersonalDetails { get; set; }
+    public DbSet<AccreditedSchool> AccreditedSchools { get; set; }
     public DbSet<Api.Domain.Audit.ActivityLog> ActivityLogs { get; set; }
 
     // IdentityAccess
@@ -341,6 +342,11 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(c => c.RecordedByUserID)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AccreditedSchool>(entity =>
+        {
+            entity.HasIndex(s => s.Name).IsUnique().HasDatabaseName("UQ_AccreditedSchools_Name");
         });
 
         modelBuilder.Entity<StudentPersonalDetails>(entity =>

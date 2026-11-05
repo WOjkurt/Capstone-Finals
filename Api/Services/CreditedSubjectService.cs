@@ -40,11 +40,14 @@ public class CreditedSubjectService : ICreditedSubjectService
 
     public async Task<CreditedSubjectDto> CreateAsync(CreateCreditedSubjectDto dto, Guid recordedByUserId)
     {
-        string school = dto.SourceSchool?.Trim() ?? string.Empty;
+        string school = AccreditedSchoolService.Normalize(dto.SourceSchool ?? string.Empty);
         if (school.Length == 0)
         {
             throw new InvalidOperationException("Enter the name of the school where the subject was taken.");
         }
+        // Use the accredited list's spelling when it is the same school typed differently.
+        var listed = await _context.AccreditedSchools.AsNoTracking().Select(s => s.Name).ToListAsync();
+        school = listed.FirstOrDefault(n => string.Equals(AccreditedSchoolService.Normalize(n), school, StringComparison.OrdinalIgnoreCase)) ?? school;
 
         var student = await _context.UserDetails
             .AsNoTracking()
