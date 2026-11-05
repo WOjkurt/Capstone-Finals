@@ -50,10 +50,11 @@ class _StudentsViewState extends State<StudentsView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const PageHeader(
+            PageHeader(
               title: 'Students',
               subtitle:
                   'Search by LRN or name, then build a study load for the Registrar to approve.',
+              onRefresh: () => context.read<StudentsBloc>().add(StudentsStarted()),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(32, 20, 32, 16),

@@ -85,10 +85,16 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
       final repo = getIt<AcademicSetupRepository>();
       final terms = await repo.getTerms();
       if (mounted) {
+        // The term this window opened on may have been deleted since the page loaded.
+        final stale = terms.isNotEmpty && !terms.any((t) => t.termId == _selectedTermId);
         setState(() {
           _terms = terms;
           _isLoadingTerms = false;
+          if (stale) {
+            _selectedTermId = terms.firstWhere((t) => t.isActive, orElse: () => terms.first).termId;
+          }
         });
+        if (stale) _fetchProposedBlock();
       }
     } catch (_) {
       if (mounted) {
@@ -119,13 +125,17 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
       _unitLimit = null;
     });
     _fetchUnitLimit();
+    final termId = _selectedTermId;
 
     try {
       final repo = getIt<ClassRepository>();
       final items = await repo.getProposedBlock(
         widget.student.userId,
-        _selectedTermId,
+        termId,
       );
+
+      // The term changed while this was loading; the newer request fills the list.
+      if (termId != _selectedTermId) return;
 
       if (mounted) {
         _checkedSubjectIds.clear();
@@ -157,6 +167,7 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
         });
       }
     } catch (e) {
+      if (termId != _selectedTermId) return;
       if (mounted) {
         setState(() {
           _loadError = e.toString();

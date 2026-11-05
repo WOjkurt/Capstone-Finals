@@ -175,6 +175,14 @@ void _setupGetIt(http.Client mockClient) {
   );
 }
 
+class _OneTermRepo implements AcademicSetupRepository {
+  @override
+  Future<List<AcademicTermModel>> getTerms() async =>
+      [AcademicTermModel.fromJson({'termID': 'term-1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true})];
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 Widget _wrapDialog({
   required Widget child,
 }) {
@@ -807,6 +815,42 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('confirm_change_button')));
       await tester.pumpAndSettle();
       expect(sent!['changeReason'], 'Late add approved');
+    });
+
+    testWidgets('a deleted term falls back to a real one instead of showing an error', (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final asked = <String>[];
+      final mockClient = MockClient((req) async {
+        if (req.url.path == '/api/studyloads/proposed-block') {
+          final term = req.url.queryParameters['termId']!;
+          asked.add(term);
+          if (term == 'deleted') {
+            return http.Response(jsonEncode({'message': "AcademicTerm with ID 'deleted' was not found."}), 404);
+          }
+          return http.Response(jsonEncode([_regularItem(subjectCode: 'IT211', classId: 'cls-1')]), 200);
+        }
+        return http.Response('[]', 200);
+      });
+      _setupGetIt(mockClient);
+      getIt.unregister<AcademicSetupRepository>();
+      getIt.registerSingleton<AcademicSetupRepository>(_OneTermRepo());
+
+      await tester.pumpWidget(_wrapDialog(
+        child: StudyLoadBuilderDialog(
+          student: _student,
+          initialTermId: 'deleted',
+          initialTermLabel: '2026-2027 (2nd Sem)',
+          isCollegeHead: false,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(asked, ['deleted', 'term-1']);
+      expect(find.textContaining('was not found'), findsNothing);
+      expect(find.textContaining('IT211'), findsWidgets);
     });
 
     testWidgets('Save as pending sends asPending=true', (tester) async {

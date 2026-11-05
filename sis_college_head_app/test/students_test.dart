@@ -126,6 +126,21 @@ void main() {
       expect(bloc.state.selectedTermId, 'term-active');
     });
 
+    test('refreshing keeps the chosen term while it still exists', () async {
+      final bloc = buildBloc(MockClient((req) async => http.Response(jsonEncode(_termsJson), 200)));
+      addTearDown(bloc.close);
+      bloc.add(StudentsStarted());
+      await bloc.stream.firstWhere((s) => !s.isLoadingTerms);
+      bloc.add(StudentsTermSelected('term-old'));
+      await bloc.stream.firstWhere((s) => s.selectedTermId == 'term-old');
+
+      bloc.add(StudentsStarted());
+      await bloc.stream.firstWhere((s) => s.isLoadingTerms);
+      await bloc.stream.firstWhere((s) => !s.isLoadingTerms);
+
+      expect(bloc.state.selectedTermId, 'term-old');
+    });
+
     test('StudentsStarted selects the newest term when none is active', () async {
       final noActive = _termsJson
           .map((t) => {...t, 'isActive': false})

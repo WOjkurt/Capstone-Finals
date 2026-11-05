@@ -14,6 +14,7 @@ import 'widgets/accredited_schools_tab.dart';
 import '../repositories/report_repository.dart';
 import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
+import '../services/current_term.dart';
 
 class SetupView extends StatefulWidget {
   const SetupView({super.key});
@@ -23,6 +24,8 @@ class SetupView extends StatefulWidget {
 }
 
 class _SetupViewState extends State<SetupView> {
+  List<AcademicTermModel>? _lastTerms;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +41,11 @@ class _SetupViewState extends State<SetupView> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: BlocConsumer<SetupBloc, SetupState>(
         listener: (context, state) {
+          // Adding, deleting or activating a term changes the term the other pages work in.
+          if (!identical(state.terms, _lastTerms)) {
+            _lastTerms = state.terms;
+            CurrentTermScope.maybeOf(context)?.load(force: true);
+          }
           if (state.successMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

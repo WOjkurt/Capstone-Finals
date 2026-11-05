@@ -95,9 +95,11 @@ class StudentsBloc extends Bloc<StudentsEvent, StudentsState> {
         final byYear = b.schoolYear.compareTo(a.schoolYear);
         return byYear != 0 ? byYear : b.semester.compareTo(a.semester);
       });
-      String? selected;
-      for (final t in terms) {
-        if (t.isActive) selected = t.termId;
+      String? selected = terms.any((t) => t.termId == state.selectedTermId) ? state.selectedTermId : null;
+      if (selected == null) {
+        for (final t in terms) {
+          if (t.isActive) selected = t.termId;
+        }
       }
       selected ??= terms.isNotEmpty ? terms.first.termId : null;
       emit(state.copyWith(

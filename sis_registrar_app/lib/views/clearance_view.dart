@@ -6,6 +6,7 @@ import 'widgets/page_header.dart';
 import 'widgets/student_profile_panel.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/edit_lrn_dialog.dart';
+import '../services/current_term.dart';
 import '../theme/app_theme.dart';
 
 class ClearanceView extends StatefulWidget {
@@ -87,6 +88,7 @@ class _ClearanceViewState extends State<ClearanceView> {
                 onRefresh: () {
                   _searchController.clear();
                   context.read<ClearanceBloc>().add(SearchStudentsEvent(''));
+                  CurrentTermScope.maybeOf(context)?.load(force: true);
                 },
               ),
               Expanded(
