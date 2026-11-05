@@ -13,6 +13,9 @@ import 'edit_year_level_dialog.dart';
 import 'overload_badge.dart';
 import 'student_grades_dialog.dart';
 import 'study_load_builder_dialog.dart';
+import 'reason_dialog.dart';
+import '../../utils/formatters.dart';
+import '../../utils/student_record_pdf.dart';
 
 class StudentStudyLoadDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -77,12 +80,15 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
     _fetchStudyLoads();
   }
 
+  List<StudyLoadChangeModel> _changes = const [];
+
   Future<void> _fetchStudyLoads() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
     _fetchUnitLimit();
+    _fetchChanges();
 
     try {
       final repo = getIt<ClassRepository>();
@@ -161,121 +167,22 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
             ? 'Drop'
             : 'Withdraw';
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Row(
-          children: [
-            Icon(
-              isDestructive
-                  ? Icons.warning_amber_rounded
-                  : Icons.replay_circle_filled_rounded,
-              color: isDestructive
-                  ? (targetStatus == 2 ? const Color(0xFFDC2626) : const Color(0xFFD97706))
-                  : AppColors.primary,
-              size: 26,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '$actionVerb in ${load.subjectCode}?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, color: Color(0xFF334155), height: 1.5),
-                children: [
-                  const TextSpan(text: 'Are you sure you want to change enrollment in '),
-                  TextSpan(
-                    text: '${load.subjectCode} - ${load.subjectTitle}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                  ),
-                  const TextSpan(text: ' for student '),
-                  TextSpan(
-                    text: widget.student.fullName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                  ),
-                  const TextSpan(text: ' to '),
-                  TextSpan(
-                    text: statusName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: targetStatus == 1
-                          ? const Color(0xFF059669)
-                          : targetStatus == 2
-                              ? const Color(0xFFDC2626)
-                              : const Color(0xFFD97706),
-                    ),
-                  ),
-                  const TextSpan(text: '?'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, size: 18, color: Color(0xFF64748B)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isDestructive
-                          ? 'This status will immediately sync to the teacher grade book.'
-                          : 'Student will be restored to active enrolled standing in this class.',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: targetStatus == 1
-                  ? const Color(0xFF059669)
-                  : targetStatus == 2
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFFD97706),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              '$actionVerb Student',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
+    // Dropping and withdrawing need a reason; it is printed on the Adding/Dropping form.
+    final reason = await ReasonDialog.ask(
+      context,
+      title: '$actionVerb in ${load.subjectCode}?',
+      message: 'Change ${widget.student.fullName}\'s enrollment in ${load.subjectCode} to $statusName. '
+          '${isDestructive ? 'The teacher\'s grade book updates right away.' : 'The student goes back on the class list.'}',
+      hint: isDestructive ? 'e.g. Schedule conflict, student request, medical' : null,
+      confirmLabel: '$actionVerb Student',
+      confirmColor: targetStatus == 1
+          ? const Color(0xFF059669)
+          : targetStatus == 2
+              ? const Color(0xFFDC2626)
+              : const Color(0xFFD97706),
+      required: isDestructive,
     );
-
-    if (confirmed != true || !mounted) return;
+    if (reason == null || !mounted) return;
 
     setState(() {
       _updatingStudyLoadId = load.studyLoadId;
@@ -283,7 +190,8 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
 
     try {
       final repo = getIt<ClassRepository>();
-      final updated = await repo.updateStudyLoadStatus(load.studyLoadId, targetStatus);
+      final updated = await repo.updateStudyLoadStatus(load.studyLoadId, targetStatus, reason: reason.isEmpty ? null : reason);
+      _fetchChanges();
 
       if (mounted) {
         setState(() {
@@ -878,7 +786,119 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
       Expanded(
         child: _buildContent(),
       ),
+      if (_changes.isNotEmpty) _buildChanges(),
       ];
+
+  /// Subjects added, dropped, withdrawn or re-enrolled after enrollment this term, with the printable form.
+  Widget _buildChanges() => Container(
+        key: const ValueKey('load_changes_panel'),
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.scaffoldBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.swap_vert_rounded, size: 18, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Adds & drops this term (${_changes.length})',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('print_add_drop_button'),
+                  icon: const Icon(Icons.print_outlined, size: 16),
+                  label: const Text('Print Adding/Dropping form', style: TextStyle(fontSize: 12)),
+                  onPressed: _isPrinting ? null : _printAddDrop,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 150),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final c in _changes)
+                    Padding(
+                      key: ValueKey('load_change_${c.changeId}'),
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 92,
+                            child: Text(c.kind,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.kind == 'Added' || c.kind == 'Re-enrolled'
+                                      ? AppColors.accentGreenDark
+                                      : c.kind == 'Dropped'
+                                          ? AppColors.error
+                                          : AppColors.warning,
+                                )),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${c.subjectCode} — ${c.subjectTitle}${c.reason != null ? ' · ${c.reason}' : ''}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          Text(
+                            [if (c.changedAt != null) formatDate(c.changedAt!), if (c.changedBy != null) c.changedBy!].join(' · '),
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _fetchChanges() async {
+    try {
+      final list = await getIt<ClassRepository>().getChanges(widget.student.userId, widget.termId);
+      if (mounted) setState(() => _changes = list);
+    } catch (_) {
+      // Extra information only; the study load still shows.
+    }
+  }
+
+  Future<void> _printAddDrop() async {
+    setState(() => _isPrinting = true);
+    try {
+      final bytes = await buildAddDropPdf(
+        _changes,
+        student: RecordStudentInfo(
+          name: widget.student.fullName,
+          lrn: _currentLrn,
+          programCode: widget.student.programCode,
+          yearLevel: _currentYearLevel,
+        ),
+        termLabel: widget.termLabel,
+        logo: await loadSchoolLogo(),
+      );
+      final safeName = widget.student.fullName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+      await printPdf(bytes, 'Adding_Dropping_$safeName.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not print: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
 
   Widget _buildContent() {
     if (_isLoading) {

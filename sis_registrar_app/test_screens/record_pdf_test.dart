@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sis_registrar_app/models/class_models.dart';
 import 'package:sis_registrar_app/models/grading_models.dart';
 import 'package:sis_registrar_app/models/record_models.dart';
 import 'package:sis_registrar_app/utils/student_record_pdf.dart';
@@ -58,6 +59,12 @@ void main() {
       g('GEC 101A', 'Understanding the Self with Mental Health', 5.0, '2025-2026 (1st Sem)', '2025-2026', 1),
       g('GEC 101A', 'Understanding the Self with Mental Health', 2.25, '2025-2026 (Summer)', '2025-2026', 3),
     ], student: info, scope: 'Subject: GEC 101A - Understanding the Self with Mental Health', bySubject: true, printedAt: DateTime(2026, 11, 4)));
+
+    await File('$out/add_drop.pdf').writeAsBytes(await buildAddDropPdf([
+      StudyLoadChangeModel(changeId: '1', kind: 'Dropped', subjectCode: 'FT 208', subjectTitle: 'Wood Finishing Techniques', className: 'BTVTED 2A', units: 3, reason: 'Schedule conflict with OJT', changedAt: DateTime(2026, 8, 20)),
+      StudyLoadChangeModel(changeId: '2', kind: 'Added', subjectCode: 'GEC 106A', subjectTitle: 'Arts Appreciation', className: 'BTVTED 2B', units: 3, reason: 'Replacement subject, approved by College Head', changedAt: DateTime(2026, 8, 21)),
+      StudyLoadChangeModel(changeId: '3', kind: 'Withdrawn', subjectCode: 'NSTP 201A', subjectTitle: 'Literacy Training Service 1', className: 'BTVTED 2A', units: 3, reason: 'Medical', changedAt: DateTime(2026, 10, 2)),
+    ], student: info, termLabel: '2026-2027 (1st Sem)', printedAt: DateTime(2026, 11, 5)));
 
     const titles = ['Basic Occupational Safety and Health', 'Engineering Drawing', 'Wood and Lumber (Wood Joints and Wood Cuts)',
       'Basic Machine Tools & Bench Work', 'Teaching ICT as an Exploratory Course', 'Teaching the Common Competencies in ICT',

@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/grading_models.dart';
+import '../models/class_models.dart';
 import '../models/record_models.dart';
 import 'study_load_pdf.dart' show pdfSafe;
 
@@ -390,4 +391,42 @@ Future<Uint8List> buildGradeSheetPdf(
     _signatures(['Prepared by', 'Registrar']),
   ];
   return _save('GRADE SHEET', student, logo, body, compress, printedAt ?? DateTime.now());
+}
+
+/// The Adding/Dropping form for one term: every subject added, dropped, withdrawn or re-enrolled
+/// after enrollment, with the date and reason, and lines for the student and Registrar to sign.
+Future<Uint8List> buildAddDropPdf(
+  List<StudyLoadChangeModel> changes, {
+  required RecordStudentInfo student,
+  required String termLabel,
+  Uint8List? logo,
+  bool compress = true,
+  DateTime? printedAt,
+}) {
+  String day(DateTime? d) => d == null ? '' : _date(d);
+  final body = <pw.Widget>[
+    pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 10, bottom: 4),
+      child: pw.Text(pdfSafe('Term: $termLabel'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+    ),
+    _table(
+      headers: ['Action', 'Course Code', 'Descriptive Title', 'Section', 'Units', 'Date', 'Reason'],
+      rows: [
+        for (final c in changes)
+          [c.kind, c.subjectCode, c.subjectTitle, c.className, _num(c.units), day(c.changedAt), c.reason ?? ''],
+      ],
+      widths: const {
+        0: pw.FixedColumnWidth(52),
+        1: pw.FixedColumnWidth(50),
+        2: pw.FlexColumnWidth(2.4),
+        3: pw.FixedColumnWidth(48),
+        4: pw.FixedColumnWidth(30),
+        5: pw.FixedColumnWidth(58),
+        6: pw.FlexColumnWidth(2),
+      },
+      centered: const {4},
+    ),
+    _signatures(['Student', 'Registrar']),
+  ];
+  return _save('ADDING / DROPPING FORM', student, logo, body, compress, printedAt ?? DateTime.now());
 }

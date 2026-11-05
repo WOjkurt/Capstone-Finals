@@ -101,14 +101,15 @@ class ClassRepository {
     return list;
   }
 
+  /// [reason] is required to drop or withdraw an enrolled subject; it goes on the Adding/Dropping form.
   Future<ClassRosterItemModel> updateStudyLoadStatus(
-      String studyLoadId, int loadStatus) async {
+      String studyLoadId, int loadStatus, {String? reason}) async {
     final headers = await _auth.getAuthHeaders();
     final uri = Uri.parse('$baseUrl/api/studyloads/$studyLoadId/status');
     final res = await _client.patch(
       uri,
       headers: headers,
-      body: jsonEncode({'loadStatus': loadStatus}),
+      body: jsonEncode({'loadStatus': loadStatus, if (reason != null) 'reason': reason}),
     );
     if (res.statusCode != 200) {
       throw ApiException(
@@ -236,6 +237,7 @@ class ClassRepository {
     required List<String> classIds,
     bool asPending = false,
     String? overloadReason,
+    String? changeReason,
   }) async {
     final headers = await _auth.getAuthHeaders();
     headers['Content-Type'] = 'application/json';
@@ -246,6 +248,7 @@ class ClassRepository {
       'classIds': classIds,
       'asPending': asPending,
       if (overloadReason != null) 'overloadReason': overloadReason,
+      if (changeReason != null) 'changeReason': changeReason,
     });
     final res = await _client.post(uri, headers: headers, body: body);
     if (res.statusCode != 200) {
@@ -266,6 +269,7 @@ class ClassRepository {
     bool force = false,
     String? forceReason,
     bool asPending = false,
+    String? changeReason,
   }) async {
     final headers = await _auth.getAuthHeaders();
     headers['Content-Type'] = 'application/json';
@@ -276,6 +280,7 @@ class ClassRepository {
       'force': force,
       'forceReason': forceReason,
       'asPending': asPending,
+      if (changeReason != null) 'changeReason': changeReason,
     });
     final res = await _client.post(uri, headers: headers, body: body);
     if (res.statusCode != 200) {
@@ -287,5 +292,19 @@ class ClassRepository {
     return EnrollSingleResponseModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
-}
 
+  /// Subjects added, dropped, withdrawn or re-enrolled after enrollment, oldest first.
+  Future<List<StudyLoadChangeModel>> getChanges(String userId, String termId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/studyloads/changes').replace(queryParameters: {'userId': userId, 'termId': termId}),
+      headers: headers,
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => StudyLoadChangeModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+}

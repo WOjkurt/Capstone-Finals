@@ -77,6 +77,11 @@ void main() {
           {'gradeId': 'g2', 'subjectCode': 'IT 102', 'subjectTitle': 'Prog', 'units': 1, 'finalGrade': 3.5, 'remarks': 2, 'loadStatus': 1, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
           {'gradeId': 'g3', 'subjectCode': 'IT 103', 'subjectTitle': 'Dropped', 'units': 3, 'finalGrade': 5.0, 'remarks': 2, 'loadStatus': 2, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
         ];
+      } else if (path.endsWith('/api/studyloads/changes')) {
+        body = [
+          {'changeId': 'ch1', 'kind': 'Dropped', 'subjectCode': 'IT 102', 'subjectTitle': 'Prog', 'className': 'BSIT 1A', 'units': 3, 'reason': 'Schedule conflict', 'changedBy': 'Rita Reg', 'changedAt': '2026-08-20T02:00:00Z'},
+          {'changeId': 'ch2', 'kind': 'Added', 'subjectCode': 'IT 103', 'subjectTitle': 'Data', 'className': 'BSIT 1B', 'units': 3, 'reason': 'Replacement', 'changedBy': 'Rita Reg', 'changedAt': '2026-08-21T02:00:00Z'},
+        ];
       } else if (path.endsWith('/api/student-records/u1/personal-details')) {
         if (req.method == 'PUT') {
           savedDetails = jsonDecode(req.body) as Map<String, dynamic>;
@@ -300,6 +305,26 @@ void main() {
     expect(find.text('Personal details saved.'), findsOneWidget);
     expect(find.text('Talisay City'), findsOneWidget);
     expect(find.textContaining('by Rita Reg'), findsOneWidget);
+  });
+
+  testWidgets('Study load lists adds and drops with reasons and prints the Adding/Dropping form', (tester) async {
+    final printed = <String>[];
+    final original = printPdf;
+    printPdf = (bytes, name) async {
+      expect(bytes.length, greaterThan(500));
+      printed.add(name);
+    };
+    addTearDown(() => printPdf = original);
+    await pump(tester);
+
+    expect(find.text('Adds & drops this term (2)'), findsOneWidget);
+    expect(find.text('IT 102 — Prog · Schedule conflict'), findsOneWidget);
+    expect(requests.any((r) => r.startsWith('/api/studyloads/changes') && r.contains('userId=u1') && r.contains('termId=t1')), isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('print_add_drop_button')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+    await tester.pumpAndSettle();
+    expect(printed, ['Adding_Dropping_Ana_Cruz.pdf']);
   });
 
   testWidgets('Grade release lists terms; Study load jumps to that term; the switch sends a toggle', (tester) async {

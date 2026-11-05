@@ -6,6 +6,7 @@ import '../../models/setup_models.dart';
 import '../../repositories/class_repository.dart';
 import '../../repositories/enrollment_repository.dart';
 import '../../theme/app_theme.dart';
+import 'reason_dialog.dart';
 
 class StudyLoadBuilderDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -308,6 +309,17 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
         .toList();
   }
 
+  /// Whether the student already has an Enrolled subject in the chosen term.
+  Future<bool> _isAlreadyEnrolled() async {
+    try {
+      final loads = await getIt<ClassRepository>().getStudentStudyLoads(widget.student.userId, _selectedTermId);
+      return loads.any((l) => l.isEnrolled);
+    } catch (_) {
+      // The server still checks; it asks for a reason if one was needed.
+      return false;
+    }
+  }
+
   Future<void> _submitBatch({required bool asPending}) async {
     if (_checkedSubjectIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -351,6 +363,21 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
       if (overloadReason == null || !mounted) return;
     }
 
+    // Enrolling more subjects for a student already enrolled this term is an "add" and needs a reason.
+    String? changeReason;
+    if (!asPending && !_effectiveIsCollegeHead && await _isAlreadyEnrolled()) {
+      if (!mounted) return;
+      changeReason = await ReasonDialog.ask(
+        context,
+        title: 'Add subjects after enrollment',
+        message: '${widget.student.fullName} is already enrolled for this term. '
+            'Why are ${classIds.length == 1 ? 'this subject' : 'these ${classIds.length} subjects'} being added?',
+        hint: 'e.g. Late add approved by the College Head, retake',
+        confirmLabel: 'Add and enroll',
+      );
+      if (changeReason == null || !mounted) return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -361,6 +388,7 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
         classIds: classIds,
         asPending: asPending,
         overloadReason: overloadReason,
+        changeReason: changeReason,
       );
 
       final enrolledResults = results.where((r) => r.enrolled).toList();
@@ -737,6 +765,8 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
           force: true,
           forceReason: reasonCtrl.text.trim(),
           asPending: effectiveAsPending,
+          // If the student is already enrolled this term, the force reason also explains the add.
+          changeReason: effectiveAsPending ? null : reasonCtrl.text.trim(),
         );
 
         if (mounted) {

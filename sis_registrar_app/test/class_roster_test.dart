@@ -407,6 +407,7 @@ void main() {
 
     testWidgets('Confirming Drop Student dispatches PATCH and updates badge immediately', (tester) async {
       int patchCallCount = 0;
+      String? requestedReason;
       int? requestedStatus;
 
       final mockClient = MockClient((request) async {
@@ -430,6 +431,7 @@ void main() {
           patchCallCount++;
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           requestedStatus = body['loadStatus'] as int;
+          requestedReason = body['reason'] as String?;
           return http.Response(
             jsonEncode({
               'studyLoadId': enrolledStudent.studyLoadId,
@@ -473,10 +475,17 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap Confirm 'Drop Student' in dialog
-      final dropConfirmButton = find.widgetWithText(ElevatedButton, 'Drop Student');
+      // A reason is required to drop.
+      final dropConfirmButton = find.byKey(const ValueKey('confirm_change_button'));
       expect(dropConfirmButton, findsOneWidget);
       await tester.tap(dropConfirmButton);
       await tester.pumpAndSettle();
+      expect(find.text('A reason is required.'), findsOneWidget);
+      expect(patchCallCount, 0);
+      await tester.enterText(find.byKey(const ValueKey('change_reason_field')), 'Schedule conflict');
+      await tester.tap(dropConfirmButton);
+      await tester.pumpAndSettle();
+      expect(requestedReason, 'Schedule conflict');
 
       // Verify PATCH was called with status 2 (Dropped)
       expect(patchCallCount, 1);
@@ -561,7 +570,8 @@ void main() {
 
       // Confirmation dialog for Re-enroll
       expect(find.text('Re-enroll Student?'), findsOneWidget);
-      final reEnrollConfirm = find.widgetWithText(ElevatedButton, 'Re-enroll Student');
+      // Re-enrolling: the reason is optional.
+      final reEnrollConfirm = find.byKey(const ValueKey('confirm_change_button'));
       await tester.tap(reEnrollConfirm);
       await tester.pumpAndSettle();
 
@@ -722,7 +732,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Withdraw in PHYS101?'), findsOneWidget);
-      final withdrawBtn = find.widgetWithText(ElevatedButton, 'Withdraw Student');
+      await tester.enterText(find.byKey(const ValueKey('change_reason_field')), 'Medical');
+      final withdrawBtn = find.byKey(const ValueKey('confirm_change_button'));
       await tester.tap(withdrawBtn);
       await tester.pumpAndSettle();
 

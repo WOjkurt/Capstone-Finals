@@ -5,6 +5,7 @@ import '../../repositories/class_repository.dart';
 import '../../theme/app_theme.dart';
 import 'status_badge.dart';
 import 'edit_lrn_dialog.dart';
+import 'reason_dialog.dart';
 
 class ClassRosterDialog extends StatefulWidget {
   final ClassModel classItem;
@@ -96,121 +97,22 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
             ? 'Drop'
             : 'Withdraw';
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Row(
-          children: [
-            Icon(
-              isDestructive
-                  ? Icons.warning_amber_rounded
-                  : Icons.replay_circle_filled_rounded,
-              color: isDestructive
-                  ? (targetStatus == 2 ? const Color(0xFFDC2626) : const Color(0xFFD97706))
-                  : AppColors.primary,
-              size: 26,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '$actionVerb Student?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, color: Color(0xFF334155), height: 1.5),
-                children: [
-                  const TextSpan(text: 'Are you sure you want to change the enrollment status of '),
-                  TextSpan(
-                    text: student.displayName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                  ),
-                  const TextSpan(text: ' in class '),
-                  TextSpan(
-                    text: '${widget.classItem.className} (${widget.classItem.subjectCode ?? "Subject"})',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                  ),
-                  const TextSpan(text: ' to '),
-                  TextSpan(
-                    text: statusName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: targetStatus == 1
-                          ? const Color(0xFF059669)
-                          : targetStatus == 2
-                              ? const Color(0xFFDC2626)
-                              : const Color(0xFFD97706),
-                    ),
-                  ),
-                  const TextSpan(text: '?'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, size: 18, color: Color(0xFF64748B)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      isDestructive
-                          ? 'This will immediately update grade records and class rosters.'
-                          : 'Student will be restored to active enrolled standing in this class.',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: targetStatus == 1
-                  ? const Color(0xFF059669)
-                  : targetStatus == 2
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFFD97706),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              '$actionVerb Student',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
+    // Dropping and withdrawing need a reason; it is printed on the Adding/Dropping form.
+    final reason = await ReasonDialog.ask(
+      context,
+      title: '$actionVerb Student?',
+      message: 'Change ${student.displayName}\'s enrollment in ${widget.classItem.subjectCode} to $statusName. '
+          '${isDestructive ? 'The teacher\'s grade book updates right away.' : 'The student goes back on the class list.'}',
+      hint: isDestructive ? 'e.g. Schedule conflict, student request, medical' : null,
+      confirmLabel: '$actionVerb Student',
+      confirmColor: targetStatus == 1
+          ? const Color(0xFF059669)
+          : targetStatus == 2
+              ? const Color(0xFFDC2626)
+              : const Color(0xFFD97706),
+      required: isDestructive,
     );
-
-    if (confirmed != true || !mounted) return;
+    if (reason == null || !mounted) return;
 
     setState(() {
       _updatingStudyLoadId = student.studyLoadId;
@@ -218,7 +120,7 @@ class _ClassRosterDialogState extends State<ClassRosterDialog> {
 
     try {
       final repo = getIt<ClassRepository>();
-      final updated = await repo.updateStudyLoadStatus(student.studyLoadId, targetStatus);
+      final updated = await repo.updateStudyLoadStatus(student.studyLoadId, targetStatus, reason: reason.isEmpty ? null : reason);
 
       if (mounted) {
         setState(() {

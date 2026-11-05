@@ -535,3 +535,42 @@ class UnitLimitModel {
     );
   }
 }
+
+/// One line of the Adding/Dropping form: a subject added, dropped, withdrawn or re-enrolled after enrollment.
+class StudyLoadChangeModel {
+  final String changeId;
+
+  /// Added, Dropped, Withdrawn or Re-enrolled.
+  final String kind;
+  final String subjectCode;
+  final String subjectTitle;
+  final String className;
+  final double units;
+  final String? reason;
+  final String? changedBy;
+  final DateTime? changedAt;
+
+  const StudyLoadChangeModel({
+    required this.changeId,
+    required this.kind,
+    required this.subjectCode,
+    required this.subjectTitle,
+    this.className = '',
+    this.units = 0,
+    this.reason,
+    this.changedBy,
+    this.changedAt,
+  });
+
+  factory StudyLoadChangeModel.fromJson(Map<String, dynamic> j) => StudyLoadChangeModel(
+        changeId: j['changeId']?.toString() ?? '',
+        kind: j['kind'] as String? ?? '',
+        subjectCode: j['subjectCode'] as String? ?? '',
+        subjectTitle: j['subjectTitle'] as String? ?? '',
+        className: j['className'] as String? ?? '',
+        units: (j['units'] as num?)?.toDouble() ?? 0,
+        reason: j['reason'] as String?,
+        changedBy: j['changedBy'] as String?,
+        changedAt: DateTime.tryParse(j['changedAt'] as String? ?? '')?.toLocal(),
+      );
+}

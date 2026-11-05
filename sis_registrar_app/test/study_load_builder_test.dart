@@ -758,6 +758,57 @@ void main() {
       expect(capturedClassIds, contains('cls-1'));
     });
 
+    testWidgets('Enroll now for a student already enrolled this term asks why the subject is added', (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      Map<String, dynamic>? sent;
+      final mockClient = MockClient((req) async {
+        if (req.url.path == '/api/studyloads/proposed-block') {
+          return http.Response(jsonEncode([_regularItem(subjectCode: 'IT211', classId: 'cls-1')]), 200);
+        }
+        if (req.url.path == '/api/AcademicTerms') {
+          return http.Response(jsonEncode([
+            {'termID': 'term-1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true}
+          ]), 200);
+        }
+        if (req.url.path.startsWith('/api/studyloads/student/')) {
+          return http.Response(jsonEncode([
+            {'studyLoadId': 'sl-0', 'classId': 'cls-0', 'subjectCode': 'IT101', 'subjectTitle': 'Intro', 'className': 'A', 'loadStatus': 'Enrolled'}
+          ]), 200);
+        }
+        if (req.url.path == '/api/studyloads/enroll-batch') {
+          sent = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response(jsonEncode([
+            {'classId': 'cls-1', 'enrolled': true, 'studyLoadId': 'sl-1', 'reasons': []}
+          ]), 200);
+        }
+        return http.Response('[]', 200);
+      });
+
+      _setupGetIt(mockClient);
+      await tester.pumpWidget(_wrapDialog(
+        child: StudyLoadBuilderDialog(
+          student: _student,
+          initialTermId: 'term-1',
+          initialTermLabel: '2026-2027 — 1st Sem',
+          isCollegeHead: false,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('enroll_now_button')));
+      await tester.pumpAndSettle();
+      expect(find.text('Add subjects after enrollment'), findsOneWidget);
+      expect(sent, isNull);
+
+      await tester.enterText(find.byKey(const ValueKey('change_reason_field')), 'Late add approved');
+      await tester.tap(find.byKey(const ValueKey('confirm_change_button')));
+      await tester.pumpAndSettle();
+      expect(sent!['changeReason'], 'Late add approved');
+    });
+
     testWidgets('Save as pending sends asPending=true', (tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
