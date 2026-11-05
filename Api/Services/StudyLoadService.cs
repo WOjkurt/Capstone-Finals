@@ -924,7 +924,7 @@ public class StudyLoadService : IStudyLoadService
         };
     }
 
-    private enum SubjectCompletionStatus
+    internal enum SubjectCompletionStatus
     {
         Passed,
         Failed,
@@ -1094,7 +1094,7 @@ public class StudyLoadService : IStudyLoadService
     /// The pass/fail rule for one subject, given whether it is credited and the student's study loads of it
     /// (load status and final-grade remarks). Pending and Rejected loads are not evidence; a pass anywhere wins.
     /// </summary>
-    private static SubjectCompletionStatus ClassifyAttempts(bool credited, IEnumerable<(int LoadStatus, int? Remarks)> attempts)
+    internal static SubjectCompletionStatus ClassifyAttempts(bool credited, IEnumerable<(int LoadStatus, int? Remarks)> attempts)
     {
         if (credited) return SubjectCompletionStatus.Passed;
 

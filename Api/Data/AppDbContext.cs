@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<StudyLoad> StudyLoads { get; set; }
     public DbSet<OverloadApproval> OverloadApprovals { get; set; }
     public DbSet<CreditedSubject> CreditedSubjects { get; set; }
+    public DbSet<StudentPersonalDetails> StudentPersonalDetails { get; set; }
     public DbSet<Api.Domain.Audit.ActivityLog> ActivityLogs { get; set; }
 
     // IdentityAccess
@@ -339,6 +340,19 @@ public class AppDbContext : DbContext
             entity.HasOne(c => c.RecordedByUser)
                 .WithMany()
                 .HasForeignKey(c => c.RecordedByUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StudentPersonalDetails>(entity =>
+        {
+            entity.HasOne(d => d.User)
+                .WithOne()
+                .HasForeignKey<StudentPersonalDetails>(d => d.UserID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.UpdatedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.UpdatedByUserID)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

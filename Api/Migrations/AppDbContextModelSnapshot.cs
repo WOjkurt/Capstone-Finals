@@ -599,6 +599,59 @@ namespace Api.Migrations
                     b.ToTable("OverloadApprovals");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.StudentPersonalDetails", b =>
+                {
+                    b.Property<Guid>("UserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("DateAdmitted")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EntranceData")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Nationality")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("PlaceOfBirth")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Sex")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Suffix")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserID");
+
+                    b.HasIndex("UpdatedByUserID");
+
+                    b.ToTable("StudentPersonalDetails");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.StudyLoad", b =>
                 {
                     b.Property<Guid>("StudyLoadID")
@@ -1106,6 +1159,25 @@ namespace Api.Migrations
                     b.Navigation("ApprovedByUser");
 
                     b.Navigation("Term");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.StudentPersonalDetails", b =>
+                {
+                    b.HasOne("Api.Domain.IdentityAccess.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Api.Domain.IdentityAccess.User", "User")
+                        .WithOne()
+                        .HasForeignKey("Api.Domain.Enrollment.StudentPersonalDetails", "UserID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("UpdatedByUser");
 
                     b.Navigation("User");
                 });
