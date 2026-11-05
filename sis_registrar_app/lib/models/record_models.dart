@@ -288,3 +288,70 @@ class PersonalDetails {
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '')?.toLocal(),
       );
 }
+
+/// Regular or irregular, and progress back to regular (6 units of back major subjects passed).
+class Standing {
+  final bool isRegular;
+  final DateTime? irregularSince;
+  final double backMajorUnitsPassed;
+  final double unitsToRegular;
+  final List<String> countedSubjects;
+  final List<String> unresolvedSubjects;
+
+  /// "MarkRegular", "MarkIrregular", or null when the status fits.
+  final String? suggestion;
+
+  const Standing({
+    required this.isRegular,
+    this.irregularSince,
+    this.backMajorUnitsPassed = 0,
+    this.unitsToRegular = 6,
+    this.countedSubjects = const [],
+    this.unresolvedSubjects = const [],
+    this.suggestion,
+  });
+
+  factory Standing.fromJson(Map<String, dynamic> j) => Standing(
+        isRegular: j['isRegular'] as bool? ?? true,
+        irregularSince: DateTime.tryParse(j['irregularSince'] as String? ?? '')?.toLocal(),
+        backMajorUnitsPassed: (j['backMajorUnitsPassed'] as num?)?.toDouble() ?? 0,
+        unitsToRegular: (j['unitsToRegular'] as num?)?.toDouble() ?? 6,
+        countedSubjects: [for (final c in (j['countedSubjects'] as List?) ?? []) c.toString()],
+        unresolvedSubjects: [for (final c in (j['unresolvedSubjects'] as List?) ?? []) c.toString()],
+        suggestion: j['suggestion'] as String?,
+      );
+}
+
+/// An irregular student and their progress back to regular.
+class IrregularStudent {
+  final String userId;
+  final String studentName;
+  final String? lrn;
+  final String? programCode;
+  final int? yearLevel;
+  final DateTime? irregularSince;
+  final double backMajorUnitsPassed;
+  final bool readyToBeRegular;
+
+  const IrregularStudent({
+    required this.userId,
+    required this.studentName,
+    this.lrn,
+    this.programCode,
+    this.yearLevel,
+    this.irregularSince,
+    this.backMajorUnitsPassed = 0,
+    this.readyToBeRegular = false,
+  });
+
+  factory IrregularStudent.fromJson(Map<String, dynamic> j) => IrregularStudent(
+        userId: j['userId']?.toString() ?? '',
+        studentName: j['studentName'] as String? ?? '',
+        lrn: j['lrn'] as String?,
+        programCode: j['programCode'] as String?,
+        yearLevel: (j['yearLevel'] as num?)?.toInt(),
+        irregularSince: DateTime.tryParse(j['irregularSince'] as String? ?? '')?.toLocal(),
+        backMajorUnitsPassed: (j['backMajorUnitsPassed'] as num?)?.toDouble() ?? 0,
+        readyToBeRegular: j['readyToBeRegular'] as bool? ?? false,
+      );
+}

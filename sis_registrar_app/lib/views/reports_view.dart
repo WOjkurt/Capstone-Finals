@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../injection.dart';
 import '../models/report_models.dart';
+import '../utils/formatters.dart';
+import '../repositories/student_record_repository.dart';
+import '../models/record_models.dart';
 import '../models/setup_models.dart';
 import '../services/current_term.dart';
 import '../repositories/report_repository.dart';
@@ -51,7 +54,8 @@ String _num(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
 class ReportsView extends StatefulWidget {
   static const termReportsTab = 0;
   static const transfereesTab = 1;
-  static const activityLogTab = 2;
+  static const irregularTab = 2;
+  static const activityLogTab = 3;
 
   /// Which tab is showing (see the constants above); links elsewhere in the app can change it.
   final ValueNotifier<int>? tab;
@@ -65,7 +69,7 @@ class ReportsView extends StatefulWidget {
 class _ReportsViewState extends State<ReportsView>
     with CurrentTermUser, SingleTickerProviderStateMixin {
   late final TabController _tabs = TabController(
-    length: 3,
+    length: 4,
     vsync: this,
     initialIndex: widget.tab?.value ?? 0,
   );
@@ -352,6 +356,7 @@ class _ReportsViewState extends State<ReportsView>
               tabs: const [
                 Tab(text: 'Term reports'),
                 Tab(text: 'Transferees'),
+                Tab(text: 'Irregular students'),
                 Tab(text: 'Activity log'),
               ],
             ),
@@ -415,6 +420,7 @@ class _ReportsViewState extends State<ReportsView>
                   ],
                 ),
                 const TransfereesReport(),
+                const IrregularStudentsReport(),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(24, 16, 24, 16),
                   child: ActivityLogBrowser(),
@@ -713,6 +719,171 @@ class _TransfereesReportState extends State<TransfereesReport> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Irregular students and their progress back to regular (6 units of back major subjects passed).
+/// Students who reached it are listed first with a "Mark regular" button.
+class IrregularStudentsReport extends StatefulWidget {
+  const IrregularStudentsReport({super.key});
+
+  @override
+  State<IrregularStudentsReport> createState() => _IrregularStudentsReportState();
+}
+
+class _IrregularStudentsReportState extends State<IrregularStudentsReport> {
+  List<IrregularStudent>? _rows;
+  String? _error;
+  final Set<String> _saving = {};
+
+  static String _units(double u) => u.toStringAsFixed(u % 1 == 0 ? 0 : 1);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _rows = null;
+      _error = null;
+    });
+    try {
+      final rows = await getIt<StudentRecordRepository>().irregularStudents();
+      if (mounted) setState(() => _rows = rows);
+    } catch (e) {
+      if (mounted) setState(() => _error = e is ApiException ? e.message : e.toString());
+    }
+  }
+
+  Future<void> _markRegular(IrregularStudent r) async {
+    setState(() => _saving.add(r.userId));
+    try {
+      await getIt<StudentRecordRepository>().setStanding(r.userId, isRegular: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${r.studentName} is now regular.'), backgroundColor: AppColors.success),
+      );
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e is ApiException ? e.message : e.toString()),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving.remove(r.userId));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows;
+    final ready = rows?.where((r) => r.readyToBeRegular).length ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  rows == null
+                      ? 'An irregular student becomes regular again after passing 6 units of back major subjects.'
+                      : '${rows.length} irregular student(s)${ready > 0 ? ', $ready ready to be regular again' : ''}. '
+                          'Back major subjects are majors the student had failed or dropped.',
+                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ),
+              IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: _load),
+            ],
+          ),
+        ),
+        Expanded(child: _buildBody()),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    if (_error != null) {
+      return Center(child: Text(_error!, style: const TextStyle(color: AppColors.error)));
+    }
+    final rows = _rows;
+    if (rows == null) return const Center(child: CircularProgressIndicator());
+    if (rows.isEmpty) {
+      return const Center(
+        child: Text('No irregular students. Mark a student irregular from their Evaluation tab.',
+            style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      itemCount: rows.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
+      itemBuilder: (_, i) {
+        final r = rows[i];
+        return Container(
+          key: ValueKey('irregular_${r.userId}'),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: r.readyToBeRegular ? const Color(0xFFF0FDF4) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: r.readyToBeRegular ? const Color(0xFFBBF7D0) : AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(r.studentName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    Text(
+                      [
+                        if (r.programCode != null) r.programCode!,
+                        if (r.yearLevel != null) 'Year ${r.yearLevel}',
+                        if (r.irregularSince != null) 'irregular since ${formatDate(r.irregularSince!)}',
+                      ].join(' · '),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${_units(r.backMajorUnitsPassed)} of 6 back major units',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(
+                      value: (r.backMajorUnitsPassed / 6).clamp(0.0, 1.0),
+                      minHeight: 6,
+                      backgroundColor: AppColors.border,
+                      color: r.readyToBeRegular ? AppColors.accentGreen : AppColors.primary,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 130,
+                child: r.readyToBeRegular
+                    ? FilledButton(
+                        key: ValueKey('mark_regular_${r.userId}'),
+                        onPressed: _saving.contains(r.userId) ? null : () => _markRegular(r),
+                        child: const Text('Mark regular'),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

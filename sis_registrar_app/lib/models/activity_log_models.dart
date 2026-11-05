@@ -13,6 +13,7 @@ const Map<String, String> kActivityActionLabels = {
   'TEACHER_ASSIGNED': 'Teacher assigned',
   'CLEARANCE_CHANGED': 'Clearance changed',
   'PERSONAL_DETAILS_UPDATED': 'Personal details updated',
+  'STANDING_CHANGED': 'Regular/irregular changed',
 };
 
 const Map<int, String> _roleNames = {

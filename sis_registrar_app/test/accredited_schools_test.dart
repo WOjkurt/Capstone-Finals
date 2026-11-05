@@ -9,6 +9,7 @@ import 'package:sis_registrar_app/models/setup_models.dart';
 import 'package:sis_registrar_app/repositories/accredited_school_repository.dart';
 import 'package:sis_registrar_app/repositories/enrollment_repository.dart';
 import 'package:sis_registrar_app/repositories/report_repository.dart';
+import 'package:sis_registrar_app/repositories/student_record_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
 import 'package:sis_registrar_app/utils/study_load_pdf.dart';
 import 'package:sis_registrar_app/views/reports_view.dart';
@@ -59,6 +60,17 @@ void main() {
         return http.Response('', 204);
       }
       if (path.endsWith('/api/accredited-schools')) return http.Response(jsonEncode(schools), 200);
+      if (path.endsWith('/api/student-records/irregular')) {
+        return http.Response(
+            jsonEncode([
+              {'userId': 'u5', 'studentName': 'REYES, Jo', 'programCode': 'BSIT', 'yearLevel': 2, 'backMajorUnitsPassed': 6, 'readyToBeRegular': true},
+              {'userId': 'u6', 'studentName': 'SY, Kim', 'programCode': 'BSME', 'yearLevel': 3, 'backMajorUnitsPassed': 3, 'readyToBeRegular': false},
+            ]),
+            200);
+      }
+      if (path.endsWith('/api/student-records/u5/standing')) {
+        return http.Response(jsonEncode({'isRegular': true}), 200);
+      }
       if (path.endsWith('/api/reports/transferees')) {
         return http.Response(
             jsonEncode([
@@ -75,6 +87,7 @@ void main() {
     getIt.registerSingleton<AccreditedSchoolRepository>(AccreditedSchoolRepository(auth, client: client));
     getIt.registerSingleton<ReportRepository>(ReportRepository(auth, client: client));
     getIt.registerSingleton<AcademicSetupRepository>(FakeSetupRepo());
+    getIt.registerSingleton<StudentRecordRepository>(StudentRecordRepository(auth, client: client));
   });
 
   tearDown(() async => getIt.reset());
@@ -141,5 +154,20 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
     await tester.pumpAndSettle();
     expect(printed, ['Transferees.pdf']);
+  });
+
+  testWidgets('Reports → Irregular students: ready ones first with Mark regular', (tester) async {
+    await pump(tester, const ReportsView(tab: null));
+    await tester.tap(find.text('Irregular students'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('2 irregular student(s), 1 ready to be regular again'), findsOneWidget);
+    expect(find.text('6 of 6 back major units'), findsOneWidget);
+    expect(find.byKey(const ValueKey('mark_regular_u6')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('mark_regular_u5')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('PUT /api/student-records/u5/standing {"isRegular":true}'));
+    expect(find.text('REYES, Jo is now regular.'), findsOneWidget);
   });
 }

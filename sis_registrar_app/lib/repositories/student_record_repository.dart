@@ -25,9 +25,21 @@ class StudentRecordRepository {
   /// Saves only the student's sex ("Male" or "Female"); their other details stay as they are.
   Future<void> setSex(String userId, String sex) => _send('$userId/sex', {'sex': sex});
 
+  Future<Standing> standing(String userId) async => Standing.fromJson(await _get('$userId/standing'));
+
+  /// Marking irregular starts the count of back major units; marking regular clears it.
+  Future<Standing> setStanding(String userId, {required bool isRegular}) async =>
+      Standing.fromJson(await _send('$userId/standing', {'isRegular': isRegular}));
+
+  Future<List<IrregularStudent>> irregularStudents() async =>
+      [for (final j in await _sendRaw('irregular', null) as List) IrregularStudent.fromJson(j as Map<String, dynamic>)];
+
   Future<Map<String, dynamic>> _get(String path) => _send(path, null);
 
-  Future<Map<String, dynamic>> _send(String path, Object? putBody) async {
+  Future<Map<String, dynamic>> _send(String path, Object? putBody) async =>
+      await _sendRaw(path, putBody) as Map<String, dynamic>;
+
+  Future<Object?> _sendRaw(String path, Object? putBody) async {
     final headers = await _auth.getAuthHeaders();
     final uri = Uri.parse('$baseUrl/api/student-records/$path');
     final res = putBody == null
@@ -40,6 +52,6 @@ class StudentRecordRepository {
       } catch (_) {}
       throw ApiException(statusCode: res.statusCode, message: message);
     }
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    return jsonDecode(res.body);
   }
 }

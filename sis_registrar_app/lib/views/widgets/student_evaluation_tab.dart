@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/student_record_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
+import 'standing_card.dart';
 import 'status_badge.dart';
 
 /// The student's curriculum checklist: every subject of their program, what is done and what is left.
@@ -114,6 +115,7 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        StandingCard(key: ValueKey('standing_${widget.userId}'), userId: widget.userId),
         _buildSummary(data),
         const SizedBox(height: 12),
         Row(

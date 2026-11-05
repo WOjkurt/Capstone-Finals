@@ -53,6 +53,7 @@ final _clearances = [
 void main() {
   late List<String> requests;
   Map<String, dynamic>? savedDetails;
+  bool? standingSet;
 
   setUp(() async {
     await getIt.reset();
@@ -77,6 +78,16 @@ void main() {
           {'gradeId': 'g2', 'subjectCode': 'IT 102', 'subjectTitle': 'Prog', 'units': 1, 'finalGrade': 3.5, 'remarks': 2, 'loadStatus': 1, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
           {'gradeId': 'g3', 'subjectCode': 'IT 103', 'subjectTitle': 'Dropped', 'units': 3, 'finalGrade': 5.0, 'remarks': 2, 'loadStatus': 2, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
         ];
+      } else if (path.endsWith('/api/student-records/u1/standing')) {
+        if (req.method == 'PUT') {
+          standingSet = (jsonDecode(req.body) as Map<String, dynamic>)['isRegular'] as bool;
+          body = {'isRegular': true, 'backMajorUnitsPassed': 0, 'unitsToRegular': 6};
+        } else {
+          body = {
+            'isRegular': false, 'irregularSince': '2026-06-01T00:00:00Z', 'backMajorUnitsPassed': 6, 'unitsToRegular': 6,
+            'countedSubjects': ['IT 101', 'IT 104'], 'unresolvedSubjects': [], 'suggestion': 'MarkRegular',
+          };
+        }
       } else if (path.endsWith('/api/studyloads/changes')) {
         body = [
           {'changeId': 'ch1', 'kind': 'Dropped', 'subjectCode': 'IT 102', 'subjectTitle': 'Prog', 'className': 'BSIT 1A', 'units': 3, 'reason': 'Schedule conflict', 'changedBy': 'Rita Reg', 'changedAt': '2026-08-20T02:00:00Z'},
@@ -325,6 +336,24 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
     await tester.pumpAndSettle();
     expect(printed, ['Adding_Dropping_Ana_Cruz.pdf']);
+  });
+
+  testWidgets('Evaluation shows irregular progress and marks the student regular after 6 back major units', (tester) async {
+    standingSet = null;
+    await pump(tester);
+    await tester.tap(tab('Evaluation'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('standing_card')), findsOneWidget);
+    expect(find.textContaining('Irregular since'), findsOneWidget);
+    expect(find.textContaining('6 of 6 back major units passed (IT 101, IT 104) — ready to be regular again.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('mark_regular_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm_standing_button')));
+    await tester.pumpAndSettle();
+    expect(standingSet, isTrue);
+    expect(find.text('Regular student'), findsOneWidget);
   });
 
   testWidgets('Grade release lists terms; Study load jumps to that term; the switch sends a toggle', (tester) async {
