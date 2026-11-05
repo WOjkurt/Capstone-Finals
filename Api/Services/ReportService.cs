@@ -12,6 +12,8 @@ public interface IReportService
     Task<List<TeacherLoadRowDto>> GetTeacherLoadsAsync(Guid termId);
     Task<List<TransfereeRowDto>> GetTransfereesAsync();
     Task<List<EnrollmentStatisticsRowDto>> GetEnrollmentStatisticsAsync(Guid termId);
+    Task<List<ClassListDto>> GetClassListsAsync(Guid termId, Guid? classId);
+    Task<List<MissingSexRowDto>> GetStudentsMissingSexAsync(Guid termId);
 }
 
 /// <summary>Read-only term reports for the Registrar. Rejected, dropped and withdrawn loads are not counted.</summary>
@@ -266,30 +268,14 @@ public class ReportService : IReportService
             .Where(u => enrolledIds.Contains(u.UserID))
             .Select(u => new { u.UserID, u.ProgramID, u.YearLevel })
             .ToListAsync();
-        var savedSex = await _context.StudentPersonalDetails
-            .AsNoTracking()
-            .Where(d => enrolledIds.Contains(d.UserID) && d.Sex != null)
-            .ToDictionaryAsync(d => d.UserID, d => d.Sex);
-        var formSex = (await _context.EnrollmentForms
-                .AsNoTracking()
-                .Where(f => f.Application != null && f.Application.StudentUserID != null && enrolledIds.Contains(f.Application.StudentUserID.Value))
-                .Select(f => new { UserID = f.Application!.StudentUserID!.Value, f.Sex, f.Application.CreatedAt })
-                .ToListAsync())
-            .GroupBy(f => f.UserID)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(f => f.CreatedAt).First().Sex);
-
-        static char? SexOf(string? value)
-        {
-            var v = value?.Trim().ToUpperInvariant();
-            return string.IsNullOrEmpty(v) ? null : v[0] is 'M' ? 'M' : v[0] is 'F' ? 'F' : null;
-        }
+        var sexes = await SexesAsync(enrolledIds);
 
         var programs = await _context.AcademicPrograms.AsNoTracking().OrderBy(p => p.ProgramCode).ToListAsync();
         var rows = programs.ToDictionary(p => p.ProgramID, p => new EnrollmentStatisticsRowDto { ProgramCode = p.ProgramCode, ProgramName = p.ProgramName });
         foreach (var st in students)
         {
             if (st.ProgramID is not int pid || !rows.TryGetValue(pid, out var row)) continue;
-            var sex = SexOf(savedSex.GetValueOrDefault(st.UserID) ?? formSex.GetValueOrDefault(st.UserID));
+            var sex = sexes.GetValueOrDefault(st.UserID);
             if (st.YearLevel is not int year || year < 1)
             {
                 row.YearNotRecorded++;
@@ -301,5 +287,133 @@ public class ReportService : IReportService
             else row.SexNotRecorded++;
         }
         return rows.Values.ToList();
+    }
+
+    /// <summary>
+    /// 'M' or 'F' per student: the Registrar's personal details first, else the latest enrollment form.
+    /// Students with nothing usable are left out.
+    /// </summary>
+    private async Task<Dictionary<Guid, char>> SexesAsync(List<Guid> userIds)
+    {
+        var saved = await _context.StudentPersonalDetails
+            .AsNoTracking()
+            .Where(d => userIds.Contains(d.UserID) && d.Sex != null)
+            .ToDictionaryAsync(d => d.UserID, d => d.Sex);
+        var fromForm = (await _context.EnrollmentForms
+                .AsNoTracking()
+                .Where(f => f.Application != null && f.Application.StudentUserID != null && userIds.Contains(f.Application.StudentUserID.Value))
+                .Select(f => new { UserID = f.Application!.StudentUserID!.Value, f.Sex, f.Application.CreatedAt })
+                .ToListAsync())
+            .GroupBy(f => f.UserID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(f => f.CreatedAt).First().Sex);
+
+        var result = new Dictionary<Guid, char>();
+        foreach (var id in userIds)
+        {
+            var v = (saved.GetValueOrDefault(id) ?? fromForm.GetValueOrDefault(id))?.Trim().ToUpperInvariant();
+            if (!string.IsNullOrEmpty(v) && v[0] is 'M' or 'F') result[id] = v[0];
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Printable class lists for a term (or one class): header details and the Enrolled students,
+    /// sorted by last name. Classes are sorted by subject code and section.
+    /// </summary>
+    public async Task<List<ClassListDto>> GetClassListsAsync(Guid termId, Guid? classId)
+    {
+        var term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == termId)
+            ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+        var classes = await _context.Classes
+            .AsNoTracking()
+            .Include(c => c.Subject)
+            .Include(c => c.ClassSchedules)
+            .Where(c => c.TermID == termId && (classId == null || c.ClassID == classId))
+            .ToListAsync();
+        if (classId != null && classes.Count == 0)
+        {
+            throw new KeyNotFoundException("Class not found in this term.");
+        }
+        var classIds = classes.Select(c => c.ClassID).ToList();
+        var loads = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => classIds.Contains(sl.ClassID) && sl.LoadStatus == StudyLoadStatus.Enrolled)
+            .Select(sl => new { sl.ClassID, sl.UserID })
+            .ToListAsync();
+        var studentIds = loads.Select(l => l.UserID).Distinct().ToList();
+        var students = await _context.UserDetails
+            .AsNoTracking()
+            .Include(u => u.Program)
+            .Where(u => studentIds.Contains(u.UserID))
+            .ToDictionaryAsync(u => u.UserID);
+        var sexes = await SexesAsync(studentIds);
+        var teachers = await NamesAsync(classes.Where(c => c.UserID.HasValue).Select(c => c.UserID!.Value));
+        var byClass = loads.ToLookup(l => l.ClassID, l => l.UserID);
+
+        static string Time(TimeOnly t) => t.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+
+        return classes
+            .OrderBy(c => c.Subject?.SubjectCode).ThenBy(c => c.ClassName)
+            .Select(c => new ClassListDto
+            {
+                ClassId = c.ClassID,
+                ClassName = c.ClassName,
+                SubjectCode = c.Subject?.SubjectCode ?? string.Empty,
+                SubjectTitle = c.Subject?.SubjectTitle ?? string.Empty,
+                Units = (c.Subject?.LecUnits ?? 0) + (c.Subject?.LabUnits ?? 0),
+                TermLabel = Api.Common.TermLabel.Format(term.SchoolYear, term.Semester),
+                TeacherName = c.UserID.HasValue ? teachers.GetValueOrDefault(c.UserID.Value) : null,
+                Schedules = c.ClassSchedules
+                    .OrderBy(s => s.StartTime)
+                    .Select(s => $"{s.DaysOfWeek} {Time(s.StartTime)} - {Time(s.EndTime)}{(string.IsNullOrWhiteSpace(s.Room) ? "" : $" · {s.Room.Trim()}")}")
+                    .ToList(),
+                Students = byClass[c.ClassID]
+                    .Distinct()
+                    .Select(id =>
+                    {
+                        students.TryGetValue(id, out var u);
+                        return new ClassListStudentDto
+                        {
+                            UserId = id,
+                            Name = u == null ? "Unknown student" : $"{u.Lastname.Trim().ToUpperInvariant()}, {u.Firstname.Trim()}",
+                            Lrn = u?.LRN,
+                            ProgramCode = u?.Program?.ProgramCode,
+                            YearLevel = u?.YearLevel,
+                            Sex = sexes.TryGetValue(id, out var sx) ? sx.ToString() : null
+                        };
+                    })
+                    .OrderBy(st => st.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .ToList();
+    }
+
+    /// <summary>Enrolled students of the term with no sex on record (not in the statistics or class list counts).</summary>
+    public async Task<List<MissingSexRowDto>> GetStudentsMissingSexAsync(Guid termId)
+    {
+        await EnsureTermAsync(termId);
+        var enrolledIds = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.LoadStatus == StudyLoadStatus.Enrolled && sl.Class != null && sl.Class.TermID == termId)
+            .Select(sl => sl.UserID)
+            .Distinct()
+            .ToListAsync();
+        var known = await SexesAsync(enrolledIds);
+        var missing = enrolledIds.Where(id => !known.ContainsKey(id)).ToList();
+        return (await _context.UserDetails
+                .AsNoTracking()
+                .Include(u => u.Program)
+                .Where(u => missing.Contains(u.UserID))
+                .ToListAsync())
+            .Select(u => new MissingSexRowDto
+            {
+                UserId = u.UserID,
+                StudentName = $"{u.Lastname.Trim().ToUpperInvariant()}, {u.Firstname.Trim()}",
+                Lrn = u.LRN,
+                ProgramCode = u.Program?.ProgramCode,
+                YearLevel = u.YearLevel
+            })
+            .OrderBy(r => r.StudentName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

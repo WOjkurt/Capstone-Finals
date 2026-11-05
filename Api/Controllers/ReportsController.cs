@@ -41,6 +41,13 @@ public class ReportsController : ControllerBase
     [HttpGet("enrollment-statistics")]
     public Task<IActionResult> EnrollmentStatistics([FromQuery] Guid termId) => Run(() => _reports.GetEnrollmentStatisticsAsync(termId));
 
+    /// <summary>Class lists for a term, or one class with <paramref name="classId"/>.</summary>
+    [HttpGet("class-lists")]
+    public Task<IActionResult> ClassLists([FromQuery] Guid termId, [FromQuery] Guid? classId) => Run(() => _reports.GetClassListsAsync(termId, classId));
+
+    [HttpGet("missing-sex")]
+    public Task<IActionResult> MissingSex([FromQuery] Guid termId) => Run(() => _reports.GetStudentsMissingSexAsync(termId));
+
     [HttpGet("transferees")]
     public async Task<IActionResult> Transferees() => Ok(await _reports.GetTransfereesAsync());
 

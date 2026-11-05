@@ -211,4 +211,28 @@ public class ReportTests : IDisposable
         Assert.Equal(1, rows[1].SexNotRecorded);
         Assert.Equal(0, rows[1].Male.Sum() + rows[1].Female.Sum());
     }
+
+    [Fact]
+    public async Task ClassLists_ShowEnrolledStudentsAlphabetically_WithClassDetails()
+    {
+        var zed = await Student("Zed", 1, 2);
+        var ana = await Student("Ana", 1, 1);
+        var bo = await Student("Bo", 1, 1);
+        await Load(zed, "IT 101 A", StudyLoadStatus.Enrolled);
+        await Load(ana, "IT 101 A", StudyLoadStatus.Enrolled);
+        await Load(bo, "IT 101 A", StudyLoadStatus.Pending);    // not on the list
+        _context.StudentPersonalDetails.Add(new StudentPersonalDetails { UserID = ana, Sex = "Female", UpdatedByUserID = _teacher, UpdatedAt = DateTime.UtcNow });
+        _context.ClassSchedules.Add(new ClassSchedule { ScheduleID = Guid.NewGuid(), ClassID = _classes["IT 101 A"].ClassID, DaysOfWeek = "M/W/F", StartTime = new TimeOnly(8, 0), EndTime = new TimeOnly(9, 30), Room = "R101" });
+        await _context.SaveChangesAsync();
+
+        var one = Assert.Single(await _reports.GetClassListsAsync(_term, _classes["IT 101 A"].ClassID));
+        Assert.Equal(("IT 101", "IT 101 A", "Ben Teach", 3m, "2026-2027 (1st Sem)"), (one.SubjectCode, one.ClassName, one.TeacherName, one.Units, one.TermLabel));
+        Assert.Equal(new[] { "M/W/F 8:00 AM - 9:30 AM · R101" }, one.Schedules);
+        Assert.Equal(new[] { ("S, Ana", "F"), ("S, Zed", (string?)null) }, one.Students.Select(s => (s.Name, s.Sex)));
+        Assert.Equal(("BSIT", 2), (one.Students[1].ProgramCode, one.Students[1].YearLevel ?? 0));
+
+        var all = await _reports.GetClassListsAsync(_term, null);
+        Assert.Equal(new[] { "IT 101 A", "IT 102 A", "ME 101 A" }, all.Select(c => c.ClassName));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _reports.GetClassListsAsync(_term, _classes["IT 101 next"].ClassID));
+    }
 }

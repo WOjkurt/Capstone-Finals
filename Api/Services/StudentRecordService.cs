@@ -14,6 +14,7 @@ public interface IStudentRecordService
     Task<TranscriptDto> GetTranscriptAsync(Guid userId);
     Task<PersonalDetailsDto> GetPersonalDetailsAsync(Guid userId);
     Task<PersonalDetailsDto> UpdatePersonalDetailsAsync(Guid userId, UpdatePersonalDetailsDto dto, Guid updatedBy);
+    Task SetSexAsync(Guid userId, string sex, Guid updatedBy);
 }
 
 /// <summary>Read-only views of a student's academic record for the Registrar.</summary>
@@ -420,6 +421,31 @@ public class StudentRecordService : IStudentRecordService
         saved.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return await GetPersonalDetailsAsync(userId);
+    }
+
+    /// <summary>Saves only the student's sex ("Male" or "Female"), keeping their other saved details.</summary>
+    public async Task SetSexAsync(Guid userId, string sex, Guid updatedBy)
+    {
+        var value = sex?.Trim().ToUpperInvariant() switch
+        {
+            "M" or "MALE" => "Male",
+            "F" or "FEMALE" => "Female",
+            _ => throw new InvalidOperationException("Sex must be Male or Female.")
+        };
+        if (!await _context.UserDetails.AnyAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student))
+        {
+            throw new KeyNotFoundException("Student not found.");
+        }
+        var saved = await _context.StudentPersonalDetails.FirstOrDefaultAsync(d => d.UserID == userId);
+        if (saved == null)
+        {
+            saved = new StudentPersonalDetails { UserID = userId };
+            _context.StudentPersonalDetails.Add(saved);
+        }
+        saved.Sex = value;
+        saved.UpdatedByUserID = updatedBy;
+        saved.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
     }
 
     private static string Ordinal(int n) => n switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{n}th" };

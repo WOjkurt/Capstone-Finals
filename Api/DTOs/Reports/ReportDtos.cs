@@ -76,3 +76,39 @@ public class EnrollmentStatisticsRowDto
     /// <summary>Enrolled students with no year level (counted in no column).</summary>
     public int YearNotRecorded { get; set; }
 }
+
+/// <summary>One printable class list: the class details and its Enrolled students.</summary>
+public class ClassListDto
+{
+    public Guid ClassId { get; set; }
+    public string ClassName { get; set; } = string.Empty;
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectTitle { get; set; } = string.Empty;
+    public decimal Units { get; set; }
+    public string TermLabel { get; set; } = string.Empty;
+    public string? TeacherName { get; set; }
+    /// <summary>e.g. "M/W/F 8:00 AM - 9:30 AM · R101".</summary>
+    public List<string> Schedules { get; set; } = new();
+    public List<ClassListStudentDto> Students { get; set; } = new();
+}
+
+public class ClassListStudentDto
+{
+    public Guid UserId { get; set; }
+    /// <summary>"LASTNAME, Firstname".</summary>
+    public string Name { get; set; } = string.Empty;
+    public string? Lrn { get; set; }
+    public string? ProgramCode { get; set; }
+    public int? YearLevel { get; set; }
+    /// <summary>"M", "F", or null when not on record.</summary>
+    public string? Sex { get; set; }
+}
+
+public class MissingSexRowDto
+{
+    public Guid UserId { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string? Lrn { get; set; }
+    public string? ProgramCode { get; set; }
+    public int? YearLevel { get; set; }
+}

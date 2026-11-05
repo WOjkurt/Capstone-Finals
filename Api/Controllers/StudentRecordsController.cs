@@ -45,6 +45,33 @@ public class StudentRecordsController : ControllerBase
         return result;
     }
 
+    public class SetSexDto
+    {
+        public string Sex { get; set; } = string.Empty;
+    }
+
+    /// <summary>Sets only the student's sex, e.g. from the "Fill in missing sex" list.</summary>
+    [HttpPut("{userId:guid}/sex")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> SetSex(Guid userId, [FromBody] SetSexDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid callerId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+        var result = await Run(async () =>
+        {
+            await _records.SetSexAsync(userId, dto.Sex, callerId);
+            return new { saved = true };
+        });
+        var log = this.ActivityLog();
+        if (result is OkObjectResult && log != null)
+        {
+            await log.LogAsync(callerId, ActivityActions.PersonalDetailsUpdated, $"Set sex to {dto.Sex.Trim()}", userId);
+        }
+        return result;
+    }
+
     private async Task<IActionResult> Run<T>(Func<Task<T>> read)
     {
         try

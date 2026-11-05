@@ -217,6 +217,33 @@ public class StudentEvaluationTests : IDisposable
     }
 
     [Fact]
+    public async Task SetSex_KeepsOtherDetails_AndOnlyAcceptsMaleOrFemale()
+    {
+        await _records.UpdatePersonalDetailsAsync(_student, new Api.DTOs.Records.UpdatePersonalDetailsDto { Address = "Talisay City" }, _teacher);
+
+        await _records.SetSexAsync(_student, "f", _teacher);
+
+        var d = await _records.GetPersonalDetailsAsync(_student);
+        Assert.Equal(("Female", "Talisay City"), (d.Sex, d.Address));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _records.SetSexAsync(_student, "x", _teacher));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _records.SetSexAsync(Guid.NewGuid(), "Male", _teacher));
+    }
+
+    [Fact]
+    public async Task MissingSex_ListsEnrolledStudentsWithoutIt()
+    {
+        await Take("IT 101", _sem1, StudyLoadStatus.Enrolled);
+        var reports = new ReportService(_context);
+
+        var missing = Assert.Single(await reports.GetStudentsMissingSexAsync(_sem1));
+        Assert.Equal(("CRUZ, Ana", "BSIT"), (missing.StudentName, missing.ProgramCode));
+
+        await _records.SetSexAsync(_student, "Female", _teacher);
+        Assert.Empty(await reports.GetStudentsMissingSexAsync(_sem1));
+        Assert.Empty(await reports.GetStudentsMissingSexAsync(_sem2));   // not enrolled that term
+    }
+
+    [Fact]
     public async Task Transcript_WithoutForm_FallsBackToTheAccountName()
     {
         var t = await _records.GetTranscriptAsync(_student);
