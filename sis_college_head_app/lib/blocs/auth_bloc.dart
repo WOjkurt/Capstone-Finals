@@ -28,12 +28,19 @@ class AuthenticatedState extends AuthState {
   final String roleName;
   final String userId;
 
+  /// From /api/Me; empty when the account has no name on file.
+  final String? fullName;
+
   AuthenticatedState({
     required this.email,
     required this.role,
     required this.roleName,
     required this.userId,
+    this.fullName,
   });
+
+  /// What the menu shows: the person's name, or their email when no name is on file.
+  String get displayName => (fullName?.trim().isNotEmpty ?? false) ? fullName!.trim() : email;
 }
 
 class AccessDeniedState extends AuthState {
@@ -88,6 +95,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         role: role,
         roleName: roleName,
         userId: userId,
+        fullName: userInfo['fullName'] as String?,
       ));
     } catch (e, st) {
       final msg = getFriendlyErrorMessage(e, st);
@@ -124,6 +132,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         role: role,
         roleName: roleName,
         userId: userId,
+        fullName: userInfo['fullName'] as String?,
       ));
     } catch (e, st) {
       final msg = getFriendlyErrorMessage(e, st);

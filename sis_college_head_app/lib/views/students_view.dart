@@ -56,13 +56,13 @@ class _StudentsViewState extends State<StudentsView> {
                   'Search by LRN or name, then build a study load for the Registrar to approve.',
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+              padding: const EdgeInsets.fromLTRB(32, 20, 32, 16),
               child: Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  SizedBox(width: 260, child: _buildTermDropdown(state)),
+                  SizedBox(width: 300, child: _buildTermDropdown(state)),
                   SizedBox(
                     width: 380,
                     child: TextField(

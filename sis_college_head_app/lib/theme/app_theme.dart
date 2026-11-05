@@ -49,6 +49,10 @@ class AppColors {
 }
 
 class AppTheme {
+  /// Bundled in assets/fonts. A button `textStyle` replaces the theme's text style instead of
+  /// merging with it, so such styles must name this family themselves.
+  static const String fontFamily = 'Inter';
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -59,12 +63,39 @@ class AppTheme {
         tertiary: AppColors.accentGreen,
         surface: AppColors.cardBg,
       ),
-      fontFamily: 'Inter',
+      fontFamily: fontFamily,
       scaffoldBackgroundColor: AppColors.scaffoldBg,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+      ),
+      // Every message looks the same: floating, rounded, readable width.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        width: 520,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        contentTextStyle: const TextStyle(fontFamily: fontFamily, fontSize: 14, color: Colors.white),
+      ),
+      // Cards: white with a light border, as in the Registrar app (no shadow or tint).
+      cardTheme: CardThemeData(
+        color: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: AppColors.border),
+        ),
+      ),
+      // One table look: light header row, bold small header text.
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+        headingTextStyle: const TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF475569),
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

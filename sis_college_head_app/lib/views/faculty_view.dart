@@ -57,25 +57,26 @@ class _FacultyViewState extends State<FacultyView> {
           curr.successMessage != null && curr.successMessage != prev.successMessage,
       listener: (context, state) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.successMessage!)),
+          SnackBar(content: Text(state.successMessage!), backgroundColor: AppColors.success),
         );
       },
       builder: (context, state) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const PageHeader(
+            PageHeader(
               title: 'Faculty',
               subtitle:
                   'Assign teachers to minor subjects, and to majors as a backup, across all programs.',
+              onRefresh: () => context.read<FacultyBloc>().add(FacultyRefreshRequested()),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+              padding: const EdgeInsets.fromLTRB(32, 20, 32, 16),
               child: Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  SizedBox(width: 260, child: _buildTermDropdown(state)),
+                  SizedBox(width: 300, child: _buildTermDropdown(state)),
                   SizedBox(width: 220, child: _buildProgramDropdown(state)),
                 ],
               ),

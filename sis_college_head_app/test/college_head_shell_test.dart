@@ -58,6 +58,7 @@ void main() {
           role: 6,
           roleName: 'College Head',
           userId: 'test-uid-6',
+          fullName: 'Carla Head',
         ),
       );
     });
@@ -99,6 +100,25 @@ void main() {
       expect(find.text('Setup'), findsNothing);
     });
 
+    testWidgets('the menu shows who is signed in, and only icons on a laptop-size screen', (tester) async {
+      setDesktopSize(tester);
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('full_sidebar')), findsOneWidget);
+      expect(find.text('Carla Head'), findsOneWidget);
+
+      tester.view.physicalSize = const Size(1200, 800);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('compact_sidebar')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('nav_Faculty')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('page_refresh_button')), findsOneWidget);
+    });
+
+    test('the menu name falls back to the email', () {
+      expect(AuthenticatedState(email: 'a@x.com', role: 6, roleName: 'College Head', userId: 'u').displayName, 'a@x.com');
+    });
+
     testWidgets('switching to Faculty shows the faculty page', (tester) async {
       setDesktopSize(tester);
       await tester.pumpWidget(buildSubject());
@@ -119,7 +139,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Sign Out'));
+      await tester.tap(find.byKey(const ValueKey('sign_out_button')));
       await tester.pumpAndSettle();
       expect(
         find.text("You'll need to sign in again to access the College Head portal."),
