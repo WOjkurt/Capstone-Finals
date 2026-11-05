@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../injection.dart';
 import '../../models/grading_models.dart';
 import '../../models/setup_models.dart';
+import '../../repositories/accredited_school_repository.dart';
 import '../../repositories/enrollment_repository.dart';
 import '../../repositories/grading_repository.dart';
 import '../../theme/app_theme.dart';
@@ -39,6 +40,8 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   // Bumped after each add so the subject dropdown starts empty again.
   int _formVersion = 0;
   final _school = TextEditingController();
+  final _schoolFocus = FocusNode();
+  List<String> _schoolNames = [];
   final _theirCode = TextEditingController();
   final _grade = TextEditingController();
   final _schoolYear = TextEditingController();
@@ -52,6 +55,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   @override
   void dispose() {
     _school.dispose();
+    _schoolFocus.dispose();
     _theirCode.dispose();
     _grade.dispose();
     _schoolYear.dispose();
@@ -73,10 +77,16 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
         final y = a.yearLevel.compareTo(b.yearLevel);
         return y != 0 ? y : a.subjectCode.compareTo(b.subjectCode);
       });
+      // The school list only helps with spelling; credits still load if it fails.
+      var schoolNames = <String>[];
+      try {
+        schoolNames = [for (final s in await getIt<AccreditedSchoolRepository>().getAll()) s.name];
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _credits = credits;
           _subjects = subjects;
+          _schoolNames = schoolNames;
         });
       }
     } catch (e) {
@@ -305,10 +315,53 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
             ),
           ),
         const SizedBox(height: 10),
-        TextField(
-          key: const ValueKey('credit_school_field'),
-          controller: _school,
-          decoration: deco('School where it was taken *'),
+        // Picks from Setup → Accredited schools; a school not on the list can still be typed.
+        RawAutocomplete<String>(
+          textEditingController: _school,
+          focusNode: _schoolFocus,
+          optionsBuilder: (value) {
+            final q = value.text.trim().toLowerCase();
+            return q.isEmpty ? _schoolNames : _schoolNames.where((n) => n.toLowerCase().contains(q));
+          },
+          fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
+            key: const ValueKey('credit_school_field'),
+            controller: controller,
+            focusNode: focusNode,
+            decoration: deco('School where it was taken *').copyWith(
+              helperText: _schoolNames.isEmpty
+                  ? 'Tip: add schools in Setup → Accredited Schools to pick them here.'
+                  : (_school.text.trim().isNotEmpty &&
+                          !_schoolNames.any((n) => n.toLowerCase() == _school.text.trim().toLowerCase()))
+                      ? 'Not on the accredited list. Check the spelling, or add it in Setup.'
+                      : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          optionsViewBuilder: (context, onSelected, options) => Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240, maxWidth: 520),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  children: [
+                    for (final o in options)
+                      ListTile(
+                        key: ValueKey('school_option_$o'),
+                        dense: true,
+                        leading: const Icon(Icons.account_balance_outlined, size: 18),
+                        title: Text(o),
+                        onTap: () => onSelected(o),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          onSelected: (_) => setState(() {}),
         ),
         const SizedBox(height: 10),
         Row(

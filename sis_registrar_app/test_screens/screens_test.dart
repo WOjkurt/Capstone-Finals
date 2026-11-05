@@ -118,9 +118,10 @@ void main() {
         await shot(tester, '19_student_search');
         await tester.tap(find.text('Ana Cruz').first);
         await shot(tester, '20_student_study_load');
-        for (final tab in ['Grades', 'Credits', 'Grade release', 'History']) {
+        const tabs = ['Grades', 'Evaluation', 'Credits', 'Details', 'Grade release', 'History'];
+        for (final tab in tabs) {
           await tester.tap(find.descendant(of: find.byKey(const ValueKey('student_tabs')), matching: find.text(tab)));
-          await shot(tester, '2${['Grades', 'Credits', 'Grade release', 'History'].indexOf(tab) + 1}_student_${tab.replaceAll(' ', '_').toLowerCase()}');
+          await shot(tester, '2${tabs.indexOf(tab) + 1}_student_${tab.replaceAll(' ', '_').toLowerCase()}');
         }
         return;
       }

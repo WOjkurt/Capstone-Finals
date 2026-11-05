@@ -74,7 +74,7 @@ class _ClearanceViewState extends State<ClearanceView> {
             children: [
               PageHeader(
                 title: 'Students',
-                subtitle: 'Find a student to see their study load, grades, credits and history.',
+                subtitle: 'Find a student to see their study load, grades, curriculum progress and history.',
                 // Used once a year, so it lives here instead of in the menu.
                 action: OutlinedButton.icon(
                   key: const ValueKey('open_promotion_button'),
@@ -417,7 +417,7 @@ class _ClearanceViewState extends State<ClearanceView> {
               ),
               SizedBox(height: 6),
               Text(
-                'Search on the left, then pick a student to see their study load, grades, credits and history.',
+                'Search on the left, then pick a student to see their study load, grades, curriculum progress and history.',
                 style: TextStyle(color: Color(0xFF64748B)),
               ),
             ],

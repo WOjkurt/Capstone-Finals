@@ -10,10 +10,10 @@ class ReportRepository {
   final http.Client _client;
   ReportRepository(this._auth, {http.Client? client}) : _client = client ?? http.Client();
 
-  Future<List<Map<String, dynamic>>> _get(String report, String termId) async {
+  Future<List<Map<String, dynamic>>> _get(String report, String? termId) async {
     final headers = await _auth.getAuthHeaders();
     final res = await _client.get(
-      Uri.parse('$baseUrl/api/reports/$report').replace(queryParameters: {'termId': termId}),
+      Uri.parse('$baseUrl/api/reports/$report').replace(queryParameters: termId == null ? null : {'termId': termId}),
       headers: headers,
     );
     if (res.statusCode != 200) {
@@ -37,4 +37,8 @@ class ReportRepository {
 
   Future<List<TeacherLoadRow>> teacherLoads(String termId) async =>
       (await _get('teacher-loads', termId)).map(TeacherLoadRow.fromJson).toList();
+
+  /// Not tied to a term.
+  Future<List<TransfereeRow>> transferees() async =>
+      (await _get('transferees', null)).map(TransfereeRow.fromJson).toList();
 }

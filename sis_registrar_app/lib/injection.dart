@@ -12,6 +12,8 @@ import 'repositories/enrollment_repository.dart';
 import 'repositories/grading_repository.dart';
 import 'repositories/activity_log_repository.dart';
 import 'repositories/report_repository.dart';
+import 'repositories/student_record_repository.dart';
+import 'repositories/accredited_school_repository.dart';
 import 'repositories/staff_repository.dart';
 import 'services/auth_service.dart';
 
@@ -42,6 +44,10 @@ void setupLocator() {
       () => PromotionRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<ReportRepository>(
       () => ReportRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<AccreditedSchoolRepository>(
+      () => AccreditedSchoolRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<StudentRecordRepository>(
+      () => StudentRecordRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<ActivityLogRepository>(
       () => ActivityLogRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<ClassRepository>(

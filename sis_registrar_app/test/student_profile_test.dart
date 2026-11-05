@@ -12,7 +12,9 @@ import 'package:sis_registrar_app/repositories/activity_log_repository.dart';
 import 'package:sis_registrar_app/repositories/class_repository.dart';
 import 'package:sis_registrar_app/repositories/enrollment_repository.dart';
 import 'package:sis_registrar_app/repositories/grading_repository.dart';
+import 'package:sis_registrar_app/repositories/student_record_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
+import 'package:sis_registrar_app/utils/study_load_pdf.dart';
 import 'package:sis_registrar_app/views/clearance_view.dart';
 
 class FakeAuthService implements AuthService {
@@ -50,6 +52,7 @@ final _clearances = [
 
 void main() {
   late List<String> requests;
+  Map<String, dynamic>? savedDetails;
 
   setUp(() async {
     await getIt.reset();
@@ -68,6 +71,40 @@ void main() {
         body = {'items': [], 'page': 1, 'pageSize': 25, 'totalCount': 0};
       } else if (path.endsWith('/api/studyloads/unit-limit')) {
         body = {'maxUnits': 21, 'currentUnits': 0};
+      } else if (path.endsWith('/api/grades/student/u1')) {
+        body = [
+          {'gradeId': 'g1', 'subjectCode': 'IT 101', 'subjectTitle': 'Intro', 'units': 3, 'finalGrade': 1.5, 'remarks': 1, 'loadStatus': 1, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
+          {'gradeId': 'g2', 'subjectCode': 'IT 102', 'subjectTitle': 'Prog', 'units': 1, 'finalGrade': 3.5, 'remarks': 2, 'loadStatus': 1, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
+          {'gradeId': 'g3', 'subjectCode': 'IT 103', 'subjectTitle': 'Dropped', 'units': 3, 'finalGrade': 5.0, 'remarks': 2, 'loadStatus': 2, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
+        ];
+      } else if (path.endsWith('/api/student-records/u1/personal-details')) {
+        if (req.method == 'PUT') {
+          savedDetails = jsonDecode(req.body) as Map<String, dynamic>;
+          body = {'firstname': 'Ana', 'lastname': 'Cruz', 'hasEnrollmentForm': false, ...savedDetails!, 'fromForm': [], 'updatedBy': 'Rita Reg', 'updatedAt': '2026-11-05T01:00:00Z'};
+        } else {
+          body = {'firstname': 'Ana', 'lastname': 'Cruz', 'hasEnrollmentForm': false, 'firstTermEnrolled': '2nd Semester, 2025-2026', 'fromForm': []};
+        }
+      } else if (path.endsWith('/api/student-records/u1/transcript')) {
+        body = {
+          'fullName': 'CRUZ, Ana Reyes', 'lrn': '123456789012', 'programCode': 'BSIT', 'programName': 'BS Information Technology',
+          'address': 'Cebu City', 'dateOfBirth': '2007-05-01', 'dateAdmitted': '2nd Semester, 2025-2026', 'entranceData': 'Abellana NHS',
+          'terms': [
+            {'heading': '2nd Semester, 2025-2026', 'rows': [{'subjectCode': 'IT 101', 'subjectTitle': 'Intro', 'final': '1.50', 'units': 3}]},
+          ],
+          'credits': [
+            {'sourceSchool': 'USC', 'rows': [{'subjectCode': 'GE 1', 'subjectTitle': 'Math', 'final': '1.5', 'units': 3}]},
+          ],
+        };
+      } else if (path.endsWith('/api/student-records/u1/evaluation')) {
+        body = {
+          'programCode': 'BSIT', 'programName': 'BS Information Technology', 'yearLevel': 1,
+          'totalUnits': 9, 'earnedUnits': 6, 'inProgressUnits': 0, 'remainingUnits': 3,
+          'subjects': [
+            {'subjectId': 's1', 'subjectCode': 'IT 101', 'subjectTitle': 'Intro', 'units': 3, 'yearLevel': 1, 'semester': 1, 'isMinor': false, 'status': 'Passed', 'finalGrade': 1.5, 'termLabel': '2025-2026 (2nd Sem)'},
+            {'subjectId': 's2', 'subjectCode': 'GE 1', 'subjectTitle': 'Math', 'units': 3, 'yearLevel': 1, 'semester': 1, 'isMinor': true, 'status': 'Credited', 'creditedFrom': 'USC', 'creditedGrade': '1.5'},
+            {'subjectId': 's3', 'subjectCode': 'IT 201', 'subjectTitle': 'Data', 'units': 3, 'yearLevel': 2, 'semester': 1, 'isMinor': false, 'status': 'NotTaken'},
+          ],
+        };
       }
       return http.Response(jsonEncode(body), 200);
     });
@@ -78,6 +115,8 @@ void main() {
     getIt.registerSingleton<StudentGradeRepository>(StudentGradeRepository(auth, client: client));
     getIt.registerSingleton<CreditedSubjectRepository>(CreditedSubjectRepository(auth, client: client));
     getIt.registerSingleton<ActivityLogRepository>(ActivityLogRepository(auth, client: client));
+    getIt.registerSingleton<StudentRecordRepository>(StudentRecordRepository(auth, client: client));
+    savedDetails = null;
   });
 
   tearDown(() async => getIt.reset());
@@ -119,13 +158,13 @@ void main() {
     expect(find.byKey(const ValueKey('student_tabs')), findsNothing);
   });
 
-  testWidgets('profile shows the header chips and five tabs; Study load opens on the active term', (tester) async {
+  testWidgets('profile shows the header chips and seven tabs; Study load opens on the active term', (tester) async {
     await pump(tester);
 
     expect(find.text('LRN 123456789012'), findsOneWidget);
     expect(find.text('BSIT'), findsWidgets);
     expect(find.text('Year 1'), findsWidgets);
-    for (final t in ['Study load', 'Grades', 'Credits', 'Grade release', 'History']) {
+    for (final t in ['Study load', 'Grades', 'Evaluation', 'Credits', 'Details', 'Grade release', 'History']) {
       expect(tab(t), findsOneWidget, reason: t);
     }
     expect(requests.any((r) => r.startsWith('/api/studyloads/student/u1') && r.contains('termId=t1')), isTrue);
@@ -133,6 +172,134 @@ void main() {
     // Grades, Credits and History are tabs here, so the old window buttons are gone.
     expect(find.byKey(const ValueKey('view_grades_button')), findsNothing);
     expect(find.byKey(const ValueKey('credited_subjects_button')), findsNothing);
+  });
+
+  testWidgets('Grades shows GWA per term and overall (dropped loads not counted)', (tester) async {
+    await pump(tester);
+    await tester.tap(tab('Grades'));
+    await tester.pumpAndSettle();
+
+    // (3 × 1.5 + 1 × 3.5) / 4 = 2.00
+    expect(find.descendant(of: find.byKey(const ValueKey('overall_gwa')), matching: find.text('2.00')), findsOneWidget);
+    expect(find.byKey(const ValueKey('term_gwa_2025-2026 (2nd Sem)')), findsOneWidget);
+    expect(find.text('GWA 2.00'), findsOneWidget);
+  });
+
+  testWidgets('Evaluation shows units earned and the checklist; "Left to take only" hides finished subjects', (tester) async {
+    await pump(tester);
+    await tester.tap(tab('Evaluation'));
+    await tester.pumpAndSettle();
+
+    expect(find.descendant(of: find.byKey(const ValueKey('evaluation_earned')), matching: find.text('6')), findsOneWidget);
+    expect(find.text('units earned of 9'), findsOneWidget);
+    expect(find.text('67% of the curriculum done'), findsOneWidget);
+    expect(find.text('1st Year · 1st Sem'), findsOneWidget);
+    expect(find.text('2nd Year · 1st Sem'), findsOneWidget);
+    expect(find.text('3 units · Minor · from USC'), findsOneWidget);
+    for (final c in ['IT 101', 'GE 1', 'IT 201']) {
+      expect(find.byKey(ValueKey('evaluation_row_$c')), findsOneWidget, reason: c);
+    }
+
+    await tester.tap(find.byKey(const ValueKey('evaluation_left_only')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('evaluation_row_IT 101')), findsNothing);
+    expect(find.byKey(const ValueKey('evaluation_row_GE 1')), findsNothing);
+    expect(find.byKey(const ValueKey('evaluation_row_IT 201')), findsOneWidget);
+  });
+
+  testWidgets('Grades and Evaluation each print a PDF', (tester) async {
+    final printed = <String>[];
+    final original = printPdf;
+    printPdf = (bytes, name) async {
+      expect(bytes.length, greaterThan(500));
+      printed.add(name);
+    };
+    addTearDown(() => printPdf = original);
+    await pump(tester);
+
+    await tester.tap(tab('Grades'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('print_menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('print_residency_button')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(tab('Evaluation'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('print_evaluation_button')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+    await tester.pumpAndSettle();
+
+    expect(printed, ['Residency_Ana_Cruz.pdf', 'Evaluation_Ana_Cruz.pdf']);
+  });
+
+  testWidgets('Print menu: a grade sheet for one semester or one subject, and the TOR with signatories', (tester) async {
+    final printed = <String>[];
+    final original = printPdf;
+    printPdf = (bytes, name) async => printed.add(name);
+    addTearDown(() => printPdf = original);
+    await pump(tester);
+    await tester.tap(tab('Grades'));
+    await tester.pumpAndSettle();
+
+    Future<void> openMenu(String item) async {
+      await tester.tap(find.byKey(const ValueKey('print_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey(item)));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tapAndWait(String key) async {
+      await tester.tap(find.byKey(ValueKey(key)));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+      await tester.pumpAndSettle();
+    }
+
+    await openMenu('print_grade_sheet_button');
+    expect(find.text('Print grade sheet'), findsOneWidget);
+    expect(find.byKey(const ValueKey('grade_sheet_term')), findsOneWidget);
+    await tapAndWait('grade_sheet_print');
+    expect(find.text('Print grade sheet'), findsNothing);
+
+    await openMenu('print_grade_sheet_button');
+    await tester.tap(find.text('One subject'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('grade_sheet_subject')), findsOneWidget);
+    await tapAndWait('grade_sheet_print');
+
+    await openMenu('print_tor_button');
+    await tester.enterText(find.byKey(const ValueKey('tor_remarks')), 'For transfer purposes');
+    await tester.enterText(find.byKey(const ValueKey('tor_registrar')), 'Rita Reg');
+    await tapAndWait('tor_print');
+    expect(requests.any((r) => r.startsWith('/api/student-records/u1/transcript')), isTrue);
+
+    expect(printed, ['Grade_Sheet_Ana_Cruz.pdf', 'Grade_Sheet_Ana_Cruz.pdf', 'TOR_Ana_Cruz.pdf']);
+  });
+
+  testWidgets('Details: a student without a form shows what the TOR is missing; Edit and Save sends the values', (tester) async {
+    await pump(tester);
+    await tester.tap(tab('Details'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('no online enrollment form'), findsOneWidget);
+    expect(find.textContaining('Missing for the transcript: Address, Date of birth'), findsOneWidget);
+    expect(find.text('2nd Semester, 2025-2026 (first term enrolled)'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('edit_details_button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('details_address')), 'Talisay City');
+    await tester.enterText(find.byKey(const ValueKey('details_entranceData')), 'Abellana NHS');
+    await tester.tap(find.byKey(const ValueKey('save_details_button')));
+    await tester.pumpAndSettle();
+
+    expect(savedDetails!['address'], 'Talisay City');
+    expect(savedDetails!['entranceData'], 'Abellana NHS');
+    expect(savedDetails!['middleName'], '');
+    expect(savedDetails!.containsKey('dateOfBirth'), isTrue);
+    expect(find.text('Personal details saved.'), findsOneWidget);
+    expect(find.text('Talisay City'), findsOneWidget);
+    expect(find.textContaining('by Rita Reg'), findsOneWidget);
   });
 
   testWidgets('Grade release lists terms; Study load jumps to that term; the switch sends a toggle', (tester) async {

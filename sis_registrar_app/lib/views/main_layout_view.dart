@@ -123,10 +123,10 @@ class _MainLayoutViewState extends State<MainLayoutView> {
       _admissionsTab.value = admissionsTabs.indexOf(title);
       title = 'Admissions';
     } else if (title == 'Activity log') {
-      _reportsTab.value = 1;
+      _reportsTab.value = ReportsView.activityLogTab;
       title = 'Reports';
     } else if (title == 'Reports') {
-      _reportsTab.value = 0;
+      _reportsTab.value = ReportsView.termReportsTab;
     }
     final index = _navItems.indexWhere((i) => i['title'] == title);
     if (index >= 0) _onSelectTab(index);

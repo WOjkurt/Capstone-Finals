@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../injection.dart';
 import '../../models/grading_models.dart';
+import '../../models/record_models.dart';
 import '../../repositories/grading_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
+import '../../utils/student_record_pdf.dart';
+import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
+import 'record_print_dialogs.dart';
 import 'status_badge.dart';
 
 /// Read-only grade history of one student, grouped by term (newest first).
@@ -12,6 +16,11 @@ class StudentGradesDialog extends StatefulWidget {
   final String userId;
   final String studentName;
 
+  /// Printed under the title of the residency record.
+  final String? lrn;
+  final String? programCode;
+  final int? yearLevel;
+
   /// Shown inside the Students page's "Grades" tab instead of as a window.
   final bool embedded;
 
@@ -19,6 +28,9 @@ class StudentGradesDialog extends StatefulWidget {
     super.key,
     required this.userId,
     required this.studentName,
+    this.lrn,
+    this.programCode,
+    this.yearLevel,
     this.embedded = false,
   });
 
@@ -43,6 +55,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
   List<CreditedSubjectModel> _credits = [];
   String? _error;
   bool _failedOnly = false;
+  bool _printing = false;
 
   @override
   void initState() {
@@ -95,6 +108,79 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
 
   String _fmt(double? v) => v == null ? '—' : v.toStringAsFixed(2);
 
+  /// Prints every semester's grades (the "Failed only" filter does not apply to the printout).
+  Future<void> _print() async {
+    final grades = _grades;
+    if (grades == null) return;
+    setState(() => _printing = true);
+    try {
+      final bytes = await buildResidencyPdf(
+        grades,
+        credits: _credits,
+        student: _info,
+        logo: await loadSchoolLogo(),
+      );
+      await printPdf(bytes, 'Residency_${widget.studentName.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not print: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
+  RecordStudentInfo get _info => RecordStudentInfo(
+        name: widget.studentName,
+        lrn: widget.lrn,
+        programCode: widget.programCode,
+        yearLevel: widget.yearLevel,
+      );
+
+  /// Residency record, grade sheet (one semester or subject) and Transcript of Records.
+  Widget get _printButton => PopupMenuButton<String>(
+        key: const ValueKey('print_menu'),
+        enabled: !_printing && _grades != null,
+        tooltip: 'Print',
+        onSelected: (choice) {
+          switch (choice) {
+            case 'residency':
+              _print();
+            case 'grade_sheet':
+              GradeSheetDialog.show(context, grades: _grades ?? const [], student: _info);
+            case 'tor':
+              TranscriptPrintDialog.show(context, userId: widget.userId, studentName: widget.studentName);
+          }
+        },
+        itemBuilder: (_) => [
+          const PopupMenuItem(
+            key: ValueKey('print_residency_button'),
+            value: 'residency',
+            child: ListTile(leading: Icon(Icons.history_edu_outlined), title: Text('Residency record'), subtitle: Text('All semesters with GWA')),
+          ),
+          PopupMenuItem(
+            key: const ValueKey('print_grade_sheet_button'),
+            value: 'grade_sheet',
+            enabled: _grades?.isNotEmpty == true,
+            child: const ListTile(leading: Icon(Icons.description_outlined), title: Text('Grade sheet…'), subtitle: Text('One semester or one subject')),
+          ),
+          const PopupMenuItem(
+            key: ValueKey('print_tor_button'),
+            value: 'tor',
+            child: ListTile(leading: Icon(Icons.workspace_premium_outlined), title: Text('Transcript of Records…'), subtitle: Text('Official TOR')),
+          ),
+        ],
+        child: AbsorbPointer(
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.print_outlined, size: 18),
+            label: const Text('Print'),
+            onPressed: (_printing || _grades == null) ? null : () {},
+          ),
+        ),
+      );
+
   Widget get _failedOnlyChip => FilterChip(
         key: const ValueKey('failed_only_chip'),
         label: const Text('Failed only'),
@@ -108,7 +194,10 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(alignment: Alignment.centerRight, child: _failedOnlyChip),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [_failedOnlyChip, const SizedBox(width: 8), _printButton],
+          ),
           const SizedBox(height: 8),
           Expanded(child: _buildBody()),
         ],
@@ -182,9 +271,36 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
         creditedCodes: _credits.map((c) => c.subjectCode));
     final shown = _failedOnly ? grades.where((g) => g.isFailed).toList() : grades;
 
+    final gwa = computeGwa(grades);
     return ListView(
       shrinkWrap: true,
       children: [
+        if (gwa != null && !_failedOnly)
+          Container(
+            key: const ValueKey('overall_gwa'),
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.scaffoldBg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Text(gwa.toStringAsFixed(2),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w700)),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Overall GWA — graded subjects taken at DBTC, weighted by units (NSTP and PE not included)',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (unresolved.isNotEmpty)
           Container(
             key: const ValueKey('retake_summary'),
@@ -243,11 +359,22 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
         for (final term in _byTerm(shown)) ...[
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Text(term.key,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary)),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(term.key,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary)),
+                ),
+                if (!_failedOnly && computeGwa(term.value) != null)
+                  Text('GWA ${computeGwa(term.value)!.toStringAsFixed(2)}',
+                      key: ValueKey('term_gwa_${term.key}'),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700)),
+              ],
+            ),
           ),
           for (final g in term.value) _buildRow(g),
         ],

@@ -12,6 +12,7 @@ const Map<String, String> kActivityActionLabels = {
   'GRADE_CORRECTION_REJECTED': 'Grade correction rejected',
   'TEACHER_ASSIGNED': 'Teacher assigned',
   'CLEARANCE_CHANGED': 'Clearance changed',
+  'PERSONAL_DETAILS_UPDATED': 'Personal details updated',
 };
 
 const Map<int, String> _roleNames = {

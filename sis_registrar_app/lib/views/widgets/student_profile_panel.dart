@@ -10,12 +10,14 @@ import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
 import 'initialize_clearance_dialog.dart';
 import 'status_badge.dart';
+import 'student_details_tab.dart';
+import 'student_evaluation_tab.dart';
 import 'student_grades_dialog.dart';
 import 'student_study_load_dialog.dart';
 import '../../utils/formatters.dart';
 
 /// Everything about one student in one place: a header with their details, and tabs for
-/// study load, grades, credits, grade release (clearance) and history.
+/// study load, grades, curriculum evaluation, credits, personal details, grade release (clearance) and history.
 class StudentProfilePanel extends StatefulWidget {
   final ClearanceStateData data;
 
@@ -27,7 +29,7 @@ class StudentProfilePanel extends StatefulWidget {
 
 class _StudentProfilePanelState extends State<StudentProfilePanel>
     with SingleTickerProviderStateMixin, CurrentTermUser {
-  static const _tabs = ['Study load', 'Grades', 'Credits', 'Grade release', 'History'];
+  static const _tabs = ['Study load', 'Grades', 'Evaluation', 'Credits', 'Details', 'Grade release', 'History'];
 
   late final TabController _tabController = TabController(length: _tabs.length, vsync: this);
   int? _yearLevel;
@@ -120,13 +122,18 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                   key: ValueKey('grades_${_student.userId}'),
                   userId: _student.userId,
                   studentName: _student.fullName,
+                  lrn: _student.lrn,
+                  programCode: _student.programCode,
+                  yearLevel: _yearLevel,
                   embedded: true,
                 )),
+                _padded(StudentEvaluationTab(key: ValueKey('evaluation_${_student.userId}'), userId: _student.userId, studentName: _student.fullName)),
                 _padded(CreditedSubjectsDialog(
                   key: ValueKey('credits_${_student.userId}'),
                   student: _student,
                   embedded: true,
                 )),
+                _padded(StudentDetailsTab(key: ValueKey('details_${_student.userId}'), userId: _student.userId)),
                 _buildGradeReleaseTab(),
                 _padded(ActivityLogBrowser(key: ValueKey('history_${_student.userId}'), studentId: _student.userId, pageSize: 25)),
               ],

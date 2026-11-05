@@ -114,3 +114,40 @@ class TeacherLoadRow {
         subjectCodes: (j['subjectCodes'] as List?)?.cast<String>() ?? const [],
       );
 }
+
+/// A transferee, or any student with credits from another school.
+class TransfereeRow {
+  final String userId;
+  final String studentName;
+  final String? lrn;
+  final String? programCode;
+  final int? yearLevel;
+  final List<String> previousSchools;
+  final int creditedSubjects;
+  final double creditedUnits;
+  final List<String> creditedCodes;
+
+  const TransfereeRow({
+    required this.userId,
+    required this.studentName,
+    this.lrn,
+    this.programCode,
+    this.yearLevel,
+    this.previousSchools = const [],
+    this.creditedSubjects = 0,
+    this.creditedUnits = 0,
+    this.creditedCodes = const [],
+  });
+
+  factory TransfereeRow.fromJson(Map<String, dynamic> j) => TransfereeRow(
+        userId: j['userId']?.toString() ?? '',
+        studentName: j['studentName'] as String? ?? '',
+        lrn: j['lrn'] as String?,
+        programCode: j['programCode'] as String?,
+        yearLevel: (j['yearLevel'] as num?)?.toInt(),
+        previousSchools: [for (final s in (j['previousSchools'] as List?) ?? []) s.toString()],
+        creditedSubjects: (j['creditedSubjects'] as num?)?.toInt() ?? 0,
+        creditedUnits: (j['creditedUnits'] as num?)?.toDouble() ?? 0,
+        creditedCodes: [for (final s in (j['creditedCodes'] as List?) ?? []) s.toString()],
+      );
+}

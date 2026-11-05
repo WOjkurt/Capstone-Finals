@@ -12,6 +12,8 @@ import 'package:sis_registrar_app/repositories/grading_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
 import 'package:sis_registrar_app/views/widgets/credited_subjects_dialog.dart';
 import 'package:sis_registrar_app/views/widgets/student_grades_dialog.dart';
+import 'package:sis_registrar_app/models/school_models.dart';
+import 'package:sis_registrar_app/repositories/accredited_school_repository.dart';
 
 class FakeAuthService implements AuthService {
   @override
@@ -64,6 +66,16 @@ class FakeSetupRepo implements AcademicSetupRepository {
         SubjectModel.fromJson({'subjectID': 's2', 'subjectCode': 'GEC 101', 'subjectTitle': 'Self', 'programID': 1, 'yearLevel': 1}),
       ];
 
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeSchoolRepo implements AccreditedSchoolRepository {
+  @override
+  Future<List<AccreditedSchool>> getAll() async => const [
+        AccreditedSchool(schoolId: 'a', name: 'Cebu Technological University'),
+        AccreditedSchool(schoolId: 'b', name: 'University of San Carlos'),
+      ];
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -160,6 +172,24 @@ void main() {
       expect(find.textContaining('From Cebu Tech'), findsOneWidget);
       // School stays filled for the next subject.
       expect(tester.widget<TextField>(find.byKey(const ValueKey('credit_school_field'))).controller!.text, 'Cebu Tech');
+    });
+
+    testWidgets('the school field suggests accredited schools and warns about unlisted names', (tester) async {
+      getIt.registerSingleton<AccreditedSchoolRepository>(FakeSchoolRepo());
+      await pump(tester, const CreditedSubjectsDialog(student: _student));
+
+      await tester.enterText(find.byKey(const ValueKey('credit_school_field')), 'san');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('school_option_University of San Carlos')), findsOneWidget);
+      expect(find.byKey(const ValueKey('school_option_Cebu Technological University')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('school_option_University of San Carlos')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('credit_school_field'))).controller!.text, 'University of San Carlos');
+      expect(find.textContaining('Not on the accredited list'), findsNothing);
+
+      await tester.enterText(find.byKey(const ValueKey('credit_school_field')), 'Some Other College');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Not on the accredited list'), findsOneWidget);
     });
 
     testWidgets('server errors are shown', (tester) async {

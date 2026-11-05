@@ -10,6 +10,7 @@ import 'widgets/class_roster_dialog.dart';
 import 'widgets/open_term_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/accredited_schools_tab.dart';
 
 class SetupView extends StatefulWidget {
   const SetupView({super.key});
@@ -92,6 +93,7 @@ class _SetupViewState extends State<SetupView> {
       {'title': 'Academic Terms', 'index': 1, 'icon': Icons.calendar_month_outlined},
       {'title': 'Subjects & Prerequisites', 'index': 2, 'icon': Icons.menu_book_outlined},
       {'title': 'Classes & Rosters', 'index': 3, 'icon': Icons.groups_outlined},
+      {'title': 'Accredited Schools', 'index': 4, 'icon': Icons.account_balance_outlined},
     ];
 
     return Container(
@@ -161,6 +163,8 @@ class _SetupViewState extends State<SetupView> {
         return _TermsTab(state: state);
       case 2:
         return _SubjectsTab(state: state);
+      case 4:
+        return const AccreditedSchoolsTab();
       case 3:
       default:
         return _ClassesTab(state: state);

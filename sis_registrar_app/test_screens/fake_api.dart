@@ -64,6 +64,32 @@ Future<http.Response> fakeApi(http.Request req) async {
       {'gradeId': 'g1', 'subjectCode': 'IT 100', 'subjectTitle': 'Computer Basics', 'units': 3, 'midtermGrade': 2.0, 'finalGrade': 1.75, 'remarks': 1, 'termLabel': '2025-2026 (2nd Semester)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 1, 'teacherName': 'Ben Teach', 'className': 'BSIT 1A'},
       {'gradeId': 'g2', 'subjectCode': 'MATH 100', 'subjectTitle': 'College Algebra', 'units': 3, 'midtermGrade': 3.0, 'finalGrade': 5.0, 'remarks': 2, 'termLabel': '2025-2026 (2nd Semester)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 1, 'teacherName': 'Dina Santos', 'className': 'BSIT 1A'},
     ];
+  } else if (path.contains('/api/student-records/') && path.endsWith('/personal-details')) {
+    body = {
+      'firstname': 'Ana', 'lastname': 'Cruz', 'middleName': 'Reyes', 'address': 'Punta Princesa, Cebu City, Cebu',
+      'dateOfBirth': '2007-05-01', 'placeOfBirth': 'Cebu City', 'sex': 'Female', 'nationality': 'Filipino',
+      'firstTermEnrolled': '2nd Semester, 2025-2026', 'hasEnrollmentForm': true,
+      'fromForm': ['middleName', 'address', 'dateOfBirth', 'placeOfBirth', 'sex', 'nationality'],
+    };
+  } else if (path.contains('/api/student-records/') && path.endsWith('/evaluation')) {
+    Map<String, Object?> sub(String code, String title, int year, int sem, String status,
+            {double? grade, String? term, bool minor = false, String? from, String? creditedGrade}) =>
+        {'subjectId': code, 'subjectCode': code, 'subjectTitle': title, 'units': 3, 'yearLevel': year, 'semester': sem,
+         'isMinor': minor, 'status': status, 'finalGrade': grade, 'termLabel': term, 'creditedFrom': from, 'creditedGrade': creditedGrade};
+    body = {
+      'programCode': 'BSIT', 'programName': 'Bachelor of Science in Information Technology', 'yearLevel': 1,
+      'totalUnits': 24, 'earnedUnits': 6, 'inProgressUnits': 6, 'remainingUnits': 18,
+      'subjects': [
+        sub('IT 100', 'Computer Basics', 1, 1, 'Passed', grade: 1.75, term: '2025-2026 (2nd Sem)'),
+        sub('MATH 100', 'College Algebra', 1, 1, 'Failed', grade: 5.0, term: '2025-2026 (2nd Sem)', minor: true),
+        sub('GEC 102', 'Readings in Philippine History', 1, 1, 'Credited', minor: true, from: 'Cebu Technological University', creditedGrade: '1.5', term: '2024-2025'),
+        sub('IT 101', 'Introduction to Computing', 1, 2, 'InProgress', term: '2026-2027 (1st Sem)'),
+        sub('IT 102', 'Computer Programming 1', 1, 2, 'InProgress', term: '2026-2027 (1st Sem)'),
+        sub('IT 103', 'Discrete Mathematics', 1, 2, 'NotTaken'),
+        sub('IT 201', 'Data Structures', 2, 1, 'NotTaken'),
+        sub('IT 202', 'Networking 1', 2, 1, 'NotTaken'),
+      ],
+    };
   } else if (path.startsWith('/api/credited-subjects/student/')) {
     body = [
       {'creditedSubjectId': 'cr1', 'subjectId': 's9', 'subjectCode': 'GEC 102', 'subjectTitle': 'Readings in Philippine History', 'units': 3, 'yearLevel': 1, 'sourceSchool': 'Cebu Technological University', 'grade': '1.5', 'schoolYear': '2024-2025', 'recordedBy': 'Rita Reg'},

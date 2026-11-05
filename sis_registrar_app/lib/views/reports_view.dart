@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../injection.dart';
+import '../models/report_models.dart';
 import '../models/setup_models.dart';
 import '../services/current_term.dart';
 import '../repositories/report_repository.dart';
@@ -7,6 +8,8 @@ import '../theme/app_theme.dart';
 import '../utils/csv.dart';
 import '../utils/error_handler.dart';
 import '../utils/file_download.dart';
+import '../utils/report_pdf.dart';
+import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import 'widgets/activity_log_browser.dart';
 import 'widgets/page_header.dart';
 
@@ -39,7 +42,11 @@ class ReportTable {
 String _num(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
 
 class ReportsView extends StatefulWidget {
-  /// Which tab is showing (0 term reports, 1 activity log); links elsewhere in the app can change it.
+  static const termReportsTab = 0;
+  static const transfereesTab = 1;
+  static const activityLogTab = 2;
+
+  /// Which tab is showing (see the constants above); links elsewhere in the app can change it.
   final ValueNotifier<int>? tab;
 
   const ReportsView({super.key, this.tab});
@@ -49,7 +56,7 @@ class ReportsView extends StatefulWidget {
 }
 
 class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this, initialIndex: widget.tab?.value ?? 0);
+  late final TabController _tabs = TabController(length: 3, vsync: this, initialIndex: widget.tab?.value ?? 0);
   ReportKind _kind = ReportKind.enrollment;
 
   @override
@@ -161,6 +168,31 @@ class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleT
     }
   }
 
+  /// The term report as a printout; wide reports print sideways.
+  Future<void> _print() async {
+    final table = _table;
+    final term = _term;
+    if (table == null || term == null) return;
+    try {
+      final bytes = await buildReportPdf(
+        title: _kind.title,
+        subtitle: term.label,
+        headers: table.headers,
+        rows: table.rows,
+        landscape: table.headers.length > 6,
+        logo: await loadSchoolLogo(),
+      );
+      await printPdf(bytes, '${_kind.fileStem}_${term.label.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not print: ${_message(e)}'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    }
+  }
+
   void _download() {
     final table = _table;
     final term = _term;
@@ -185,7 +217,7 @@ class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleT
         children: [
           const PageHeader(
             title: 'Reports',
-            subtitle: 'Term reports (download as CSV for Excel) and the log of who did what.',
+            subtitle: 'Term reports and the transferee list (print, or download as CSV for Excel), and the log of who did what.',
           ),
           Container(
             color: Colors.white,
@@ -198,7 +230,7 @@ class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleT
               unselectedLabelColor: AppColors.textSecondary,
               indicatorColor: AppColors.primary,
               labelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontWeight: FontWeight.w700, fontSize: 14),
-              tabs: const [Tab(text: 'Term reports'), Tab(text: 'Activity log')],
+              tabs: const [Tab(text: 'Term reports'), Tab(text: 'Transferees'), Tab(text: 'Activity log')],
             ),
           ),
           const Divider(height: 1, color: AppColors.border),
@@ -235,12 +267,19 @@ class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleT
                             label: const Text('Download CSV'),
                             onPressed: (_table == null || _loading || _table!.rows.isEmpty) ? null : _download,
                           ),
+                          OutlinedButton.icon(
+                            key: const ValueKey('print_report_button'),
+                            icon: const Icon(Icons.print_outlined, size: 18),
+                            label: const Text('Print'),
+                            onPressed: (_table == null || _loading || _table!.rows.isEmpty) ? null : _print,
+                          ),
                         ],
                       ),
                     ),
                     Expanded(child: _buildBody()),
                   ],
                 ),
+                const TransfereesReport(),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(24, 16, 24, 16),
                   child: ActivityLogBrowser(),
@@ -295,6 +334,156 @@ class _ReportsViewState extends State<ReportsView> with CurrentTermUser, SingleT
                       )),
                   ],
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Every transferee (or student with credits from another school), with where they came from
+/// and what was credited. Not tied to a term.
+class TransfereesReport extends StatefulWidget {
+  const TransfereesReport({super.key});
+
+  @override
+  State<TransfereesReport> createState() => _TransfereesReportState();
+}
+
+class _TransfereesReportState extends State<TransfereesReport> {
+  List<TransfereeRow>? _rows;
+  String? _error;
+
+  static const _headers = ['Student', 'LRN', 'Program', 'Year', 'Previous school(s)', 'Credited subjects', 'Credited units', 'Subjects'];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  String _message(Object e) => e is ApiException ? e.message : e.toString();
+
+  Future<void> _load() async {
+    setState(() {
+      _rows = null;
+      _error = null;
+    });
+    try {
+      final rows = await getIt<ReportRepository>().transferees();
+      if (mounted) setState(() => _rows = rows);
+    } catch (e) {
+      if (mounted) setState(() => _error = _message(e));
+    }
+  }
+
+  List<List<Object?>> get _cells => [
+        for (final r in _rows ?? const <TransfereeRow>[])
+          [
+            r.studentName,
+            r.lrn ?? '',
+            r.programCode ?? '',
+            r.yearLevel != null ? 'Year ${r.yearLevel}' : '',
+            r.previousSchools.isEmpty ? 'Not recorded' : r.previousSchools.join('; '),
+            r.creditedSubjects,
+            _num(r.creditedUnits),
+            r.creditedCodes.join(' '),
+          ],
+      ];
+
+  void _snack(String text) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(text), backgroundColor: AppColors.error));
+
+  void _download() {
+    try {
+      downloadFile(buildCsv(_headers, _cells), 'Transferees.csv', 'text/csv');
+    } catch (e) {
+      _snack('Could not download: ${_message(e)}');
+    }
+  }
+
+  Future<void> _print() async {
+    try {
+      final bytes = await buildReportPdf(
+        title: 'Transferee list',
+        subtitle: 'Students from other schools and the subjects credited to them',
+        headers: _headers,
+        rows: _cells,
+        landscape: true,
+        logo: await loadSchoolLogo(),
+      );
+      await printPdf(bytes, 'Transferees.pdf');
+    } catch (e) {
+      if (mounted) _snack('Could not print: ${_message(e)}');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows;
+    final empty = rows == null || rows.isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text('Transferees and students with credits from other schools.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              OutlinedButton.icon(
+                key: const ValueKey('download_transferees_csv'),
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: const Text('Download CSV'),
+                onPressed: empty ? null : _download,
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('print_transferees_button'),
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Print'),
+                onPressed: empty ? null : _print,
+              ),
+              IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: _load),
+            ],
+          ),
+        ),
+        Expanded(child: _buildBody()),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    if (_error != null) {
+      return Center(child: Text(_error!, style: const TextStyle(color: AppColors.error)));
+    }
+    final rows = _rows;
+    if (rows == null) return const Center(child: CircularProgressIndicator());
+    if (rows.isEmpty) {
+      return const Center(
+        child: Text('No transferees yet. Students marked as transferees, or with credits from another school, show here.',
+            style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            key: const ValueKey('transferees_table'),
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
+            columns: [for (final h in _headers) DataColumn(label: Text(h, style: const TextStyle(fontWeight: FontWeight.w700)))],
+            rows: [
+              for (final r in _cells) DataRow(cells: [for (final c in r) DataCell(Text('${c ?? ''}'))]),
             ],
           ),
         ),
