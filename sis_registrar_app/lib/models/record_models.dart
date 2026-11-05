@@ -14,7 +14,7 @@ class EvaluationSubject {
   final int semester;
   final bool isMinor;
 
-  /// Passed, Credited, InProgress, Failed, Dropped or NotTaken.
+  /// Passed, Credited, CrossEnrolled, PartiallyCredited, InProgress, Failed, Dropped or NotTaken.
   final String status;
   final double? finalGrade;
   final String? termLabel;
@@ -38,9 +38,12 @@ class EvaluationSubject {
     this.termLabel,
     this.creditedFrom,
     this.creditedGrade,
+    this.creditedUnits,
   });
 
-  bool get isDone => status == 'Passed' || status == 'Credited';
+  final double? creditedUnits;
+
+  bool get isDone => status == 'Passed' || status == 'Credited' || status == 'CrossEnrolled';
 
   factory EvaluationSubject.fromJson(Map<String, dynamic> json) => EvaluationSubject(
         subjectId: json['subjectId']?.toString() ?? '',
@@ -59,6 +62,7 @@ class EvaluationSubject {
         termLabel: json['termLabel'] as String?,
         creditedFrom: json['creditedFrom'] as String?,
         creditedGrade: json['creditedGrade'] as String?,
+        creditedUnits: (json['creditedUnits'] as num?)?.toDouble(),
       );
 }
 

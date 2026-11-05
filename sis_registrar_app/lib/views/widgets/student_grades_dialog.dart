@@ -268,7 +268,8 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     }
 
     final unresolved = unresolvedFailedSubjects(grades,
-        creditedCodes: _credits.map((c) => c.subjectCode));
+        // Only a full-units credit settles a failed subject.
+        creditedCodes: _credits.where((c) => !c.isPartial).map((c) => c.subjectCode));
     final shown = _failedOnly ? grades.where((g) => g.isFailed).toList() : grades;
 
     final gwa = computeGwa(grades);
@@ -320,7 +321,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
         if (_credits.isNotEmpty && !_failedOnly) ...[
           const Padding(
             padding: EdgeInsets.only(top: 8, bottom: 4),
-            child: Text('Credited from other schools',
+            child: Text('Credited from other schools and cross-enrollment',
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -346,7 +347,9 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
                     ),
                   ),
                   Text(
-                    'Credited from ${c.sourceSchool}${c.grade != null ? ' · ${c.grade}' : ''}',
+                    '${c.isCrossEnrollment ? 'Cross-enrolled at' : 'Credited from'} ${c.sourceSchool}'
+                    '${c.grade != null ? ' · ${c.grade}' : ''}'
+                    '${c.isPartial ? ' · ${c.creditedUnits.toStringAsFixed(c.creditedUnits % 1 == 0 ? 0 : 1)} of ${c.units.toStringAsFixed(c.units % 1 == 0 ? 0 : 1)} units' : ''}',
                     style: const TextStyle(fontSize: 12, color: AppColors.accentGreenDark),
                   ),
                 ],

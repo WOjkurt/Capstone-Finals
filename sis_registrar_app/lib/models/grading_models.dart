@@ -329,6 +329,18 @@ class CreditedSubjectModel {
   final String? schoolYear;
   final String? recordedBy;
 
+  /// Units the Registrar credited; can be fewer than [units] (the DBTC subject's).
+  final double creditedUnits;
+
+  /// 1 = from a previous school, 2 = cross-enrolled during a DBTC term.
+  final int kind;
+  final String? termLabel;
+
+  bool get isCrossEnrollment => kind == 2;
+
+  /// Fewer units than the subject has: it still has to be taken.
+  bool get isPartial => creditedUnits < units;
+
   const CreditedSubjectModel({
     required this.creditedSubjectId,
     required this.subjectId,
@@ -341,7 +353,10 @@ class CreditedSubjectModel {
     this.grade,
     this.schoolYear,
     this.recordedBy,
-  });
+    double? creditedUnits,
+    this.kind = 1,
+    this.termLabel,
+  }) : creditedUnits = creditedUnits ?? units;
 
   factory CreditedSubjectModel.fromJson(Map<String, dynamic> json) {
     return CreditedSubjectModel(
@@ -356,6 +371,9 @@ class CreditedSubjectModel {
       grade: json['grade'] as String?,
       schoolYear: json['schoolYear'] as String?,
       recordedBy: json['recordedBy'] as String?,
+      creditedUnits: (json['creditedUnits'] as num?)?.toDouble(),
+      kind: (json['kind'] as num?)?.toInt() ?? 1,
+      termLabel: json['termLabel'] as String?,
     );
   }
 }

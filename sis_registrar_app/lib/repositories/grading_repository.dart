@@ -270,6 +270,9 @@ class CreditedSubjectRepository {
     String? sourceSubjectCode,
     String? grade,
     String? schoolYear,
+    required double creditedUnits,
+    bool crossEnrollment = false,
+    String? termId,
   }) async {
     final headers = await _auth.getAuthHeaders();
     headers['Content-Type'] = 'application/json';
@@ -283,6 +286,9 @@ class CreditedSubjectRepository {
         'sourceSubjectCode': sourceSubjectCode,
         'grade': grade,
         'schoolYear': schoolYear,
+        'creditedUnits': creditedUnits,
+        'kind': crossEnrollment ? 2 : 1,
+        if (termId != null) 'termId': termId,
       }),
     );
     if (res.statusCode != 200) {

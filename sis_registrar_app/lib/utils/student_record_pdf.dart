@@ -37,6 +37,8 @@ String curriculumSectionTitle(int year, int semester) {
 String evaluationRemark(String status) => switch (status) {
       'Passed' => 'Passed',
       'Credited' => 'Credited',
+      'CrossEnrolled' => 'Cross-enrolled',
+      'PartiallyCredited' => 'Partly credited',
       'InProgress' => 'In progress',
       'Failed' => 'Failed',
       'Dropped' => 'Dropped',
@@ -186,9 +188,17 @@ Future<Uint8List> buildEvaluationPdf(
                 _num(s.units),
                 s.prerequisites ?? 'None',
                 s.corequisites ?? '',
-                s.status == 'Credited' ? (s.creditedGrade ?? '') : (s.finalGrade?.toStringAsFixed(2) ?? ''),
-                evaluationRemark(s.status),
-                s.status == 'Credited' ? 'Credited${s.creditedFrom != null ? ' - ${s.creditedFrom}' : ''}' : (s.termLabel ?? ''),
+                const {'Credited', 'CrossEnrolled', 'PartiallyCredited'}.contains(s.status)
+                    ? (s.creditedGrade ?? '')
+                    : (s.finalGrade?.toStringAsFixed(2) ?? ''),
+                s.status == 'PartiallyCredited'
+                    ? 'Partly credited (${_num(s.creditedUnits ?? 0)} of ${_num(s.units)})'
+                    : evaluationRemark(s.status),
+                switch (s.status) {
+                  'Credited' || 'PartiallyCredited' => 'Credited${s.creditedFrom != null ? ' - ${s.creditedFrom}' : ''}',
+                  'CrossEnrolled' => '${s.termLabel ?? ''} at ${s.creditedFrom ?? ''}',
+                  _ => s.termLabel ?? '',
+                },
               ],
           ],
           totals: ['', '', _hours(sum((s) => s.lecHours)), _hours(sum((s) => s.labHours)), _num(sum((s) => s.units)), '', '', '', '', ''],
@@ -281,14 +291,21 @@ Future<Uint8List> buildResidencyPdf(
   }
   if (credits.isNotEmpty) {
     body.add(pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-      _sectionTitle('CREDITED FROM OTHER SCHOOLS'),
+      _sectionTitle('CREDITED FROM OTHER SCHOOLS AND CROSS-ENROLLMENT'),
       _table(
         headers: ['Course Code', 'Descriptive Title', 'Credit', 'Grade', 'School', 'School Year'],
         rows: [
           for (final c in credits)
-            [c.subjectCode, c.subjectTitle, _num(c.units), c.grade ?? '', c.sourceSchool, c.schoolYear ?? ''],
+            [
+              c.subjectCode,
+              c.isCrossEnrollment ? '${c.subjectTitle} (cross-enrolled)' : c.subjectTitle,
+              c.isPartial ? '${_num(c.creditedUnits)} of ${_num(c.units)}' : _num(c.creditedUnits),
+              c.grade ?? '',
+              c.sourceSchool,
+              (c.isCrossEnrollment ? c.termLabel : c.schoolYear) ?? '',
+            ],
         ],
-        totals: ['', '', _num(credits.fold(0.0, (s, c) => s + c.units)), '', '', ''],
+        totals: ['', '', _num(credits.fold(0.0, (s, c) => s + c.creditedUnits)), '', '', ''],
         widths: const {
           0: pw.FixedColumnWidth(50),
           1: pw.FlexColumnWidth(3),

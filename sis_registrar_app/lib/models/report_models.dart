@@ -151,3 +151,42 @@ class TransfereeRow {
         creditedCodes: [for (final s in (j['creditedCodes'] as List?) ?? []) s.toString()],
       );
 }
+
+/// Enrolled students of one program in a term, by year level (1st to 4th) and sex.
+class EnrollmentStatisticsRow {
+  final String programCode;
+  final String programName;
+
+  /// Index 0 is 1st year ... index 3 is 4th year.
+  final List<int> male;
+  final List<int> female;
+  final int sexNotRecorded;
+  final int yearNotRecorded;
+
+  const EnrollmentStatisticsRow({
+    required this.programCode,
+    this.programName = '',
+    required this.male,
+    required this.female,
+    this.sexNotRecorded = 0,
+    this.yearNotRecorded = 0,
+  });
+
+  int get totalMale => male.fold(0, (a, b) => a + b);
+  int get totalFemale => female.fold(0, (a, b) => a + b);
+  int get total => totalMale + totalFemale;
+
+  static List<int> _four(Object? v) {
+    final list = [for (final x in (v as List?) ?? const []) (x as num).toInt()];
+    return [for (var i = 0; i < 4; i++) i < list.length ? list[i] : 0];
+  }
+
+  factory EnrollmentStatisticsRow.fromJson(Map<String, dynamic> j) => EnrollmentStatisticsRow(
+        programCode: j['programCode'] as String? ?? '',
+        programName: j['programName'] as String? ?? '',
+        male: _four(j['male']),
+        female: _four(j['female']),
+        sexNotRecorded: _i(j['sexNotRecorded']),
+        yearNotRecorded: _i(j['yearNotRecorded']),
+      );
+}

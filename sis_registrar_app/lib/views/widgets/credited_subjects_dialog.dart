@@ -41,6 +41,11 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   int _formVersion = 0;
   final _school = TextEditingController();
   final _schoolFocus = FocusNode();
+  final _units = TextEditingController();
+  // Cross-enrolled during a DBTC term, rather than taken before DBTC.
+  bool _cross = false;
+  String? _termId;
+  List<AcademicTermModel> _terms = [];
   List<String> _schoolNames = [];
   final _theirCode = TextEditingController();
   final _grade = TextEditingController();
@@ -56,6 +61,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   void dispose() {
     _school.dispose();
     _schoolFocus.dispose();
+    _units.dispose();
     _theirCode.dispose();
     _grade.dispose();
     _schoolYear.dispose();
@@ -82,17 +88,29 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
       try {
         schoolNames = [for (final s in await getIt<AccreditedSchoolRepository>().getAll()) s.name];
       } catch (_) {}
+      var terms = <AcademicTermModel>[];
+      try {
+        terms = await getIt<AcademicSetupRepository>().getTerms();
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _credits = credits;
           _subjects = subjects;
           _schoolNames = schoolNames;
+          _terms = terms;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _error = _message(e));
     }
   }
+
+  double? get _subjectUnits {
+    final s = _subjects.where((s) => s.subjectId == _subjectId).firstOrNull;
+    return s == null ? null : s.lecUnits + s.labUnits;
+  }
+
+  static String _fmtUnits(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
 
   List<SubjectModel> get _available {
     final credited = (_credits ?? []).map((c) => c.subjectId).toSet();
@@ -108,6 +126,20 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
       setState(() => _formError = 'Enter the school where it was taken.');
       return;
     }
+    final subjectUnits = _subjectUnits ?? 0;
+    final units = double.tryParse(_units.text.trim());
+    if (units == null || units <= 0) {
+      setState(() => _formError = 'Enter the units to credit.');
+      return;
+    }
+    if (units > subjectUnits) {
+      setState(() => _formError = 'This subject has only ${_fmtUnits(subjectUnits)} units.');
+      return;
+    }
+    if (_cross && _termId == null) {
+      setState(() => _formError = 'Choose the DBTC term it was cross-enrolled in.');
+      return;
+    }
     setState(() {
       _saving = true;
       _formError = null;
@@ -119,11 +151,15 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
         sourceSchool: _school.text.trim(),
         sourceSubjectCode: _theirCode.text.trim(),
         grade: _grade.text.trim(),
-        schoolYear: _schoolYear.text.trim(),
+        schoolYear: _cross ? null : _schoolYear.text.trim(),
+        creditedUnits: units,
+        crossEnrollment: _cross,
+        termId: _cross ? _termId : null,
       );
       // Keep the school and year filled in: transferees usually bring several subjects from one school.
       _theirCode.clear();
       _grade.clear();
+      _units.clear();
       _subjectId = null;
       _formVersion++;
       await _load();
@@ -241,19 +277,24 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
 
   Widget _buildCreditRow(CreditedSubjectModel c) {
     final details = [
-      'From ${c.sourceSchool}',
+      c.isCrossEnrollment
+          ? 'Cross-enrolled at ${c.sourceSchool}${c.termLabel != null ? ' in ${c.termLabel}' : ''}'
+          : 'From ${c.sourceSchool}',
       if (c.sourceSubjectCode != null) 'as ${c.sourceSubjectCode}',
       if (c.grade != null) 'grade ${c.grade}',
-      if (c.schoolYear != null) 'SY ${c.schoolYear}',
+      c.isPartial
+          ? '${_fmtUnits(c.creditedUnits)} of ${_fmtUnits(c.units)} units (partial, still to take)'
+          : '${_fmtUnits(c.creditedUnits)} units',
+      if (c.schoolYear != null && !c.isCrossEnrollment) 'SY ${c.schoolYear}',
       if (c.recordedBy != null) 'recorded by ${c.recordedBy}',
     ].join(' · ');
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
+        color: c.isPartial ? AppColors.accentAmberLight : const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFBBF7D0)),
+        border: Border.all(color: c.isPartial ? const Color(0xFFFCD34D) : const Color(0xFFBBF7D0)),
       ),
       child: Row(
         children: [
@@ -292,6 +333,16 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
         const Text('Add a credited subject',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
+        SegmentedButton<bool>(
+          key: const ValueKey('credit_kind'),
+          segments: const [
+            ButtonSegment(value: false, label: Text('From a previous school'), icon: Icon(Icons.history_edu_outlined)),
+            ButtonSegment(value: true, label: Text('Cross-enrolled while at DBTC'), icon: Icon(Icons.compare_arrows_rounded)),
+          ],
+          selected: {_cross},
+          onSelectionChanged: (v) => setState(() => _cross = v.first),
+        ),
+        const SizedBox(height: 10),
         if (widget.student.programId == null)
           const Text('Set the student\'s program first.',
               style: TextStyle(color: Color(0xFFDC2626)))
@@ -311,7 +362,12 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
                       overflow: TextOverflow.ellipsis),
                 ),
             ],
-            onChanged: (v) => setState(() => _subjectId = v),
+            onChanged: (v) => setState(() {
+              _subjectId = v;
+              // Start from the full units; the Registrar lowers it when only part of the class was taken.
+              final u = _subjectUnits;
+              _units.text = u == null ? '' : _fmtUnits(u);
+            }),
             ),
           ),
         const SizedBox(height: 10),
@@ -382,15 +438,49 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
               ),
             ),
             const SizedBox(width: 10),
+            if (!_cross)
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('credit_school_year_field'),
+                  controller: _schoolYear,
+                  decoration: deco('School year'),
+                ),
+              ),
+            const SizedBox(width: 10),
             Expanded(
               child: TextField(
-                key: const ValueKey('credit_school_year_field'),
-                controller: _schoolYear,
-                decoration: deco('School year'),
+                key: const ValueKey('credit_units_field'),
+                controller: _units,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: deco('Units credited *').copyWith(
+                  suffixText: _subjectUnits == null ? null : 'of ${_fmtUnits(_subjectUnits!)}',
+                ),
+                onChanged: (_) => setState(() {}),
               ),
             ),
           ],
         ),
+        if (_cross) ...[
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('credit_term_dropdown'),
+            initialValue: _termId,
+            isExpanded: true,
+            decoration: deco('DBTC term it was taken during *'),
+            items: [for (final t in _terms) DropdownMenuItem(value: t.termId, child: Text(t.label))],
+            onChanged: (v) => setState(() => _termId = v),
+          ),
+        ],
+        if (_subjectUnits != null && (double.tryParse(_units.text.trim()) ?? _subjectUnits!) < _subjectUnits!)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+              'Partial credit: the units count toward units earned, but the subject is still left to take '
+              '(prerequisites and promotion need the full units).',
+              key: ValueKey('partial_credit_note'),
+              style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+            ),
+          ),
         if (_formError != null) ...[
           const SizedBox(height: 8),
           Text(_formError!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12)),

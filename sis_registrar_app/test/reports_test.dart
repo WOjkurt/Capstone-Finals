@@ -13,6 +13,7 @@ import 'package:sis_registrar_app/repositories/report_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
 import 'package:sis_registrar_app/utils/csv.dart';
 import 'package:sis_registrar_app/utils/file_download.dart';
+import 'package:sis_registrar_app/utils/study_load_pdf.dart';
 import 'package:sis_registrar_app/views/main_layout_view.dart';
 import 'package:sis_registrar_app/views/reports_view.dart';
 
@@ -103,6 +104,10 @@ void main() {
                 {'programCode': 'BSIT', 'yearLevel': 1, 'enrolledStudents': 40, 'pendingOnlyStudents': 2},
                 {'programCode': 'BSME', 'yearLevel': 1, 'enrolledStudents': 30, 'pendingOnlyStudents': 0},
               ],
+            'enrollment-statistics' => [
+                {'programCode': 'BSIT', 'male': [10, 8, 6, 4], 'female': [5, 4, 3, 2], 'sexNotRecorded': 2},
+                {'programCode': 'BSME', 'male': [7, 0, 0, 0], 'female': [1, 0, 0, 0]},
+              ],
             'failed-students' => [
                 {'studentName': 'Ana Cruz', 'lrn': '1234', 'programCode': 'BSIT', 'yearLevel': 1, 'subjectCode': 'IT 101', 'subjectTitle': 'Intro', 'className': 'BSIT 1A', 'finalGrade': 5.0, 'teacherName': 'Ben'},
               ],
@@ -129,6 +134,31 @@ void main() {
       expect(find.text('BSIT'), findsOneWidget);
       expect(find.text('TOTAL'), findsOneWidget);
       expect(find.text('70'), findsOneWidget);
+    });
+
+    testWidgets('Statistics: 1st to 4th year by M and F with totals, a note for missing sex, and its own printout', (tester) async {
+      final printed = <String>[];
+      final original = printPdf;
+      printPdf = (bytes, name) async => printed.add(name);
+      addTearDown(() => printPdf = original);
+      await pump(tester);
+
+      await tester.tap(find.text('Statistics'));
+      await tester.pumpAndSettle();
+      expect(requested.last, 'enrollment-statistics:t-now');
+      for (final h in ['1st Year M', '4th Year F', 'Total M', 'Total F', 'Total']) {
+        expect(find.text(h), findsOneWidget, reason: h);
+      }
+      // BSIT: 28 male + 14 female = 42; all programs: 35 male, 15 female, 50.
+      expect(find.text('42'), findsOneWidget);
+      expect(find.text('50'), findsOneWidget);
+      expect(find.byKey(const ValueKey('report_note')), findsOneWidget);
+      expect(find.textContaining('2 enrolled student(s) have no sex on record'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('print_report_button')));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+      await tester.pumpAndSettle();
+      expect(printed, ['Enrollment_Statistics_2026_2027_1st_Sem_.pdf']);
     });
 
     testWidgets('switching report loads it; empty reports say so and cannot be downloaded', (tester) async {

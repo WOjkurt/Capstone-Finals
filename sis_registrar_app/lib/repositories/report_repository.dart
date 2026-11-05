@@ -38,6 +38,9 @@ class ReportRepository {
   Future<List<TeacherLoadRow>> teacherLoads(String termId) async =>
       (await _get('teacher-loads', termId)).map(TeacherLoadRow.fromJson).toList();
 
+  Future<List<EnrollmentStatisticsRow>> enrollmentStatistics(String termId) async =>
+      (await _get('enrollment-statistics', termId)).map(EnrollmentStatisticsRow.fromJson).toList();
+
   /// Not tied to a term.
   Future<List<TransfereeRow>> transferees() async =>
       (await _get('transferees', null)).map(TransfereeRow.fromJson).toList();

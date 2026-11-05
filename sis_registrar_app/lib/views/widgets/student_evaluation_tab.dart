@@ -213,6 +213,8 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
     final Widget badge = switch (s.status) {
       'Passed' => StatusBadge.success(label: 'Passed'),
       'Credited' => StatusBadge.info(label: 'Credited'),
+      'CrossEnrolled' => StatusBadge.info(label: 'Cross-enrolled'),
+      'PartiallyCredited' => StatusBadge.pending(label: 'Partly credited'),
       'InProgress' => StatusBadge.pending(label: 'In progress'),
       'Failed' => StatusBadge.danger(label: 'Failed'),
       'Dropped' => StatusBadge.neutral(label: 'Dropped'),
@@ -222,9 +224,14 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
       '${_units(s.units)} units',
       if (s.isMinor) 'Minor',
       if (s.status == 'Credited') 'from ${s.creditedFrom ?? 'another school'}',
+      if (s.status == 'CrossEnrolled') 'at ${s.creditedFrom ?? 'another school'}',
+      if (s.status == 'PartiallyCredited')
+        '${_units(s.creditedUnits ?? 0)} of ${_units(s.units)} units credited from ${s.creditedFrom ?? 'another school'}',
       if (s.termLabel != null) s.termLabel!,
     ].join(' · ');
-    final grade = s.status == 'Credited' ? s.creditedGrade : s.finalGrade?.toStringAsFixed(2);
+    final grade = const {'Credited', 'CrossEnrolled', 'PartiallyCredited'}.contains(s.status)
+        ? s.creditedGrade
+        : s.finalGrade?.toStringAsFixed(2);
 
     return Container(
       key: ValueKey('evaluation_row_${s.subjectCode}'),

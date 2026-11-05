@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sis_registrar_app/models/class_models.dart';
 import 'package:sis_registrar_app/models/grading_models.dart';
 import 'package:sis_registrar_app/models/record_models.dart';
+import 'package:sis_registrar_app/utils/report_pdf.dart';
 import 'package:sis_registrar_app/utils/student_record_pdf.dart';
 import 'package:sis_registrar_app/utils/transcript_pdf.dart';
 
@@ -65,6 +66,18 @@ void main() {
       StudyLoadChangeModel(changeId: '2', kind: 'Added', subjectCode: 'GEC 106A', subjectTitle: 'Arts Appreciation', className: 'BTVTED 2B', units: 3, reason: 'Replacement subject, approved by College Head', changedAt: DateTime(2026, 8, 21)),
       StudyLoadChangeModel(changeId: '3', kind: 'Withdrawn', subjectCode: 'NSTP 201A', subjectTitle: 'Literacy Training Service 1', className: 'BTVTED 2A', units: 3, reason: 'Medical', changedAt: DateTime(2026, 10, 2)),
     ], student: info, termLabel: '2026-2027 (1st Sem)', printedAt: DateTime(2026, 11, 5)));
+
+    await File('$out/statistics.pdf').writeAsBytes(await buildEnrollmentStatisticsPdf(
+      termLabel: '2026-2027 (1st Sem)',
+      rows: const [
+        ['BSIT', 42, 18, 35, 15, 30, 12, 25, 10, 132, 55, 187],
+        ['BSME', 38, 4, 30, 3, 26, 2, 20, 1, 114, 10, 124],
+        ['BTVTED', 20, 22, 18, 20, 15, 17, 12, 14, 65, 73, 138],
+        ['TOTAL', 100, 44, 83, 38, 71, 31, 57, 25, 311, 138, 449],
+      ],
+      note: '3 enrolled student(s) have no sex on record and are not counted above.',
+      printedAt: DateTime(2026, 11, 5),
+    ));
 
     const titles = ['Basic Occupational Safety and Health', 'Engineering Drawing', 'Wood and Lumber (Wood Joints and Wood Cuts)',
       'Basic Machine Tools & Bench Work', 'Teaching ICT as an Exploratory Course', 'Teaching the Common Competencies in ICT',
