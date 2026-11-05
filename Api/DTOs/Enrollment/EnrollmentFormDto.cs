@@ -20,6 +20,7 @@ public class EnrollmentFormDto
     public required string Suffix { get; set; }
 
     // ── Personal Information ─────────────────────────────────────────────────
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.FlexibleDateConverter))]
     public DateOnly DateOfBirth { get; set; }
     [Required]
     [StringLength(ValidationConstants.AddressMax)]
@@ -93,6 +94,7 @@ public class EnrollmentFormDto
     public required string SchoolAddress { get; set; }
     [StringLength(ValidationConstants.AddressMax)]
     public string? ProgramTrackStrand { get; set; }
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.FlexibleDateConverter))]
     public DateOnly YearGraduated { get; set; }
     [Required]
     [StringLength(ValidationConstants.AddressMax)]

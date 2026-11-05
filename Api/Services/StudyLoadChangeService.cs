@@ -14,6 +14,13 @@ public interface IStudyLoadChangeService
     Task RecordAsync(Guid studyLoadId, string kind, string? reason, Guid? changedBy);
     /// <summary>Records an "Added" change only for a load created at or after [since] (not one that already existed).</summary>
     Task RecordAddedIfNewAsync(Guid studyLoadId, DateTime since, string? reason, Guid? changedBy);
+    /// <summary>When the student's newest Enrolled subject of the term was created; null if none.</summary>
+    Task<DateTime?> NewestEnrolledAtAsync(Guid userId, Guid termId);
+    /// <summary>
+    /// Records "Added" for just-finalized loads created well after [newestEnrolledAt]: subjects the College Head
+    /// added to an already enrolled student. Subjects saved together and finalized in parts are not adds.
+    /// </summary>
+    Task RecordLateAddsAsync(IEnumerable<Guid> finalizedLoadIds, DateTime newestEnrolledAt, Guid? changedBy);
     Task<List<StudyLoadChangeDto>> GetAsync(Guid userId, Guid termId);
 }
 
@@ -33,6 +40,25 @@ public class StudyLoadChangeService : IStudyLoadChangeService
 
     public async Task<Guid?> TermOfClassAsync(Guid classId) =>
         await _context.Classes.Where(c => c.ClassID == classId).Select(c => (Guid?)c.TermID).FirstOrDefaultAsync();
+
+    public async Task<DateTime?> NewestEnrolledAtAsync(Guid userId, Guid termId) =>
+        await _context.StudyLoads
+            .Where(sl => sl.UserID == userId && sl.LoadStatus == StudyLoadStatus.Enrolled && sl.Class != null && sl.Class.TermID == termId)
+            .MaxAsync(sl => (DateTime?)sl.CreatedAt);
+
+    public async Task RecordLateAddsAsync(IEnumerable<Guid> finalizedLoadIds, DateTime newestEnrolledAt, Guid? changedBy)
+    {
+        var ids = finalizedLoadIds.ToList();
+        var cutoff = newestEnrolledAt.AddMinutes(1);
+        var late = await _context.StudyLoads.AsNoTracking()
+            .Where(sl => ids.Contains(sl.StudyLoadID) && sl.CreatedAt > cutoff)
+            .Select(sl => sl.StudyLoadID)
+            .ToListAsync();
+        foreach (var id in late)
+        {
+            await RecordAsync(id, StudyLoadChangeKinds.Added, "Pending subject finalized after enrollment", changedBy);
+        }
+    }
 
     public async Task<int?> StatusOfAsync(Guid studyLoadId) =>
         await _context.StudyLoads.Where(sl => sl.StudyLoadID == studyLoadId).Select(sl => (int?)sl.LoadStatus).FirstOrDefaultAsync();

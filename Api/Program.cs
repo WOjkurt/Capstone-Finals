@@ -186,11 +186,7 @@ builder.Services.AddControllers()
     {
         options.InvalidModelStateResponseFactory = context =>
         {
-            var firstError = context.ModelState.Values
-                .SelectMany(v => v.Errors)
-                .Select(e => e.ErrorMessage)
-                .FirstOrDefault() ?? "Invalid request.";
-            return new BadRequestObjectResult(new { message = firstError });
+            return new BadRequestObjectResult(new { message = Api.Common.ValidationMessage.First(context.ModelState) });
         };
     });
 builder.Services.AddOpenApi();

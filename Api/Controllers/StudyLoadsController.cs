@@ -185,10 +185,16 @@ public class StudyLoadsController : ControllerBase
 
         try
         {
+            var changes = this.LoadChanges();
+            var newestEnrolledAt = changes != null ? await changes.NewestEnrolledAtAsync(dto.UserId, dto.TermId) : null;
             var result = await _studyLoadService.FinalizeBatchAsync(dto, callerUserId, callerRole);
             if (!result.Success)
             {
                 return BadRequest(result);
+            }
+            if (changes != null && newestEnrolledAt.HasValue)
+            {
+                await changes.RecordLateAddsAsync(result.FinalizedLoads.Select(l => l.StudyLoadId), newestEnrolledAt.Value, callerUserId);
             }
             var log = this.ActivityLog();
             if (log != null && result.FinalizedLoads.Count > 0)

@@ -24,6 +24,7 @@ public class ContactDto
     // ── Extended contact fields (new) ────────────────────────────────────────
     [StringLength(320)]
     public string? Email { get; set; }
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.FlexibleNullableDateConverter))]
     public DateOnly? DateOfBirth { get; set; }
     [StringLength(ValidationConstants.AddressMax)]
     public string? Workplace { get; set; }

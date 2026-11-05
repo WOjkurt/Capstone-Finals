@@ -1449,14 +1449,21 @@ public class StudyLoadService : IStudyLoadService
 
     private async Task ValidatePriorTermClearanceAsync(Guid userId, Guid enrollingTermId)
     {
-        var priorTerm = await _context.StudyLoads
+        var enrolling = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == enrollingTermId);
+        var otherTerms = await _context.StudyLoads
             .AsNoTracking()
             .Where(sl => sl.UserID == userId && sl.LoadStatus == StudyLoadStatus.Enrolled && sl.Class != null && sl.Class.TermID != enrollingTermId)
             .Select(sl => sl.Class!.Term)
             .Where(t => t != null)
-            .OrderByDescending(t => t!.SchoolYear)
+            .Distinct()
+            .ToListAsync();
+
+        // Only an earlier term can hold up enrollment; a late add to the current term must not trip on a later one.
+        var priorTerm = otherTerms
+            .Where(t => enrolling == null || IsEarlier(t!, enrolling))
+            .OrderByDescending(t => t!.SchoolYear, StringComparer.Ordinal)
             .ThenByDescending(t => t!.Semester)
-            .FirstOrDefaultAsync();
+            .FirstOrDefault();
 
         if (priorTerm != null)
         {
@@ -1467,6 +1474,12 @@ public class StudyLoadService : IStudyLoadService
                 throw new InvalidOperationException($"Cannot enroll: student has an unresolved clearance hold for {termLabel}.");
             }
         }
+    }
+
+    private static bool IsEarlier(AcademicTerm a, AcademicTerm b)
+    {
+        int year = string.CompareOrdinal(a.SchoolYear, b.SchoolYear);
+        return year != 0 ? year < 0 : a.Semester < b.Semester;
     }
 
     private async Task<string> FormatClassScheduleAsync(Guid classId)
