@@ -147,7 +147,7 @@ void main() {
       expect(term.schoolYear, '2026-2027');
       expect(term.semester, 1);
       expect(term.isActive, isTrue);
-      expect(term.label, '2026-2027 — 1st Sem');
+      expect(term.label, '2026-2027 (1st Sem)');
 
       final inactiveJson = {
         'termId': 'term-inactive',
@@ -156,7 +156,7 @@ void main() {
       };
       final inactiveTerm = AcademicTermModel.fromJson(inactiveJson);
       expect(inactiveTerm.isActive, isFalse);
-      expect(inactiveTerm.label, '2025-2026 — 2nd Sem');
+      expect(inactiveTerm.label, '2025-2026 (2nd Sem)');
     });
   });
 
@@ -292,7 +292,7 @@ void main() {
           className: 'BSCS 1A',
           teacherName: 'Prof. Cruz',
           loadStatus: 'Enrolled',
-          termLabel: '2026-2027 — 1st Sem',
+          termLabel: '2026-2027 (1st Sem)',
           schedules: [
             ClassScheduleModel(
               scheduleId: 's-1',
@@ -313,7 +313,7 @@ void main() {
           className: 'BSCS 1A',
           teacherName: 'Ms. Reyes',
           loadStatus: 'Enrolled',
-          termLabel: '2026-2027 — 1st Sem',
+          termLabel: '2026-2027 (1st Sem)',
           schedules: [
             ClassScheduleModel(
               scheduleId: 's-2',
@@ -337,7 +337,7 @@ void main() {
 
       // Check header details
       expect(find.text('My Schedule'), findsOneWidget);
-      expect(find.text('2026-2027 — 1st Sem'), findsOneWidget);
+      expect(find.text('2026-2027 (1st Sem)'), findsOneWidget);
       expect(find.text('ACTIVE'), findsOneWidget);
       expect(find.text('2 Classes · 6 Units'), findsOneWidget);
 
@@ -373,7 +373,7 @@ void main() {
       await tester.pumpWidget(createTestWidget(bloc: bloc));
       await tester.pumpAndSettle();
 
-      expect(find.text('2026-2027 — 1st Sem'), findsOneWidget);
+      expect(find.text('2026-2027 (1st Sem)'), findsOneWidget);
       expect(find.text('You have no classes for this term'), findsOneWidget);
       expect(find.text('Refresh Schedule'), findsOneWidget);
 
@@ -403,7 +403,7 @@ void main() {
           className: 'BSIT 3A - Day',
           teacherName: 'Prof. Long Instructor Name Here',
           loadStatus: 'Enrolled',
-          termLabel: '2026-2027 — 2nd Sem',
+          termLabel: '2026-2027 (2nd Sem)',
           schedules: [
             ClassScheduleModel(
               scheduleId: 's-m-1',
@@ -450,7 +450,7 @@ void main() {
         className: 'BSCS 1A',
         teacherName: 'Prof. Turing',
         loadStatus: 'Enrolled',
-        termLabel: '2026-2027 — 1st Sem',
+        termLabel: '2026-2027 (1st Sem)',
       );
 
       final pendingItem = const StudentScheduleItemModel(
@@ -462,7 +462,7 @@ void main() {
         className: 'BSCS 1B',
         teacherName: 'Prof. Gauss',
         loadStatus: 'Pending',
-        termLabel: '2026-2027 — 1st Sem',
+        termLabel: '2026-2027 (1st Sem)',
       );
 
       repository.activeTerm = term;
@@ -507,7 +507,7 @@ void main() {
         className: 'BSCS 1A',
         teacherName: 'Prof. Turing',
         loadStatus: 'Enrolled',
-        termLabel: '2026-2027 — 1st Sem',
+        termLabel: '2026-2027 (1st Sem)',
       );
 
       final rejectedItem = const StudentScheduleItemModel(
@@ -519,7 +519,7 @@ void main() {
         className: 'BSCS 1C',
         teacherName: 'Prof. Newton',
         loadStatus: 'Rejected',
-        termLabel: '2026-2027 — 1st Sem',
+        termLabel: '2026-2027 (1st Sem)',
       );
 
       expect(rejectedItem.isRejected, isTrue);

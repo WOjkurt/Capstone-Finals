@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/profile_bloc.dart';
 import '../models/student_models.dart';
 import '../theme/app_theme.dart';
+import 'widgets/page_header.dart';
 
 class ProfileView extends StatefulWidget {
   final String email;
@@ -47,35 +48,10 @@ class _ProfileViewState extends State<ProfileView> {
   // ── Header ──────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(ProfileState state) {
-    final profile = state is ProfileLoaded ? state.profile : null;
-
-    return Container(
-      color: AppColors.sidebarBg,
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Profile',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            profile != null
-                ? 'Your student account and enrollment details.'
-                : 'Your student account and enrollment details.',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.sidebarTextMuted,
-            ),
-          ),
-        ],
-      ),
+    return PageHeader(
+      title: 'Profile',
+      subtitle: 'Your student account and enrollment details.',
+      onRefresh: () => context.read<ProfileBloc>().add(LoadProfileEvent(refresh: true)),
     );
   }
 
@@ -275,7 +251,7 @@ class _ProfileViewState extends State<ProfileView> {
         children: [
           _sectionLabel('Account'),
           const SizedBox(height: 14),
-          _detailRow('Email', widget.email),
+          _detailRow('Email', widget.email, stacked: true),
           _divider(),
           _detailRow('Role', 'Student'),
         ],
@@ -377,7 +353,23 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  /// [stacked] puts the value under the label, for long values like a school email on a phone.
+  Widget _detailRow(String label, String value, {bool stacked = false}) {
+    if (stacked) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Text(value,
+                style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(

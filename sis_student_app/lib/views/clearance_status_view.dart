@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../blocs/clearance_bloc.dart';
 import '../models/grading_models.dart';
 import '../theme/app_theme.dart';
+import 'widgets/page_header.dart';
 
 class ClearanceStatusView extends StatefulWidget {
   final String userId;
@@ -56,54 +57,10 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
   // ── Header Section ─────────────────────────────────────────────────────────
 
   Widget _buildHeader(ClearanceState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Clearance Status',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Check your grade viewing clearance across academic terms.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.primary),
-                onPressed: () => _loadClearances(refresh: true),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return PageHeader(
+      title: 'Clearance Status',
+      subtitle: 'Check your grade viewing clearance across academic terms.',
+      onRefresh: () => _loadClearances(refresh: true),
     );
   }
 
@@ -259,7 +216,9 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
     required String count,
     required Color color,
   }) {
-    return Column(
+    // Equal shares of the row, so all the numbers fit on a phone.
+    return Expanded(
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
@@ -274,6 +233,7 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
         const SizedBox(height: 2),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w500,
@@ -281,6 +241,7 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -367,16 +328,18 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
                               : const Color(0xFFB45309),
                         ),
                         const SizedBox(width: 5),
-                        Text(
-                          item.isCleared
-                              ? 'Grade viewing authorized for this term'
-                              : 'Grades withheld pending settlement',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: item.isCleared
-                                ? AppColors.accentGreenDark
-                                : const Color(0xFFB45309),
+                        Expanded(
+                          child: Text(
+                            item.isCleared
+                                ? 'Grade viewing authorized for this term'
+                                : 'Grades withheld pending settlement',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: item.isCleared
+                                  ? AppColors.accentGreenDark
+                                  : const Color(0xFFB45309),
+                            ),
                           ),
                         ),
                       ],

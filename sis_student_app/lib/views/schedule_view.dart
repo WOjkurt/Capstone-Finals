@@ -4,6 +4,7 @@ import '../blocs/schedule_bloc.dart';
 import '../models/class_models.dart';
 import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
+import 'widgets/page_header.dart';
 
 class ScheduleView extends StatefulWidget {
   final String userId;
@@ -64,50 +65,13 @@ class _ScheduleViewState extends State<ScheduleView> {
       totalUnits = state.totalUnits;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Column(
+    return PageHeader(
+      title: 'My Schedule',
+      subtitle: 'View your enrolled subjects, class sections, and weekly schedule.',
+      onRefresh: () => _loadSchedule(refresh: true),
+      below: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'My Schedule',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'View your enrolled subjects, class sections, and weekly schedule.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
-                onPressed: () => _loadSchedule(refresh: true),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,

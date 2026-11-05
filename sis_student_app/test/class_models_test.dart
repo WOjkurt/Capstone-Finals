@@ -81,7 +81,7 @@ void main() {
       expect(classModel.subjectTitle, 'Systems Integration and Architecture');
       expect(classModel.className, 'BSIT-3A');
       expect(classModel.teacherName, 'Prof. Rizal');
-      expect(classModel.termLabel, '2024-2025 · 1st Sem');
+      expect(classModel.termLabel, '2024-2025 (1st Sem)');
       expect(classModel.enrolledCount, 0);
       expect(classModel.schedules.length, 2);
       expect(classModel.scheduleSummary,

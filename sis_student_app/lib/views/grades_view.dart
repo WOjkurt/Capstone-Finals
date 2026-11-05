@@ -4,6 +4,7 @@ import '../blocs/grades_bloc.dart';
 import '../models/grading_models.dart';
 import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
+import 'widgets/page_header.dart';
 
 class GradesView extends StatefulWidget {
   final String userId;
@@ -56,57 +57,14 @@ class _GradesViewState extends State<GradesView> {
   // ── Header Section ─────────────────────────────────────────────────────────
 
   Widget _buildHeader(GradesState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Grades',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Official midterm and final grades per academic term.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.primary),
-                onPressed: () => _loadGrades(refresh: true),
-              ),
-            ],
-          ),
-
-          if (state is GradesLoaded) ...[
-            const SizedBox(height: 10),
-            // Unified controls row: Term Dropdown + subtle secondary clearance status
-            Wrap(
+    return PageHeader(
+      title: 'My Grades',
+      subtitle: 'Official midterm and final grades per academic term.',
+      onRefresh: () => _loadGrades(refresh: true),
+      // Term picker, and a subtle clearance status beside it.
+      below: state is! GradesLoaded
+          ? null
+          : Wrap(
               spacing: 12,
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -118,15 +76,14 @@ class _GradesViewState extends State<GradesView> {
                 _buildClearanceStatusIndicator(state),
               ],
             ),
-          ],
-        ],
-      ),
     );
   }
 
   Widget _buildTermDropdown(GradesLoaded state) {
     return Container(
       height: 34,
+      // Never wider than a phone screen, less the page margins.
+      width: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 280.0),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
@@ -137,12 +94,15 @@ class _GradesViewState extends State<GradesView> {
         child: DropdownButton<AcademicTermModel>(
           value: state.selectedTerm,
           isDense: true,
+          isExpanded: true,
           icon: const Icon(
             Icons.keyboard_arrow_down_rounded,
             size: 18,
             color: AppColors.textSecondary,
           ),
+          // A dropdown's style replaces the theme's, so it must name the font itself.
           style: const TextStyle(
+            fontFamily: AppTheme.fontFamily,
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
@@ -168,7 +128,7 @@ class _GradesViewState extends State<GradesView> {
                     color: AppColors.primary,
                   ),
                   const SizedBox(width: 6),
-                  Text(term.label),
+                  Flexible(child: Text(term.label, overflow: TextOverflow.ellipsis)),
                   if (isCurrentActive) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -594,7 +554,9 @@ class _GradesViewState extends State<GradesView> {
     required String count,
     required Color color,
   }) {
-    return Column(
+    // Equal shares of the row, so all the numbers fit on a phone.
+    return Expanded(
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
@@ -609,6 +571,7 @@ class _GradesViewState extends State<GradesView> {
         const SizedBox(height: 2),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w500,
@@ -616,6 +579,7 @@ class _GradesViewState extends State<GradesView> {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -761,11 +725,14 @@ class _GradesViewState extends State<GradesView> {
                       color: AppColors.textMuted,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      'Instructor: ${grade.teacherName}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
+                    Expanded(
+                      child: Text(
+                        'Instructor: ${grade.teacherName}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],

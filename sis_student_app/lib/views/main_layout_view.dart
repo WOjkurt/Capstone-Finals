@@ -16,6 +16,9 @@ import 'schedule_view.dart';
 /// tablet/desktop (left sidebar) layouts.
 const double _kSidebarBreakpoint = 700.0;
 
+/// Below this width the left menu shows icons only, as in the staff apps.
+const double _kCompactBelow = 1280.0;
+
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
 
@@ -141,7 +144,12 @@ class _MainLayoutViewState extends State<MainLayoutView> {
         final isWide = constraints.maxWidth >= _kSidebarBreakpoint;
 
         if (isWide) {
-          return _buildWideLayout(context, navItems, currentIndex);
+          return _buildWideLayout(
+            context,
+            navItems,
+            currentIndex,
+            compact: constraints.maxWidth < _kCompactBelow,
+          );
         } else {
           return _buildNarrowLayout(context, navItems, currentIndex);
         }
@@ -150,223 +158,227 @@ class _MainLayoutViewState extends State<MainLayoutView> {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Wide layout: left sidebar (≥ 700 px)
+  // Wide layout: left menu (≥ 700 px), icons only below 1280 px
   // ──────────────────────────────────────────────────────────────────────────
 
   Widget _buildWideLayout(
     BuildContext context,
     List<Map<String, dynamic>> navItems,
-    int currentIndex,
-  ) {
+    int currentIndex, {
+    required bool compact,
+  }) {
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSidebar(context, navItems, currentIndex),
+          _buildSidebar(navItems, currentIndex, compact: compact),
           Expanded(child: _buildContentStack(currentIndex)),
         ],
       ),
     );
   }
 
+  /// The menu: logo, the page links, and who is signed in. On smaller (laptop) screens it shows
+  /// icons only, with each name on hover.
   Widget _buildSidebar(
-    BuildContext context,
     List<Map<String, dynamic>> navItems,
-    int currentIndex,
-  ) {
-    return Container(
-      width: 260,
-      decoration: const BoxDecoration(
-        color: AppColors.sidebarBg,
-        border: Border(right: BorderSide(color: AppColors.sidebarBorder)),
+    int currentIndex, {
+    required bool compact,
+  }) {
+    final logo = Container(
+      width: 40,
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
       ),
+      child: Image.asset('assets/images/dbtc_logo.png', fit: BoxFit.contain),
+    );
+    final initial = widget.auth.displayName.isNotEmpty
+        ? widget.auth.displayName[0].toUpperCase()
+        : 'S';
+    final signOut = IconButton(
+      key: const ValueKey('sign_out_button'),
+      tooltip: 'Sign out',
+      icon: const Icon(Icons.logout_rounded, size: 20),
+      color: AppColors.sidebarTextMuted,
+      onPressed: () => _confirmLogout(context),
+    );
+    final avatar = CircleAvatar(
+      radius: 17,
+      backgroundColor: AppColors.sidebarBorder,
+      foregroundColor: Colors.white,
+      child: Text(initial, style: const TextStyle(fontWeight: FontWeight.w700)),
+    );
+
+    return Container(
+      key: compact
+          ? const ValueKey('compact_sidebar')
+          : const ValueKey('full_sidebar'),
+      width: compact ? 76 : 248,
+      color: AppColors.sidebarBg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Branding Logo Area
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: EdgeInsets.fromLTRB(compact ? 18 : 22, 22, 18, 26),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(3),
-                  child: Image.asset(
-                    'assets/images/dbtc_logo.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'DBTC-CEBU',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.1,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'Student Portal',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.sidebarTextMuted,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.sidebarBorder),
-          const SizedBox(height: 12),
-          // Nav Items
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              itemCount: navItems.length,
-              separatorBuilder: (ctx, i) => const SizedBox(height: 4),
-              itemBuilder: (ctx, i) {
-                final item = navItems[i];
-                final isSelected = currentIndex == i;
-
-                return InkWell(
-                  onTap: () => _onSelectTab(i),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isSelected
-                              ? item['activeIcon'] as IconData
-                              : item['icon'] as IconData,
-                          size: 20,
-                          color: isSelected
-                              ? Colors.white
-                              : AppColors.sidebarTextMuted,
-                        ),
-                        const SizedBox(width: 12),
+                logo,
+                if (!compact) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
                         Text(
-                          item['title'] as String,
+                          'DBTC-CEBU',
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight:
-                                isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFFCBD5E1),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Student Portal',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.sidebarTextMuted,
                           ),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.sidebarBorder),
-          // User Info & Logout
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: AppColors.sidebarBorder,
-                      foregroundColor: const Color(0xFF60A5FA),
-                      child: Text(
-                        widget.auth.email.isNotEmpty
-                            ? widget.auth.email[0].toUpperCase()
-                            : 'S',
-                        style:
-                            const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.auth.email,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              widget.auth.roleName,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF90CDF4),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _confirmLogout(context),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFF87171),
-                    side: const BorderSide(color: AppColors.sidebarBorder),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(Icons.logout_rounded, size: 16),
-                  label:
-                      const Text('Sign Out', style: TextStyle(fontSize: 12)),
-                ),
+                ],
               ],
             ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14),
+              children: [
+                for (var i = 0; i < navItems.length; i++) ...[
+                  if (navItems[i]['gapBefore'] == true)
+                    const SizedBox(height: 20),
+                  _navItem(
+                    navItems[i],
+                    i == currentIndex,
+                    () => _onSelectTab(i),
+                    compact,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              compact ? 0 : 20,
+              12,
+              compact ? 0 : 12,
+              18,
+            ),
+            child: compact
+                ? Column(
+                    children: [
+                      Tooltip(
+                        message:
+                            '${widget.auth.displayName} (${widget.auth.roleName})',
+                        child: avatar,
+                      ),
+                      const SizedBox(height: 6),
+                      signOut,
+                    ],
+                  )
+                : Row(
+                    children: [
+                      avatar,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.auth.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              widget.auth.roleName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.sidebarTextMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      signOut,
+                    ],
+                  ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _navItem(
+    Map<String, dynamic> item,
+    bool selected,
+    VoidCallback onTap,
+    bool compact,
+  ) {
+    final title = item['title'] as String;
+    final icon = Icon(
+      selected ? item['activeIcon'] as IconData : item['icon'] as IconData,
+      size: 22,
+      color: selected ? Colors.white : const Color(0xFFB4C0D6),
+    );
+    final tile = InkWell(
+      key: ValueKey('nav_$title'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 46,
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 14),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: compact
+            ? Center(child: icon)
+            : Row(
+                children: [
+                  icon,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      title,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: selected
+                            ? Colors.white
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+    return compact ? Tooltip(message: title, child: tile) : tile;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -434,9 +446,9 @@ class _MainLayoutViewState extends State<MainLayoutView> {
       ),
       actions: [
         IconButton(
+          key: const ValueKey('sign_out_button'),
           tooltip: 'Sign out',
-          icon: const Icon(Icons.logout_rounded,
-              color: Color(0xFFF87171), size: 22),
+          icon: const Icon(Icons.logout_rounded, color: AppColors.sidebarTextMuted, size: 22),
           onPressed: () => _confirmLogout(context),
         ),
         const SizedBox(width: 4),
@@ -448,26 +460,38 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     List<Map<String, dynamic>> navItems,
     int currentIndex,
   ) {
-    return NavigationBar(
+    // Match the sidebar's navy on phones too, with labels that read clearly on it.
+    return NavigationBarTheme(
+      data: NavigationBarThemeData(
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontFamily: AppTheme.fontFamily,
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            color: states.contains(WidgetState.selected) ? Colors.white : const Color(0xFFB4C0D6),
+          ),
+        ),
+      ),
+      child: NavigationBar(
       selectedIndex: currentIndex,
       onDestinationSelected: _onSelectTab,
-      // Match the sidebar's navy theme on mobile too
       backgroundColor: AppColors.sidebarBg,
-      indicatorColor: AppColors.primary.withValues(alpha: 0.25),
+      indicatorColor: AppColors.primary,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       destinations: navItems.map((item) {
         return NavigationDestination(
           icon: Icon(
             item['icon'] as IconData,
-            color: AppColors.sidebarTextMuted,
+            color: const Color(0xFFB4C0D6),
           ),
           selectedIcon: Icon(
             item['activeIcon'] as IconData,
-            color: AppColors.primary,
+            color: Colors.white,
           ),
           label: item['label'] as String,
         );
       }).toList(),
+      ),
     );
   }
 }
