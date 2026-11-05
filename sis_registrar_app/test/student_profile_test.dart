@@ -356,6 +356,15 @@ void main() {
     expect(find.text('Regular student'), findsOneWidget);
   });
 
+  testWidgets('the Program chip opens the shift window', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('profile_program')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Shift Ana Cruz'), findsOneWidget);
+    expect(find.text('Current program: BSIT'), findsOneWidget);
+  });
+
   testWidgets('Grade release lists terms; Study load jumps to that term; the switch sends a toggle', (tester) async {
     final bloc = await pump(tester);
 

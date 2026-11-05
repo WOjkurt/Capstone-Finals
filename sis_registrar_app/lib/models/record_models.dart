@@ -355,3 +355,68 @@ class IrregularStudent {
         readyToBeRegular: j['readyToBeRegular'] as bool? ?? false,
       );
 }
+
+/// What a program shift changed, and what the Registrar should look at next.
+class ShiftResult {
+  final int programId;
+  final String programCode;
+  final int inProgressSubjects;
+  final int pendingSubjects;
+
+  const ShiftResult({required this.programId, required this.programCode, this.inProgressSubjects = 0, this.pendingSubjects = 0});
+
+  factory ShiftResult.fromJson(Map<String, dynamic> j) => ShiftResult(
+        programId: (j['programId'] as num?)?.toInt() ?? 0,
+        programCode: j['programCode'] as String? ?? '',
+        inProgressSubjects: (j['inProgressSubjects'] as num?)?.toInt() ?? 0,
+        pendingSubjects: (j['pendingSubjects'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// A subject passed or being taken in a previous program, which may be credited to the current one.
+class PreviousProgramSubject {
+  final String subjectCode;
+  final String subjectTitle;
+  final String programCode;
+  final double units;
+
+  /// Passed or InProgress.
+  final String status;
+  final double? finalGrade;
+  final String schoolYear;
+  final String termLabel;
+  final String? suggestedSubjectId;
+  final String? suggestedSubjectCode;
+  final double? suggestedUnits;
+  final bool alreadyCredited;
+
+  const PreviousProgramSubject({
+    required this.subjectCode,
+    required this.subjectTitle,
+    this.programCode = '',
+    this.units = 0,
+    this.status = 'Passed',
+    this.finalGrade,
+    this.schoolYear = '',
+    this.termLabel = '',
+    this.suggestedSubjectId,
+    this.suggestedSubjectCode,
+    this.suggestedUnits,
+    this.alreadyCredited = false,
+  });
+
+  factory PreviousProgramSubject.fromJson(Map<String, dynamic> j) => PreviousProgramSubject(
+        subjectCode: j['subjectCode'] as String? ?? '',
+        subjectTitle: j['subjectTitle'] as String? ?? '',
+        programCode: j['programCode'] as String? ?? '',
+        units: (j['units'] as num?)?.toDouble() ?? 0,
+        status: j['status'] as String? ?? 'Passed',
+        finalGrade: (j['finalGrade'] as num?)?.toDouble(),
+        schoolYear: j['schoolYear'] as String? ?? '',
+        termLabel: j['termLabel'] as String? ?? '',
+        suggestedSubjectId: j['suggestedSubjectId']?.toString(),
+        suggestedSubjectCode: j['suggestedSubjectCode'] as String?,
+        suggestedUnits: (j['suggestedUnits'] as num?)?.toDouble(),
+        alreadyCredited: j['alreadyCredited'] as bool? ?? false,
+      );
+}

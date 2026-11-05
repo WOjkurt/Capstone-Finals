@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../injection.dart';
 import '../../models/grading_models.dart';
+import '../../models/record_models.dart';
 import '../../models/setup_models.dart';
 import '../../repositories/accredited_school_repository.dart';
 import '../../repositories/enrollment_repository.dart';
 import '../../repositories/grading_repository.dart';
+import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 
@@ -46,6 +48,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   bool _cross = false;
   String? _termId;
   List<AcademicTermModel> _terms = [];
+  List<PreviousProgramSubject> _previous = [];
   List<String> _schoolNames = [];
   final _theirCode = TextEditingController();
   final _grade = TextEditingController();
@@ -88,6 +91,11 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
       try {
         schoolNames = [for (final s in await getIt<AccreditedSchoolRepository>().getAll()) s.name];
       } catch (_) {}
+      // Only a shiftee has these; the rest of the tab works without them.
+      var previous = <PreviousProgramSubject>[];
+      try {
+        previous = await getIt<StudentRecordRepository>().previousProgramSubjects(widget.student.userId);
+      } catch (_) {}
       var terms = <AcademicTermModel>[];
       try {
         terms = await getIt<AcademicSetupRepository>().getTerms();
@@ -98,6 +106,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
           _subjects = subjects;
           _schoolNames = schoolNames;
           _terms = terms;
+          _previous = previous;
         });
       }
     } catch (e) {
@@ -109,6 +118,9 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
     final s = _subjects.where((s) => s.subjectId == _subjectId).firstOrNull;
     return s == null ? null : s.lecUnits + s.labUnits;
   }
+
+  /// Credits for shiftees name DBTC itself, with the old program, so they need no accredited school.
+  static const _dbtcName = 'Don Bosco Technical College - Cebu';
 
   static String _fmtUnits(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
 
@@ -269,10 +281,87 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
                 style: TextStyle(color: AppColors.textSecondary)),
           ),
         for (final c in credits) _buildCreditRow(c),
+        if (_previous.isNotEmpty) _buildPrevious(),
         const Divider(height: 28),
         _buildForm(),
       ],
     );
+  }
+
+  /// Shiftees: subjects from the old program, each with a Use button that fills the form below.
+  Widget _buildPrevious() => Container(
+        key: const ValueKey('previous_program_subjects'),
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.scaffoldBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Taken in a previous program',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            const Text('Click Use to fill in the form below, then set the units that match the time taken.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            for (final p in _previous)
+              Padding(
+                key: ValueKey('previous_${p.subjectCode}'),
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${p.subjectCode} — ${p.subjectTitle}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis),
+                          Text(
+                            [
+                              p.programCode,
+                              '${_fmtUnits(p.units)} units',
+                              p.status == 'InProgress' ? 'in progress' : 'grade ${p.finalGrade?.toStringAsFixed(2) ?? '-'}',
+                              p.termLabel,
+                              p.suggestedSubjectCode != null ? 'matches ${p.suggestedSubjectCode}' : 'no match in the new curriculum',
+                            ].join(' · '),
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    p.alreadyCredited
+                        ? const Text('Credited', style: TextStyle(fontSize: 12, color: AppColors.accentGreenDark))
+                        : TextButton(
+                            key: ValueKey('use_previous_${p.subjectCode}'),
+                            onPressed: () => _usePrevious(p),
+                            child: const Text('Use'),
+                          ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+
+  void _usePrevious(PreviousProgramSubject p) {
+    setState(() {
+      _cross = false;
+      _subjectId = p.suggestedSubjectId;
+      _formVersion++;
+      _school.text = '$_dbtcName (${p.programCode})';
+      _theirCode.text = p.subjectCode;
+      _grade.text = p.finalGrade?.toStringAsFixed(2) ?? '';
+      _schoolYear.text = p.schoolYear;
+      // Never more than the new subject has; the Registrar lowers it to match the time taken.
+      final most = p.suggestedUnits ?? p.units;
+      _units.text = _fmtUnits(p.units < most ? p.units : most);
+      _formError = null;
+    });
   }
 
   Widget _buildCreditRow(CreditedSubjectModel c) {
@@ -386,7 +475,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
             decoration: deco('School where it was taken *').copyWith(
               helperText: _schoolNames.isEmpty
                   ? 'Tip: add schools in Setup → Accredited Schools to pick them here.'
-                  : (_school.text.trim().isNotEmpty &&
+                  : (_school.text.trim().isNotEmpty && !_school.text.startsWith(_dbtcName) &&
                           !_schoolNames.any((n) => n.toLowerCase() == _school.text.trim().toLowerCase()))
                       ? 'Not on the accredited list. Check the spelling, or add it in Setup.'
                       : null,

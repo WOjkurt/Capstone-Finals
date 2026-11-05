@@ -9,6 +9,7 @@ import 'credited_subjects_dialog.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_year_level_dialog.dart';
 import 'initialize_clearance_dialog.dart';
+import 'shift_program_dialog.dart';
 import 'status_badge.dart';
 import 'student_details_tab.dart';
 import 'student_evaluation_tab.dart';
@@ -81,6 +82,31 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
     );
   }
 
+  Future<void> _shiftProgram() async {
+    final bloc = context.read<ClearanceBloc>();
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await ShiftProgramDialog.show(
+      context,
+      userId: _student.userId,
+      studentName: _student.fullName,
+      currentProgramId: _student.programId,
+      currentProgramCode: _student.programCode,
+    );
+    if (result == null) return;
+    bloc.add(StudentProgramShiftedEvent(_student.userId, result.programId, result.programCode));
+    final open = [
+      if (result.inProgressSubjects > 0) '${result.inProgressSubjects} subject(s) still in progress',
+      if (result.pendingSubjects > 0) '${result.pendingSubjects} pending subject(s)',
+    ];
+    messenger.showSnackBar(SnackBar(
+      backgroundColor: AppColors.success,
+      content: Text('Shifted to ${result.programCode}.'
+          '${open.isEmpty ? '' : ' From the old program: ${open.join(' and ')}. Review them on the Study load tab.'}'
+          ' Enter the credits on the Credits tab.'),
+    ));
+    if (mounted) _tabController.animateTo(_tabs.indexOf('Credits'));
+  }
+
   /// Opens the Study load tab on a given term (used by the Grade release rows).
   void _openStudyLoad(String termId) {
     currentTerm.select(termId);
@@ -127,9 +153,9 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                   yearLevel: _yearLevel,
                   embedded: true,
                 )),
-                _padded(StudentEvaluationTab(key: ValueKey('evaluation_${_student.userId}'), userId: _student.userId, studentName: _student.fullName)),
+                _padded(StudentEvaluationTab(key: ValueKey('evaluation_${_student.userId}_${_student.programId}'), userId: _student.userId, studentName: _student.fullName)),
                 _padded(CreditedSubjectsDialog(
-                  key: ValueKey('credits_${_student.userId}'),
+                  key: ValueKey('credits_${_student.userId}_${_student.programId}'),
                   student: _student,
                   embedded: true,
                 )),
@@ -208,7 +234,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                         ? chip(Icons.badge_outlined, 'No LRN', onEdit: _editLrn, key: const ValueKey('profile_lrn'),
                             color: const Color(0xFFB45309))
                         : chip(Icons.badge_outlined, 'LRN ${s.lrn}', onEdit: _editLrn, key: const ValueKey('profile_lrn')),
-                    chip(Icons.school_outlined, s.programCode ?? 'No program'),
+                    chip(Icons.school_outlined, s.programCode ?? 'No program', onEdit: _shiftProgram, key: const ValueKey('profile_program')),
                     _yearLevel == null
                         ? chip(Icons.stairs_outlined, 'Year not set', onEdit: _editYearLevel,
                             key: const ValueKey('profile_year'), color: AppColors.error)

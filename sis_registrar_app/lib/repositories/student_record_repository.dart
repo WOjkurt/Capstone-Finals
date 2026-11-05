@@ -34,17 +34,30 @@ class StudentRecordRepository {
   Future<List<IrregularStudent>> irregularStudents() async =>
       [for (final j in await _sendRaw('irregular', null) as List) IrregularStudent.fromJson(j as Map<String, dynamic>)];
 
+  /// Moves the student to another program; their subjects and grades stay on record.
+  Future<ShiftResult> shiftProgram(String userId, int programId, String reason) async =>
+      ShiftResult.fromJson(await _send('$userId/shift', {'programId': programId, 'reason': reason}, post: true));
+
+  Future<List<PreviousProgramSubject>> previousProgramSubjects(String userId) async => [
+        for (final j in await _sendRaw('$userId/previous-program-subjects', null) as List)
+          PreviousProgramSubject.fromJson(j as Map<String, dynamic>)
+      ];
+
   Future<Map<String, dynamic>> _get(String path) => _send(path, null);
 
-  Future<Map<String, dynamic>> _send(String path, Object? putBody) async =>
-      await _sendRaw(path, putBody) as Map<String, dynamic>;
+  Future<Map<String, dynamic>> _send(String path, Object? body, {bool post = false}) async =>
+      await _sendRaw(path, body, post: post) as Map<String, dynamic>;
 
-  Future<Object?> _sendRaw(String path, Object? putBody) async {
+  /// GET without a [body]; with one, PUT (or POST when [post] is true).
+  Future<Object?> _sendRaw(String path, Object? body, {bool post = false}) async {
     final headers = await _auth.getAuthHeaders();
     final uri = Uri.parse('$baseUrl/api/student-records/$path');
-    final res = putBody == null
+    final json = {...headers, 'Content-Type': 'application/json'};
+    final res = body == null
         ? await _client.get(uri, headers: headers)
-        : await _client.put(uri, headers: {...headers, 'Content-Type': 'application/json'}, body: jsonEncode(putBody));
+        : post
+            ? await _client.post(uri, headers: json, body: jsonEncode(body))
+            : await _client.put(uri, headers: json, body: jsonEncode(body));
     if (res.statusCode != 200) {
       String message = 'Request failed (${res.statusCode}).';
       try {

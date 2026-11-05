@@ -40,6 +40,13 @@ class StudentLrnUpdatedEvent extends ClearanceEvent {
   StudentLrnUpdatedEvent(this.userId, this.cleanLrn);
 }
 
+class StudentProgramShiftedEvent extends ClearanceEvent {
+  final String userId;
+  final int programId;
+  final String programCode;
+  StudentProgramShiftedEvent(this.userId, this.programId, this.programCode);
+}
+
 // States
 abstract class ClearanceState {}
 
@@ -113,6 +120,7 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
     on<InitializeClearanceEvent>(_onInitializeClearance);
     on<ToggleMissingLrnFilterEvent>(_onToggleMissingLrnFilter);
     on<StudentLrnUpdatedEvent>(_onStudentLrnUpdated);
+    on<StudentProgramShiftedEvent>(_onStudentProgramShifted);
   }
 
   @override
@@ -191,6 +199,18 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
         errorMessage: getFriendlyErrorMessage(e, st),
       ));
     }
+  }
+
+  void _onStudentProgramShifted(
+      StudentProgramShiftedEvent event, Emitter<ClearanceState> emit) {
+    if (state is! ClearanceStateData) return;
+    final current = state as ClearanceStateData;
+    UserSearchResultModel shifted(UserSearchResultModel s) =>
+        s.userId == event.userId ? s.copyWith(programId: event.programId, programCode: event.programCode) : s;
+    emit(current.copyWith(
+      searchResults: current.searchResults.map(shifted).toList(),
+      selectedStudent: current.selectedStudent == null ? null : shifted(current.selectedStudent!),
+    ));
   }
 
   void _onStudentLrnUpdated(
