@@ -56,18 +56,40 @@ const _columns = {
   4: pw.FixedColumnWidth(_unitsW),
 };
 
-/// One table line with the column dividers. A one-row table per line keeps the dividers the full
-/// height of the line when a title wraps, and still lets the page break between lines.
+const double _marginX = 30;
+const double _marginTop = 24;
+const double _marginBottom = 20;
+
+/// The table's column lines, drawn once per page from top to bottom. The header and footer are white and
+/// sit on top, so the lines always reach both, however few subjects the page has.
+pw.Widget _columnLines() => pw.FullPage(
+      ignoreMargins: true,
+      child: pw.CustomPaint(
+        painter: (canvas, size) {
+          final left = _marginX, right = size.x - _marginX;
+          final inner = [left + _codeW, right - _unitsW - _completionW - _finalW, right - _unitsW - _completionW, right - _unitsW];
+          void line(double x, double width) => canvas
+            ..setStrokeColor(_line)
+            ..setLineWidth(width)
+            // Start and end inside the student box and the signature box, whose borders hide the ends.
+            ..drawLine(x, 60, x, size.y - 120)
+            ..strokePath();
+          line(left, 0.8);
+          line(right, 0.8);
+          for (final x in inner) {
+            line(x, 0.5);
+          }
+        },
+      ),
+    );
+
+/// One table line. The column lines come from [_columnLines]; a one-row table keeps the columns aligned
+/// and lets the page break between lines.
 pw.Widget _row(String code, pw.Widget title, String finalGrade, String completion, String units, {bool bold = false}) {
   final style = pw.TextStyle(fontSize: 8.5, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal);
   pw.Widget cell(pw.Widget child) => pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.2), child: child);
   return pw.Table(
     columnWidths: _columns,
-    border: pw.TableBorder(
-      left: pw.BorderSide(color: _line, width: 0.8),
-      right: pw.BorderSide(color: _line, width: 0.8),
-      verticalInside: pw.BorderSide(color: _line, width: 0.5),
-    ),
     children: [
       pw.TableRow(children: [
         cell(pw.Text(pdfSafe(code), style: style)),
@@ -162,7 +184,9 @@ pw.Widget _footer(pw.Context ctx, TranscriptPrintOptions o, String studentName) 
         ],
       );
   final last = ctx.pageNumber == ctx.pagesCount;
-  return pw.Column(
+  return pw.Container(
+    color: PdfColors.white,
+    child: pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.stretch,
     children: [
       // Closes the table on every page and says whether more follows.
@@ -230,6 +254,7 @@ pw.Widget _footer(pw.Context ctx, TranscriptPrintOptions o, String studentName) 
         pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}', style: const pw.TextStyle(fontSize: 7)),
       ]),
     ],
+    ),
   );
 }
 
@@ -252,9 +277,12 @@ Future<Uint8List> buildTranscriptPdf(
   ];
 
   doc.addPage(pw.MultiPage(
-    pageFormat: PdfPageFormat.letter,
-    margin: const pw.EdgeInsets.fromLTRB(30, 24, 30, 20),
-    header: (ctx) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+    pageTheme: pw.PageTheme(
+      pageFormat: PdfPageFormat.letter,
+      margin: const pw.EdgeInsets.fromLTRB(_marginX, _marginTop, _marginX, _marginBottom),
+      buildBackground: (ctx) => _columnLines(),
+    ),
+    header: (ctx) => pw.Container(color: PdfColors.white, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
       pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
         pw.SizedBox(width: 64, height: 64, child: logo != null ? pw.Image(pw.MemoryImage(logo)) : null),
         pw.Expanded(
@@ -279,7 +307,7 @@ Future<Uint8List> buildTranscriptPdf(
       _info(tr),
       pw.SizedBox(height: 4),
       _tableHeader(),
-    ]),
+    ])),
     footer: (ctx) => _footer(ctx, options, tr.fullName),
     build: (ctx) => lines,
   ));
