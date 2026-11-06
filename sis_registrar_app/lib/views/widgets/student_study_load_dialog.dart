@@ -16,6 +16,7 @@ import 'study_load_builder_dialog.dart';
 import 'reason_dialog.dart';
 import '../../utils/formatters.dart';
 import '../../utils/student_record_pdf.dart';
+import 'record_table.dart';
 
 class StudentStudyLoadDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -392,8 +393,6 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
     }
   }
 
-  Widget _buildLoadBadge(String status) => StatusBadge.forLoadStatus(status);
-
   @override
   Widget build(BuildContext context) {
     if (widget.embedded) {
@@ -408,8 +407,8 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Container(
-        width: 820,
-        height: 640,
+        width: 1000,
+        height: 780,
         padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1042,147 +1041,114 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
               ],
             ),
           ),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: pendingLoads.length,
-            separatorBuilder: (ctx, i) => const Divider(height: 1, color: Color(0xFFFDE68A)),
-            itemBuilder: (ctx, index) {
-              final load = pendingLoads[index];
-              return _buildPendingLoadRow(load);
-            },
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: _loadTable(pendingLoads, _pendingActions),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPendingLoadRow(ClassRosterItemModel load) {
-    final isUpdatingThis = _updatingStudyLoadId == load.studyLoadId;
+  static const _loadColumns = [
+    RecordColumn('Course Code', 1.05),
+    RecordColumn('Descriptive Title', 2.4),
+    RecordColumn('Credit', .65, center: true),
+    RecordColumn('Section', 1),
+    RecordColumn('Schedule', 1.7),
+    RecordColumn('Room', .8),
+    RecordColumn('Instructor', 1.35),
+    RecordColumn('Status', 1),
+    RecordColumn('Action', 1, center: true),
+  ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFD97706),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              load.subjectCode,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+  static Color _loadColor(ClassRosterItemModel l) => l.isEnrolled
+      ? RecordColors.taken
+      : l.isPending
+          ? RecordColors.partial
+          : l.isDropped || l.isWithdrawn
+              ? RecordColors.droppedOrWithdrawn
+              : RecordColors.notTaken;
+
+  /// The same layout as the Grades and Evaluation tabs. Dropped, withdrawn and rejected subjects are not in the total.
+  Widget _loadTable(List<ClassRosterItemModel> loads, Widget? Function(ClassRosterItemModel) action) {
+    String units(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
+    final total = loads.where((l) => l.isEnrolled || l.isPending).fold(0.0, (t, l) => t + l.units);
+    return RecordTable(
+      minWidth: 740,
+      columns: _loadColumns,
+      rows: [
+        for (final l in loads)
+          RecordRow(
+            [l.subjectCode, l.subjectTitle, units(l.units), l.className, loadSchedule(l), loadRooms(l), l.teacherName ?? 'Unassigned', l.loadStatus, ''],
+            color: _loadColor(l),
+            widgets: {
+              if (l.isForced) 1: _forcedTitle(l),
+              if (_updatingStudyLoadId == l.studyLoadId)
+                8: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
+              else if (action(l) case final button?)
+                8: button,
+            },
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      ],
+      totals: ['', 'Total', units(total), '', '', '', '', '', ''],
+    );
+  }
+
+  Widget _forcedTitle(ClassRosterItemModel load) => Padding(
+        padding: const EdgeInsets.all(2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(load.subjectTitle, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+            const SizedBox(height: 2),
+            Tooltip(
+              message: 'Forced enrollment: ${load.forcedReason ?? "No reason specified"}',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Flexible(
-                      child: Text(
-                        load.subjectTitle,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (load.isForced) ...[
-                      const SizedBox(width: 8),
-                      Tooltip(
-                        message: 'Forced enrollment: ${load.forcedReason ?? "No reason specified"}',
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF3C7),
-                            border: Border.all(color: const Color(0xFFF59E0B)),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.lock_open_rounded, size: 12, color: Color(0xFFB45309)),
-                              SizedBox(width: 4),
-                              Text(
-                                'Forced',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFB45309),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                    Icon(Icons.lock_open_rounded, size: 12, color: Color(0xFFB45309)),
+                    SizedBox(width: 4),
+                    Text('Forced', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFB45309))),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Section: ${load.className} • Instructor: ${load.teacherName ?? "Unassigned"}${load.isForced && load.forcedReason != null ? " • Reason: ${load.forcedReason}" : ""}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _buildLoadBadge(load.loadStatus),
-          const SizedBox(width: 16),
-          if (isUpdatingThis)
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.primary,
               ),
-            )
-          else
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                OutlinedButton(
-                  onPressed: () => _finalizeSingle(load),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF059669),
-                    side: const BorderSide(color: Color(0xFF059669)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  child: const Text('Finalize', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () => _rejectPending(load),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFDC2626),
-                    side: const BorderSide(color: Color(0xFFDC2626)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  child: const Text('Reject', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-              ],
             ),
-        ],
-      ),
+          ],
+        ),
+      );
+
+  Widget _pendingActions(ClassRosterItemModel load) {
+    ButtonStyle style(Color color) => OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton(
+          onPressed: () => _finalizeSingle(load),
+          style: style(const Color(0xFF059669)),
+          child: const Text('Finalize', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(height: 4),
+        OutlinedButton(
+          onPressed: () => _rejectPending(load),
+          style: style(const Color(0xFFDC2626)),
+          child: const Text('Reject', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        ),
+      ],
     );
   }
 
@@ -1247,108 +1213,19 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
               ],
             ),
           ),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: enrolledLoads.length,
-            separatorBuilder: (ctx, i) =>
-                const Divider(height: 1, color: AppColors.border),
-            itemBuilder: (ctx, index) {
-              final load = enrolledLoads[index];
-              final isUpdatingThis = _updatingStudyLoadId == load.studyLoadId;
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: _loadTable(enrolledLoads, _statusMenu),
+          ),
+        ],
+      ),
+    );
+  }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        load.subjectCode,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  load.subjectTitle,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              if (load.isForced) ...[
-                                const SizedBox(width: 8),
-                                Tooltip(
-                                  message: 'Forced enrollment: ${load.forcedReason ?? "No reason specified"}',
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFEF3C7),
-                                      border: Border.all(color: const Color(0xFFF59E0B)),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.lock_open_rounded, size: 12, color: Color(0xFFB45309)),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'Forced',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFFB45309),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Section: ${load.className} • Instructor: ${load.teacherName ?? "Unassigned"}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildLoadBadge(load.loadStatus),
-                    const SizedBox(width: 16),
-                    if (isUpdatingThis)
-                      const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary,
-                        ),
-                      )
-                    else if (!load.isPending && !load.isRejected)
-                      PopupMenuButton<int>(
+  /// Drop, withdraw or re-enroll. Rejected loads have no actions.
+  Widget? _statusMenu(ClassRosterItemModel load) {
+    if (load.isPending || load.isRejected) return null;
+    return PopupMenuButton<int>(
                         tooltip: 'Change Status',
                         icon: const Icon(
                           Icons.more_vert_rounded,
@@ -1426,14 +1303,6 @@ class _StudentStudyLoadDialogState extends State<StudentStudyLoadDialog> {
                               ),
                           ];
                         },
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
+                      );
   }
 }

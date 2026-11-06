@@ -39,14 +39,14 @@ String pdfSafe(String text) => text
 
 String _units(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
 
-String _schedule(ClassRosterItemModel l) {
+String loadSchedule(ClassRosterItemModel l) {
   if (l.schedules.isEmpty) return 'TBA';
   return l.schedules
       .map((s) => '${s.daysOfWeek} ${s.formattedTime}'.trim())
       .join('\n');
 }
 
-String _rooms(ClassRosterItemModel l) {
+String loadRooms(ClassRosterItemModel l) {
   final rooms = l.schedules
       .map((s) => s.room.trim())
       .where((r) => r.isNotEmpty)
@@ -205,8 +205,8 @@ Future<Uint8List> buildStudyLoadPdf(
                   pdfSafe(l.subjectTitle),
                   _units(l.units),
                   pdfSafe(l.className),
-                  pdfSafe(_schedule(l)),
-                  pdfSafe(_rooms(l)),
+                  pdfSafe(loadSchedule(l)),
+                  pdfSafe(loadRooms(l)),
                   pdfSafe(l.teacherName ?? 'TBA'),
                 ],
             ],

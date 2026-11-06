@@ -12,7 +12,10 @@ class RecordRow {
   final List<String> cells;
   final Color? color;
   final Key? key;
-  const RecordRow(this.cells, {this.color, this.key});
+
+  /// Widgets that replace a cell's text, by column number (buttons, a Forced label).
+  final Map<int, Widget> widgets;
+  const RecordRow(this.cells, {this.color, this.key, this.widgets = const {}});
 }
 
 /// Row highlights on screen. The printouts use shades of gray for the same groups.
@@ -74,7 +77,10 @@ class RecordTable extends StatelessWidget {
                   TableRow(
                     decoration: BoxDecoration(color: r.color ?? Colors.white),
                     children: [
-                      for (final (i, text) in r.cells.indexed) _cell(text, columns[i], key: i == 0 ? r.key : null),
+                      for (final (i, text) in r.cells.indexed)
+                        r.widgets[i] != null
+                            ? Padding(padding: const EdgeInsets.all(4), child: r.widgets[i])
+                            : _cell(text, columns[i], key: i == 0 ? r.key : null),
                     ],
                   ),
                 if (totals != null)
