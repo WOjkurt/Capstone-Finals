@@ -91,6 +91,10 @@ public class StudentRecordsController : ControllerBase
         return result;
     }
 
+    /// <summary>Every subject taken, with or without a grade (residency record and grade sheet).</summary>
+    [HttpGet("{userId:guid}/grades")]
+    public Task<IActionResult> Grades(Guid userId) => Run(() => _records.GetGradeRowsAsync(userId));
+
     [HttpGet("{userId:guid}/previous-program-subjects")]
     public Task<IActionResult> PreviousProgramSubjects(Guid userId) => Run(() => _records.GetPreviousProgramSubjectsAsync(userId));
 

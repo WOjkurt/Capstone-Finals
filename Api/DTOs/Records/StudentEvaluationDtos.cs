@@ -33,7 +33,7 @@ public class EvaluationSubjectDto
     public int YearLevel { get; set; }
     public int Semester { get; set; }
     public bool IsMinor { get; set; }
-    /// <summary>Passed, Credited, CrossEnrolled, PartiallyCredited, InProgress, Failed, Dropped or NotTaken.</summary>
+    /// <summary>Passed, Credited, CrossEnrolled, PartiallyCredited, InProgress, Failed, Dropped, Withdrawn or NotTaken.</summary>
     public string Status { get; set; } = string.Empty;
     /// <summary>The final grade of the attempt that decided the status (a pass beats a fail).</summary>
     public decimal? FinalGrade { get; set; }
@@ -210,4 +210,26 @@ public class PreviousProgramSubjectDto
     public string? SuggestedSubjectCode { get; set; }
     public decimal? SuggestedUnits { get; set; }
     public bool AlreadyCredited { get; set; }
+}
+
+/// <summary>A subject the student took, with or without a grade: one row of the residency record and grade sheet.</summary>
+public class StudentGradeRowDto
+{
+    public Guid StudyLoadId { get; set; }
+    public Guid? GradeId { get; set; }
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectTitle { get; set; } = string.Empty;
+    public string ClassName { get; set; } = string.Empty;
+    public decimal Units { get; set; }
+    public decimal? MidtermGrade { get; set; }
+    public decimal? FinalGrade { get; set; }
+    /// <summary>1 Passed, 2 Failed, empty when there is no final grade yet.</summary>
+    public int? Remarks { get; set; }
+    public Guid TermId { get; set; }
+    public string SchoolYear { get; set; } = string.Empty;
+    public int Semester { get; set; }
+    public string TermLabel { get; set; } = string.Empty;
+    /// <summary>1 Enrolled, 2 Dropped, 3 Withdrawn.</summary>
+    public int LoadStatus { get; set; }
+    public string? TeacherName { get; set; }
 }

@@ -354,6 +354,35 @@ public class StudentEvaluationTests : IDisposable
     }
 
     [Fact]
+    public async Task GradeRows_ListSubjectsWithOrWithoutAGrade()
+    {
+        await Take("IT 102", _sem2, StudyLoadStatus.Enrolled);          // no grade yet
+        await Take("IT 101", _sem1, StudyLoadStatus.Enrolled, 2.5m);
+        await Take("IT 103", _sem1, StudyLoadStatus.Dropped);
+        await Take("IT 104", _sem1, StudyLoadStatus.Withdrawn);
+        await Take("IT 201", _sem2, StudyLoadStatus.Pending);           // not on the record
+
+        var rows = await _records.GetGradeRowsAsync(_student);
+
+        Assert.Equal(new[] { "IT 101", "IT 103", "IT 104", "IT 102" }, rows.Select(r => r.SubjectCode));
+        Assert.Equal((2.5m, 1), (rows[0].FinalGrade ?? 0, rows[0].Remarks ?? 0));
+        Assert.Equal((StudyLoadStatus.Dropped, (decimal?)null), (rows[1].LoadStatus, rows[1].FinalGrade));
+        Assert.Equal(("2025-2026 (2nd Sem)", (Guid?)null, 3m), (rows[3].TermLabel, rows[3].GradeId, rows[3].Units));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _records.GetGradeRowsAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task Evaluation_TellsDroppedFromWithdrawn()
+    {
+        await Take("IT 103", _sem1, StudyLoadStatus.Dropped);
+        await Take("IT 104", _sem1, StudyLoadStatus.Withdrawn);
+
+        var by = (await _records.GetEvaluationAsync(_student)).Subjects.ToDictionary(s => s.SubjectCode);
+
+        Assert.Equal(("Dropped", "Withdrawn"), (by["IT 103"].Status, by["IT 104"].Status));
+    }
+
+    [Fact]
     public async Task Transcript_WithoutForm_FallsBackToTheAccountName()
     {
         var t = await _records.GetTranscriptAsync(_student);

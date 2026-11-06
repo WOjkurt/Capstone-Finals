@@ -18,6 +18,7 @@ public interface IStudentRecordService
     Task<StandingDto> GetStandingAsync(Guid userId);
     Task<StandingDto> SetStandingAsync(Guid userId, bool isRegular);
     Task<List<IrregularStudentDto>> GetIrregularStudentsAsync();
+    Task<List<StudentGradeRowDto>> GetGradeRowsAsync(Guid userId);
     Task<ShiftResultDto> ShiftProgramAsync(Guid userId, ShiftProgramDto dto);
     Task<List<PreviousProgramSubjectDto>> GetPreviousProgramSubjectsAsync(Guid userId);
 }
@@ -162,7 +163,7 @@ public class StudentRecordService : IStudentRecordService
                     SubjectCompletionStatus.Passed => "Passed",
                     SubjectCompletionStatus.InProgress => "InProgress",
                     SubjectCompletionStatus.Failed => "Failed",
-                    SubjectCompletionStatus.DroppedOrWithdrawn => "Dropped",
+                    SubjectCompletionStatus.DroppedOrWithdrawn => decider?.LoadStatus == StudyLoadStatus.Withdrawn ? "Withdrawn" : "Dropped",
                     _ => "NotTaken"
                 };
                 if (decider != null)
@@ -171,7 +172,7 @@ public class StudentRecordService : IStudentRecordService
                     row.TermLabel = TermLabel.Format(decider.SchoolYear, decider.Semester);
                 }
                 // A partial credit still leaves the subject to take, unless it is being taken or was failed at DBTC.
-                if (credit != null && row.Status is "NotTaken" or "Dropped")
+                if (credit != null && row.Status is "NotTaken" or "Dropped" or "Withdrawn")
                 {
                     row.Status = "PartiallyCredited";
                     row.FinalGrade = null;
@@ -518,6 +519,70 @@ public class StudentRecordService : IStudentRecordService
         else if (dto.IsRegular && dto.UnresolvedSubjects.Count > 0)
             dto.Suggestion = "MarkIrregular";
         return dto;
+    }
+
+    /// <summary>
+    /// Every subject the student was enrolled in, dropped or withdrew from, with its grade when there is one.
+    /// Pending and Rejected loads never appear. The Registrar sees grades regardless of the release status.
+    /// </summary>
+    public async Task<List<StudentGradeRowDto>> GetGradeRowsAsync(Guid userId)
+    {
+        if (!await _context.UserDetails.AnyAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student))
+        {
+            throw new KeyNotFoundException("Student not found.");
+        }
+        var loads = await _context.StudyLoads.AsNoTracking()
+            .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.Subject != null && sl.Class.Term != null &&
+                         (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Dropped ||
+                          sl.LoadStatus == StudyLoadStatus.Withdrawn))
+            .Select(sl => new
+            {
+                sl.StudyLoadID,
+                sl.LoadStatus,
+                sl.Class!.ClassName,
+                TeacherId = sl.Class.UserID,
+                sl.Class.TermID,
+                sl.Class.Subject!.SubjectCode,
+                sl.Class.Subject.SubjectTitle,
+                Units = sl.Class.Subject.LecUnits + sl.Class.Subject.LabUnits,
+                sl.Class.Term!.SchoolYear,
+                sl.Class.Term.Semester
+            })
+            .ToListAsync();
+        var ids = loads.Select(l => l.StudyLoadID).ToList();
+        var grades = await _context.Grades.AsNoTracking()
+            .Where(g => ids.Contains(g.StudyLoadID))
+            .ToDictionaryAsync(g => g.StudyLoadID);
+        var teacherIds = loads.Where(l => l.TeacherId.HasValue).Select(l => l.TeacherId!.Value).Distinct().ToList();
+        var teachers = await _context.UserDetails.AsNoTracking()
+            .Where(u => teacherIds.Contains(u.UserID))
+            .ToDictionaryAsync(u => u.UserID, u => $"{u.Firstname} {u.Lastname}".Trim());
+
+        return loads
+            .OrderBy(l => l.SchoolYear, StringComparer.Ordinal).ThenBy(l => l.Semester).ThenBy(l => l.SubjectCode, StringComparer.Ordinal)
+            .Select(l =>
+            {
+                grades.TryGetValue(l.StudyLoadID, out var g);
+                return new StudentGradeRowDto
+                {
+                    StudyLoadId = l.StudyLoadID,
+                    GradeId = g?.GradeID,
+                    SubjectCode = l.SubjectCode,
+                    SubjectTitle = l.SubjectTitle,
+                    ClassName = l.ClassName,
+                    Units = l.Units,
+                    MidtermGrade = g?.MidtermGrade,
+                    FinalGrade = g?.FinalGrade,
+                    Remarks = g?.Remarks,
+                    TermId = l.TermID,
+                    SchoolYear = l.SchoolYear,
+                    Semester = l.Semester,
+                    TermLabel = TermLabel.Format(l.SchoolYear, l.Semester),
+                    LoadStatus = l.LoadStatus,
+                    TeacherName = l.TeacherId.HasValue ? teachers.GetValueOrDefault(l.TeacherId.Value) : null
+                };
+            })
+            .ToList();
     }
 
     /// <summary>
