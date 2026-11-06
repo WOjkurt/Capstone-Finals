@@ -15,6 +15,7 @@ const Map<String, String> kActivityActionLabels = {
   'PERSONAL_DETAILS_UPDATED': 'Personal details updated',
   'STANDING_CHANGED': 'Regular/irregular changed',
   'PROGRAM_SHIFTED': 'Program shifted',
+  'SETTINGS_CHANGED': 'Settings changed',
 };
 
 const Map<int, String> _roleNames = {

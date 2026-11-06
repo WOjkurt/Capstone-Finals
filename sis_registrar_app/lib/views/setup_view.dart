@@ -11,6 +11,7 @@ import 'widgets/open_term_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/accredited_schools_tab.dart';
+import 'widgets/unit_limits_tab.dart';
 import '../repositories/report_repository.dart';
 import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
@@ -105,6 +106,7 @@ class _SetupViewState extends State<SetupView> {
       {'title': 'Subjects & Prerequisites', 'index': 2, 'icon': Icons.menu_book_outlined},
       {'title': 'Classes & Rosters', 'index': 3, 'icon': Icons.groups_outlined},
       {'title': 'Accredited Schools', 'index': 4, 'icon': Icons.account_balance_outlined},
+      {'title': 'Unit Limits', 'index': 5, 'icon': Icons.tune_rounded},
     ];
 
     return Container(
@@ -176,6 +178,8 @@ class _SetupViewState extends State<SetupView> {
         return _SubjectsTab(state: state);
       case 4:
         return const AccreditedSchoolsTab();
+      case 5:
+        return const UnitLimitsTab();
       case 3:
       default:
         return _ClassesTab(state: state);
