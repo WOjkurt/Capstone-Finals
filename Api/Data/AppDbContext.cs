@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<StudentPersonalDetails> StudentPersonalDetails { get; set; }
     public DbSet<AccreditedSchool> AccreditedSchools { get; set; }
     public DbSet<StudyLoadChange> StudyLoadChanges { get; set; }
+    public DbSet<SchoolSettings> SchoolSettings { get; set; }
     public DbSet<Api.Domain.Audit.ActivityLog> ActivityLogs { get; set; }
 
     // IdentityAccess

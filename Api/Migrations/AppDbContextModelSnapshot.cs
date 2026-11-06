@@ -637,6 +637,31 @@ namespace Api.Migrations
                     b.ToTable("OverloadApprovals");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.SchoolSettings", b =>
+                {
+                    b.Property<int>("SettingsID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SettingsID"));
+
+                    b.Property<decimal>("GraduatingSummerMaxUnits")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("SummerMaxUnits")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("SettingsID");
+
+                    b.ToTable("SchoolSettings");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.StudentPersonalDetails", b =>
                 {
                     b.Property<Guid>("UserID")

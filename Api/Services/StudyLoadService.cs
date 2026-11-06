@@ -850,6 +850,7 @@ public class StudyLoadService : IStudyLoadService
     // summer capped at 9 units (12 when graduating). Used for warnings only.
     public const decimal DefaultRegularMaxUnits = 21m;
     public const decimal GraduatingOverloadUnits = 6m;
+    /// <summary>Defaults until the Registrar saves their own in Setup → Unit Limits.</summary>
     public const decimal SummerMaxUnits = 9m;
     public const decimal GraduatingSummerMaxUnits = 12m;
 
@@ -889,8 +890,12 @@ public class StudyLoadService : IStudyLoadService
         string rule;
         if (isSummer)
         {
-            max = isGraduating ? GraduatingSummerMaxUnits : SummerMaxUnits;
-            rule = isGraduating ? "Summer limit for graduating students: 12 units." : "Summer limit: 9 units.";
+            // The Registrar can change these in Setup; until then the defaults apply.
+            var settings = await _context.SchoolSettings.AsNoTracking().FirstOrDefaultAsync();
+            max = isGraduating
+                ? settings?.GraduatingSummerMaxUnits ?? GraduatingSummerMaxUnits
+                : settings?.SummerMaxUnits ?? SummerMaxUnits;
+            rule = isGraduating ? $"Summer limit for graduating students: {max:0.#} units." : $"Summer limit: {max:0.#} units.";
         }
         else
         {

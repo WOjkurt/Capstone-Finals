@@ -114,6 +114,29 @@ public class UnitLimitTests : IDisposable
     }
 
     [Fact]
+    public async Task SummerLimits_CanBeChangedByTheRegistrar()
+    {
+        var settings = new SchoolSettingsService(_context);
+        Assert.Equal((9m, 12m, (DateTime?)null), ((await settings.GetUnitLimitsAsync()).SummerMaxUnits, (await settings.GetUnitLimitsAsync()).GraduatingSummerMaxUnits, (await settings.GetUnitLimitsAsync()).UpdatedAt));
+
+        await settings.SaveUnitLimitsAsync(new Api.DTOs.Setup.SaveUnitLimitSettingsDto { SummerMaxUnits = 6, GraduatingSummerMaxUnits = 10.5m }, _studentId);
+
+        var r = await _service.GetUnitLimitAsync(_studentId, _summer);
+        Assert.Equal((6m, "Summer limit: 6 units."), (r.MaxUnits, r.Rule));
+        var saved = await settings.GetUnitLimitsAsync();
+        Assert.Equal((6m, 10.5m), (saved.SummerMaxUnits, saved.GraduatingSummerMaxUnits));
+        Assert.NotNull(saved.UpdatedAt);
+
+        await settings.SaveUnitLimitsAsync(new Api.DTOs.Setup.SaveUnitLimitSettingsDto { SummerMaxUnits = 7, GraduatingSummerMaxUnits = 10 }, _studentId);
+        Assert.Equal(1, await _context.SchoolSettings.CountAsync());   // always one row
+
+        foreach (var (summer, graduating) in new[] { (0m, 12m), (9m, 31m), (12m, 9m) })
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => settings.SaveUnitLimitsAsync(new Api.DTOs.Setup.SaveUnitLimitSettingsDto { SummerMaxUnits = summer, GraduatingSummerMaxUnits = graduating }, _studentId));
+        }
+    }
+
+    [Fact]
     public async Task Summer_IsNineUnits_OrTwelveWhenGraduating()
     {
         Assert.Equal(9m, (await _service.GetUnitLimitAsync(_studentId, _summer)).MaxUnits);
