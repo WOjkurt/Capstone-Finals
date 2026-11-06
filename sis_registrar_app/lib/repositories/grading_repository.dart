@@ -225,11 +225,11 @@ class StudentGradeRepository {
   StudentGradeRepository(this._auth, {http.Client? client})
       : _client = client ?? http.Client();
 
-  /// All grades of one student, every term.
+  /// Every subject one student took, every term, with or without a grade.
   Future<List<StudentGradeModel>> getStudentGrades(String userId) async {
     final headers = await _auth.getAuthHeaders();
     final res = await _client.get(
-      Uri.parse('$baseUrl/api/grades/student/$userId'),
+      Uri.parse('$baseUrl/api/student-records/$userId/grades'),
       headers: headers,
     );
     if (res.statusCode != 200) {

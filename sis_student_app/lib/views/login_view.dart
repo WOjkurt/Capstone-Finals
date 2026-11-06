@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
+import 'widgets/password_reset.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -27,15 +28,13 @@ class _LoginViewState extends State<LoginView> {
   void _submit() {
     if (_formKey.currentState!.validate()) {
       if (_isSignUp) {
-        context.read<AuthBloc>().add(SignUpRequested(
-              _emailController.text,
-              _passwordController.text,
-            ));
+        context.read<AuthBloc>().add(
+          SignUpRequested(_emailController.text, _passwordController.text),
+        );
       } else {
-        context.read<AuthBloc>().add(LoginRequested(
-              _emailController.text,
-              _passwordController.text,
-            ));
+        context.read<AuthBloc>().add(
+          LoginRequested(_emailController.text, _passwordController.text),
+        );
       }
     }
   }
@@ -135,8 +134,11 @@ class _LoginViewState extends State<LoginView> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Color(0xFFDC2626), size: 20),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Color(0xFFDC2626),
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -162,8 +164,11 @@ class _LoginViewState extends State<LoginView> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.warning_amber_rounded,
-                                  color: Color(0xFFD97706), size: 20),
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Color(0xFFD97706),
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -210,12 +215,16 @@ class _LoginViewState extends State<LoginView> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
-                            color: AppColors.primary, width: 1.5),
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
                       ),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
@@ -267,12 +276,16 @@ class _LoginViewState extends State<LoginView> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
-                            color: AppColors.primary, width: 1.5),
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
                       ),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
@@ -281,7 +294,20 @@ class _LoginViewState extends State<LoginView> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+                  // Reset link goes to the address typed above.
+                  if (!_isSignUp)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        key: const ValueKey('forgot_password_button'),
+                        onPressed: () => sendPasswordResetLink(
+                          context,
+                          _emailController.text,
+                        ),
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
 
                   // Sign In Button
                   BlocBuilder<AuthBloc, AuthState>(
@@ -309,7 +335,9 @@ class _LoginViewState extends State<LoginView> {
                                 ),
                               )
                             : Text(
-                                _isSignUp ? 'Create Student Account' : 'Sign In to Portal',
+                                _isSignUp
+                                    ? 'Create Student Account'
+                                    : 'Sign In to Portal',
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
@@ -340,10 +368,7 @@ class _LoginViewState extends State<LoginView> {
                   const Text(
                     'Restricted to enrolled DBTC-Cebu students.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF94A3B8),
-                    ),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                   ),
                 ],
               ),

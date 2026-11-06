@@ -8,7 +8,7 @@ import '../../utils/error_handler.dart';
 import '../../utils/student_record_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import 'record_print_dialogs.dart';
-import 'status_badge.dart';
+import 'record_table.dart';
 
 /// Read-only grade history of one student, grouped by term (newest first).
 /// Failed subjects that were never passed later are listed at the top as retake candidates.
@@ -106,8 +106,6 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     return groups.entries.toList();
   }
 
-  String _fmt(double? v) => v == null ? '—' : v.toStringAsFixed(2);
-
   /// Prints every semester's grades (the "Failed only" filter does not apply to the printout).
   Future<void> _print() async {
     final grades = _grades;
@@ -163,7 +161,6 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
           PopupMenuItem(
             key: const ValueKey('print_grade_sheet_button'),
             value: 'grade_sheet',
-            enabled: _grades?.isNotEmpty == true,
             child: const ListTile(leading: Icon(Icons.description_outlined), title: Text('Grade sheet…'), subtitle: Text('One semester or one subject')),
           ),
           const PopupMenuItem(
@@ -262,7 +259,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     if (grades.isEmpty && _credits.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(24),
-        child: Text('No grades recorded for this student yet.',
+        child: Text('No subjects on record for this student yet.',
             style: TextStyle(color: AppColors.textSecondary)),
       );
     }
@@ -379,67 +376,31 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
               ],
             ),
           ),
-          for (final g in term.value) _buildRow(g),
+          RecordTable(
+            columns: _columns,
+            rows: [for (final g in term.value) RecordRow(gradeCells(g), color: _rowColor(g))],
+            totals: _failedOnly ? null : gradeTotals(term.value),
+          ),
         ],
       ],
     );
   }
 
-  Widget _buildRow(StudentGradeModel g) {
-    final Widget remark = g.isPassed
-        ? StatusBadge.success(label: 'Passed')
-        : g.isFailed
-            ? StatusBadge.danger(label: 'Failed')
-            : StatusBadge.pending(label: 'No grade');
-    final notCounted = g.loadStatus != null && g.loadStatus != 1;
+  static const _columns = [
+    RecordColumn('Course Code', 1.1),
+    RecordColumn('Descriptive Title', 3),
+    RecordColumn('Credit', .7, center: true),
+    RecordColumn('Midterm', .8, center: true),
+    RecordColumn('Final Grade', .8, center: true),
+    RecordColumn('Remarks', 1.1),
+    RecordColumn('Instructor', 1.6),
+  ];
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: g.isFailed ? const Color(0xFFFEF2F2) : Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${g.subjectCode ?? '?'} — ${g.subjectTitle ?? ''}',
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  [
-                    if (g.className != null) g.className!,
-                    if (g.units != null) '${g.units!.toStringAsFixed(g.units! % 1 == 0 ? 0 : 1)} units',
-                    if (g.teacherName != null) g.teacherName!,
-                    if (notCounted) 'load not enrolled — not counted',
-                  ].join(' · '),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-              width: 90,
-              child: Text('Mid ${_fmt(g.midtermGrade)}',
-                  style: const TextStyle(fontSize: 12))),
-          SizedBox(
-              width: 90,
-              child: Text('Final ${_fmt(g.finalGrade)}',
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w600))),
-          SizedBox(width: 130, child: Align(alignment: Alignment.centerRight, child: FittedBox(fit: BoxFit.scaleDown, child: remark))),
-        ],
-      ),
-    );
-  }
+  static Color _rowColor(StudentGradeModel g) => g.loadStatus == 2 || g.loadStatus == 3
+      ? RecordColors.droppedOrWithdrawn
+      : g.isFailed
+          ? RecordColors.failed
+          : g.isPassed
+              ? RecordColors.taken
+              : RecordColors.inProgress;
 }

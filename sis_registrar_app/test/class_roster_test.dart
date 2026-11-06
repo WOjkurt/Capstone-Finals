@@ -17,6 +17,9 @@ import 'package:sis_registrar_app/views/widgets/student_study_load_dialog.dart';
 
 class MockAuthService implements AuthService {
   @override
+  Future<void> sendPasswordReset(String email) async {}
+
+  @override
   User? get currentUser => null;
 
   @override

@@ -13,6 +13,7 @@ import 'pending_loads_view.dart';
 import 'reports_view.dart';
 import 'setup_view.dart';
 import 'staff_management_view.dart';
+import 'widgets/password_reset.dart';
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -365,6 +366,13 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                       ),
                       const SizedBox(height: 6),
                       IconButton(
+                        key: const ValueKey('change_password_button'),
+                        tooltip: 'Change password',
+                        icon: const Icon(Icons.lock_reset_rounded, size: 20),
+                        color: AppColors.sidebarTextMuted,
+                        onPressed: () => confirmChangePassword(context, widget.auth.email),
+                      ),
+                      IconButton(
                         key: const ValueKey('sign_out_button'),
                         tooltip: 'Sign out',
                         icon: const Icon(Icons.logout_rounded, size: 20),
@@ -408,6 +416,13 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                             ),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        key: const ValueKey('change_password_button'),
+                        tooltip: 'Change password',
+                        icon: const Icon(Icons.lock_reset_rounded, size: 20),
+                        color: AppColors.sidebarTextMuted,
+                        onPressed: () => confirmChangePassword(context, widget.auth.email),
                       ),
                       IconButton(
                         key: const ValueKey('sign_out_button'),

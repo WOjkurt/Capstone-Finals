@@ -6,8 +6,8 @@ import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/student_record_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
+import 'record_table.dart';
 import 'standing_card.dart';
-import 'status_badge.dart';
 
 /// The student's curriculum checklist: every subject of their program, what is done and what is left.
 class StudentEvaluationTab extends StatefulWidget {
@@ -77,11 +77,27 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
 
   static String _units(double u) => u.toStringAsFixed(u % 1 == 0 ? 0 : 1);
 
-  static String _yearSem(int year, int sem) {
-    const years = {1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year', 5: '5th Year'};
-    const sems = {1: '1st Sem', 2: '2nd Sem', 3: 'Summer'};
-    return '${years[year] ?? 'Year $year'} · ${sems[sem] ?? 'Sem $sem'}';
-  }
+  static const _columns = [
+    RecordColumn('Course Code', 1.1),
+    RecordColumn('Descriptive Title', 2.5),
+    RecordColumn('Lecture Hours', 1.05, center: true),
+    RecordColumn('Lab Hours', .85, center: true),
+    RecordColumn('Credit', .95, center: true),
+    RecordColumn('Pre-requisite', 1.25),
+    RecordColumn('Co-requisite', 1.2),
+    RecordColumn('Grade', .95, center: true),
+    RecordColumn('Remarks', 1.15),
+    RecordColumn('Term Taken', 1.5),
+  ];
+
+  static Color _rowColor(String status) => switch (status) {
+        'Passed' || 'Credited' || 'CrossEnrolled' => RecordColors.taken,
+        'InProgress' => RecordColors.inProgress,
+        'PartiallyCredited' => RecordColors.partial,
+        'Failed' => RecordColors.failed,
+        'Dropped' || 'Withdrawn' => RecordColors.droppedOrWithdrawn,
+        _ => RecordColors.notTaken,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +125,7 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
     final shown = _leftOnly ? data.subjects.where((s) => !s.isDone).toList() : data.subjects;
     final groups = <String, List<EvaluationSubject>>{};
     for (final s in shown) {
-      groups.putIfAbsent(_yearSem(s.yearLevel, s.semester), () => []).add(s);
+      groups.putIfAbsent(curriculumSectionTitle(s.yearLevel, s.semester), () => []).add(s);
     }
 
     return Column(
@@ -145,13 +161,31 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
                       style: TextStyle(color: AppColors.textSecondary)))
               : ListView(
                   children: [
+                    const RecordLegend(items: {
+                      'Taken': RecordColors.taken,
+                      'In progress': RecordColors.inProgress,
+                      'Partly credited': RecordColors.partial,
+                      'Not yet taken': RecordColors.notTaken,
+                      'Dropped or withdrawn': RecordColors.droppedOrWithdrawn,
+                      'Failed': RecordColors.failed,
+                    }),
                     for (final g in groups.entries) ...[
                       Padding(
-                        padding: const EdgeInsets.only(top: 8, bottom: 4),
+                        padding: const EdgeInsets.only(top: 14, bottom: 6),
                         child: Text(g.key,
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary)),
                       ),
-                      for (final s in g.value) _buildRow(s),
+                      RecordTable(
+                        minWidth: 740,
+                        columns: _columns,
+                        rows: [
+                          for (final s in g.value)
+                            RecordRow(evaluationCells(s),
+                                color: _rowColor(s.status), key: ValueKey('evaluation_row_${s.subjectCode}')),
+                        ],
+                        totals: evaluationTotals(g.value),
+                      ),
                     ],
                   ],
                 ),
@@ -206,63 +240,6 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
           const SizedBox(height: 4),
           Text('${(progress * 100).round()}% of the curriculum done',
               style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRow(EvaluationSubject s) {
-    final Widget badge = switch (s.status) {
-      'Passed' => StatusBadge.success(label: 'Passed'),
-      'Credited' => StatusBadge.info(label: 'Credited'),
-      'CrossEnrolled' => StatusBadge.info(label: 'Cross-enrolled'),
-      'PartiallyCredited' => StatusBadge.pending(label: 'Partly credited'),
-      'InProgress' => StatusBadge.pending(label: 'In progress'),
-      'Failed' => StatusBadge.danger(label: 'Failed'),
-      'Dropped' => StatusBadge.neutral(label: 'Dropped'),
-      _ => StatusBadge.neutral(label: 'Not taken'),
-    };
-    final detail = [
-      '${_units(s.units)} units',
-      if (s.isMinor) 'Minor',
-      if (s.status == 'Credited') 'from ${s.creditedFrom ?? 'another school'}',
-      if (s.status == 'CrossEnrolled') 'at ${s.creditedFrom ?? 'another school'}',
-      if (s.status == 'PartiallyCredited')
-        '${_units(s.creditedUnits ?? 0)} of ${_units(s.units)} units credited from ${s.creditedFrom ?? 'another school'}',
-      if (s.termLabel != null) s.termLabel!,
-    ].join(' · ');
-    final grade = const {'Credited', 'CrossEnrolled', 'PartiallyCredited'}.contains(s.status)
-        ? s.creditedGrade
-        : s.finalGrade?.toStringAsFixed(2);
-
-    return Container(
-      key: ValueKey('evaluation_row_${s.subjectCode}'),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: s.status == 'Failed' ? const Color(0xFFFEF2F2) : Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${s.subjectCode} — ${s.subjectTitle}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-                Text(detail,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 60,
-            child: Text(grade ?? '', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(width: 100, child: Align(alignment: Alignment.centerRight, child: FittedBox(fit: BoxFit.scaleDown, child: badge))),
         ],
       ),
     );

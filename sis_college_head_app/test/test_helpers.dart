@@ -4,6 +4,9 @@ import 'package:sis_college_head_app/services/auth_service.dart';
 // Mock auth service (no Firebase dependency)
 class MockAuthService implements AuthService {
   @override
+  Future<void> sendPasswordReset(String email) async {}
+
+  @override
   User? get currentUser => null;
 
   @override

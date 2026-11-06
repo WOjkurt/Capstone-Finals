@@ -106,6 +106,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('full_sidebar')), findsOneWidget);
       expect(find.text('Carla Head'), findsOneWidget);
+      expect(find.byKey(const ValueKey('change_password_button')), findsOneWidget);
 
       tester.view.physicalSize = const Size(1200, 800);
       await tester.pumpAndSettle();

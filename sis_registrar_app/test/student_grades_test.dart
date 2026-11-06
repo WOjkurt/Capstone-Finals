@@ -65,7 +65,7 @@ void main() {
     });
   });
 
-  test('repository calls GET /api/grades/student/{id} and parses term fields', () async {
+  test('repository calls GET /api/student-records/{id}/grades and parses term fields', () async {
     late Uri called;
     final client = MockClient((req) async {
       called = req.url;
@@ -89,7 +89,7 @@ void main() {
 
     final grades = await repo.getStudentGrades('u1');
 
-    expect(called.path, '/api/grades/student/u1');
+    expect(called.path, '/api/student-records/u1/grades');
     expect(grades.single.isFailed, isTrue);
     expect(grades.single.units, 3);
     expect(grades.single.termLabel, '2025-2026 (1st Sem)');
@@ -140,7 +140,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('failed_only_chip')));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('IT 101 —'), findsOneWidget);
+      expect(find.text('IT 101'), findsOneWidget);
       expect(find.textContaining('GEC 101 —'), findsNothing);
     });
 
@@ -153,7 +153,7 @@ void main() {
 
     testWidgets('empty history message', (tester) async {
       await pump(tester);
-      expect(find.text('No grades recorded for this student yet.'), findsOneWidget);
+      expect(find.text('No subjects on record for this student yet.'), findsOneWidget);
     });
   });
 }

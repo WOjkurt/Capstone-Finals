@@ -92,6 +92,11 @@ void main() {
         for (final label in ['Grades', 'Clearance', 'Profile', 'Schedule']) {
           await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text(label)));
           await tester.pumpAndSettle();
+          if (label == 'Profile') {
+            await tester.scrollUntilVisible(find.byKey(const ValueKey('change_password_button')), 200,
+                scrollable: find.byType(Scrollable).last);
+            expect(find.byKey(const ValueKey('change_password_button')), findsOneWidget);
+          }
         }
       }, () => MockClient(fakeApi));
     });

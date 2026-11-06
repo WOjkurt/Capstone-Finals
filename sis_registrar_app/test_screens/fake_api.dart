@@ -59,10 +59,12 @@ Future<http.Response> fakeApi(http.Request req) async {
     ];
   } else if (path.endsWith('/api/studyloads/unit-limit')) {
     body = {'maxUnits': 21, 'currentUnits': 9, 'rule': 'Regular limit is the curriculum load 21 units.'};
-  } else if (path.startsWith('/api/grades/student/')) {
+  } else if (path.startsWith('/api/grades/student/') || (path.contains('/api/student-records/') && path.endsWith('/grades'))) {
     body = [
-      {'gradeId': 'g1', 'subjectCode': 'IT 100', 'subjectTitle': 'Computer Basics', 'units': 3, 'midtermGrade': 2.0, 'finalGrade': 1.75, 'remarks': 1, 'termLabel': '2025-2026 (2nd Semester)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 1, 'teacherName': 'Ben Teach', 'className': 'BSIT 1A'},
-      {'gradeId': 'g2', 'subjectCode': 'MATH 100', 'subjectTitle': 'College Algebra', 'units': 3, 'midtermGrade': 3.0, 'finalGrade': 5.0, 'remarks': 2, 'termLabel': '2025-2026 (2nd Semester)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 1, 'teacherName': 'Dina Santos', 'className': 'BSIT 1A'},
+      {'gradeId': 'g1', 'subjectCode': 'IT 100', 'subjectTitle': 'Computer Basics', 'units': 3, 'midtermGrade': 2.0, 'finalGrade': 1.75, 'remarks': 1, 'termLabel': '2025-2026 (2nd Sem)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 1, 'teacherName': 'Ben Teach', 'className': 'BSIT 1A'},
+      {'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'units': 3, 'termLabel': '2026-2027 (1st Sem)', 'schoolYear': '2026-2027', 'semester': 1, 'loadStatus': 1, 'teacherName': 'Ben Teach', 'className': 'BSIT 1A'},
+      {'subjectCode': 'IT 105', 'subjectTitle': 'Web Systems', 'units': 3, 'termLabel': '2025-2026 (2nd Sem)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 2, 'className': 'BSIT 1A'},
+      {'gradeId': 'g2', 'subjectCode': 'MATH 100', 'subjectTitle': 'College Algebra', 'units': 3, 'midtermGrade': 3.0, 'finalGrade': 5.0, 'remarks': 2, 'termLabel': '2025-2026 (2nd Sem)', 'schoolYear': '2025-2026', 'semester': 2, 'loadStatus': 1, 'teacherName': 'Dina Santos', 'className': 'BSIT 1A'},
     ];
   } else if (path.contains('/api/student-records/') && path.endsWith('/personal-details')) {
     body = {

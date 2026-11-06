@@ -36,6 +36,9 @@ class FakeUserCredential implements UserCredential {
 }
 
 class FakeAuthService implements AuthService {
+  @override
+  Future<void> sendPasswordReset(String email) async {}
+
   bool isVerified = false;
   bool shouldThrowEmailNotVerifiedOnLogin = false;
   bool shouldThrow403OnApi = false;

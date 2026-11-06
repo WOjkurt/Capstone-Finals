@@ -55,13 +55,18 @@ class _GradeSheetDialogState extends State<GradeSheetDialog> {
     final picked = _bySubject
         ? widget.grades.where((g) => g.subjectCode == _subject).toList()
         : widget.grades.where((g) => (g.termLabel ?? 'Unknown term') == _term).toList();
-    if (picked.isEmpty) return;
+    // A student with no subjects yet still gets a blank sheet.
+    if (picked.isEmpty && widget.grades.isNotEmpty) return;
     setState(() => _printing = true);
     try {
       final bytes = await buildGradeSheetPdf(
         picked,
         student: widget.student,
-        scope: _bySubject ? 'Subject: ${_subjects[_subject]}' : 'Semester: $_term',
+        scope: widget.grades.isEmpty
+            ? 'No subjects on record yet'
+            : _bySubject
+                ? 'Subject: ${_subjects[_subject]}'
+                : 'Semester: $_term',
         bySubject: _bySubject,
         logo: await loadSchoolLogo(),
       );
@@ -120,7 +125,11 @@ class _GradeSheetDialogState extends State<GradeSheetDialog> {
               ),
             const SizedBox(height: 8),
             Text(
-              _bySubject ? 'Lists every time the student took this subject.' : 'Lists the semester\'s subjects with its GWA.',
+              widget.grades.isEmpty
+                  ? 'This student has no subjects yet, so the sheet prints blank.'
+                  : _bySubject
+                      ? 'Lists every time the student took this subject.'
+                      : 'Lists the semester\'s subjects, with or without grades, and its GWA.',
               style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],

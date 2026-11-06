@@ -7,6 +7,7 @@ import 'grade_corrections_view.dart';
 import 'grades_view.dart';
 import 'my_classes_view.dart';
 import 'program_overview_view.dart';
+import 'widgets/password_reset.dart';
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -185,6 +186,13 @@ class _MainLayoutViewState extends State<MainLayoutView> {
       color: AppColors.sidebarTextMuted,
       onPressed: () => _confirmLogout(context),
     );
+    final changePassword = IconButton(
+      key: const ValueKey('change_password_button'),
+      tooltip: 'Change password',
+      icon: const Icon(Icons.lock_reset_rounded, size: 20),
+      color: AppColors.sidebarTextMuted,
+      onPressed: () => confirmChangePassword(context, widget.auth.email),
+    );
     final avatar = CircleAvatar(
       radius: 17,
       backgroundColor: AppColors.sidebarBorder,
@@ -269,6 +277,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                         child: avatar,
                       ),
                       const SizedBox(height: 6),
+                      changePassword,
                       signOut,
                     ],
                   )
@@ -300,6 +309,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                           ],
                         ),
                       ),
+                      changePassword,
                       signOut,
                     ],
                   ),

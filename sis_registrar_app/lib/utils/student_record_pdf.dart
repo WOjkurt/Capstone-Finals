@@ -42,8 +42,77 @@ String evaluationRemark(String status) => switch (status) {
       'InProgress' => 'In progress',
       'Failed' => 'Failed',
       'Dropped' => 'Dropped',
-      _ => '',
+      'Withdrawn' => 'Withdrawn',
+      _ => 'Not yet taken',
     };
+
+/// The columns and cells below are shared by the screens and the printouts, so they always match.
+const evaluationHeaders = ['Course Code', 'Descriptive Title', 'Lecture Hours', 'Lab Hours', 'Credit', 'Pre-requisite', 'Co-requisite', 'Grade', 'Remarks', 'Term Taken'];
+
+List<String> evaluationCells(EvaluationSubject s) => [
+      s.subjectCode,
+      s.subjectTitle,
+      _hours(s.lecHours),
+      _hours(s.labHours),
+      _num(s.units),
+      s.prerequisites ?? 'None',
+      s.corequisites ?? '',
+      const {'Credited', 'CrossEnrolled', 'PartiallyCredited'}.contains(s.status)
+          ? (s.creditedGrade ?? '')
+          : (s.finalGrade?.toStringAsFixed(2) ?? ''),
+      s.status == 'PartiallyCredited'
+          ? 'Partly credited (${_num(s.creditedUnits ?? 0)} of ${_num(s.units)})'
+          : evaluationRemark(s.status),
+      switch (s.status) {
+        'Credited' || 'PartiallyCredited' => 'Credited${s.creditedFrom != null ? ' - ${s.creditedFrom}' : ''}',
+        'CrossEnrolled' => '${s.termLabel ?? ''} at ${s.creditedFrom ?? ''}',
+        _ => s.termLabel ?? '',
+      },
+    ];
+
+List<String> evaluationTotals(List<EvaluationSubject> subjects) {
+  double sum(double Function(EvaluationSubject) f) => subjects.fold(0, (t, s) => t + f(s));
+  return ['', '', _hours(sum((s) => s.lecHours)), _hours(sum((s) => s.labHours)), _num(sum((s) => s.units)), '', '', '', '', ''];
+}
+
+const gradeHeaders = ['Course Code', 'Descriptive Title', 'Credit', 'Midterm', 'Final Grade', 'Remarks', 'Instructor'];
+
+String gradeRemark(StudentGradeModel g) => switch (g.loadStatus) {
+      2 => 'Dropped',
+      3 => 'Withdrawn',
+      _ => g.isPassed ? 'Passed' : g.isFailed ? 'Failed' : 'No grade yet',
+    };
+
+List<String> gradeCells(StudentGradeModel g) => [
+      g.subjectCode ?? '',
+      g.subjectTitle ?? '',
+      g.units != null ? _num(g.units!) : '',
+      g.midtermGrade?.toStringAsFixed(2) ?? '',
+      g.finalGrade?.toStringAsFixed(2) ?? '',
+      gradeRemark(g),
+      g.teacherName ?? '',
+    ];
+
+/// Credits count enrolled subjects only; dropped and withdrawn ones earn none.
+List<String> gradeTotals(List<StudentGradeModel> rows) => [
+      '',
+      'GWA',
+      _num(rows.where((g) => g.loadStatus == null || g.loadStatus == 1).fold(0.0, (s, g) => s + (g.units ?? 0))),
+      '',
+      computeGwa(rows)?.toStringAsFixed(2) ?? '-',
+      '',
+      '',
+    ];
+
+/// Printed row shades (they survive a black-and-white printer): taken stays white.
+PdfColor? _evaluationFill(EvaluationSubject s) => switch (s.status) {
+      'Passed' || 'Credited' || 'CrossEnrolled' => null,
+      'Failed' || 'Dropped' || 'Withdrawn' => PdfColors.grey300,
+      _ => PdfColors.grey100,
+    };
+
+PdfColor? _gradeFill(StudentGradeModel g) =>
+    g.loadStatus == 2 || g.loadStatus == 3 || g.isFailed ? PdfColors.grey300 : (g.isPassed ? null : PdfColors.grey100);
 
 final _cell = const pw.TextStyle(fontSize: 7);
 final _bold = pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold);
@@ -56,6 +125,7 @@ pw.Widget _table({
   List<String>? totals,
   required Map<int, pw.TableColumnWidth> widths,
   Set<int> centered = const {},
+  List<PdfColor?>? fills,
 }) {
   pw.Widget cell(String text, int col, pw.TextStyle style) => pw.Padding(
         padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
@@ -76,7 +146,11 @@ pw.Widget _table({
             ),
         ],
       ),
-      for (final r in rows) pw.TableRow(children: [for (var i = 0; i < r.length; i++) cell(r[i], i, _cell)]),
+      for (final (n, r) in rows.indexed)
+        pw.TableRow(
+          decoration: fills?[n] == null ? null : pw.BoxDecoration(color: fills![n]),
+          children: [for (var i = 0; i < r.length; i++) cell(r[i], i, _cell)],
+        ),
       if (totals != null) pw.TableRow(children: [for (var i = 0; i < totals.length; i++) cell(totals[i], i, _bold)]),
     ],
   );
@@ -171,37 +245,15 @@ Future<Uint8List> buildEvaluationPdf(
   final body = <pw.Widget>[];
   for (final g in groups.entries) {
     final subjects = g.value;
-    double sum(double Function(EvaluationSubject) f) => subjects.fold(0, (t, s) => t + f(s));
     body.add(pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
         _sectionTitle(curriculumSectionTitle(g.key.$1, g.key.$2)),
         _table(
-          headers: ['Course Code', 'Descriptive Title', 'Lecture Hours', 'Lab Hours', 'Credit', 'Pre-requisite', 'Co-requisite', 'Grade', 'Remarks', 'Term Taken'],
-          rows: [
-            for (final s in subjects)
-              [
-                s.subjectCode,
-                s.subjectTitle,
-                _hours(s.lecHours),
-                _hours(s.labHours),
-                _num(s.units),
-                s.prerequisites ?? 'None',
-                s.corequisites ?? '',
-                const {'Credited', 'CrossEnrolled', 'PartiallyCredited'}.contains(s.status)
-                    ? (s.creditedGrade ?? '')
-                    : (s.finalGrade?.toStringAsFixed(2) ?? ''),
-                s.status == 'PartiallyCredited'
-                    ? 'Partly credited (${_num(s.creditedUnits ?? 0)} of ${_num(s.units)})'
-                    : evaluationRemark(s.status),
-                switch (s.status) {
-                  'Credited' || 'PartiallyCredited' => 'Credited${s.creditedFrom != null ? ' - ${s.creditedFrom}' : ''}',
-                  'CrossEnrolled' => '${s.termLabel ?? ''} at ${s.creditedFrom ?? ''}',
-                  _ => s.termLabel ?? '',
-                },
-              ],
-          ],
-          totals: ['', '', _hours(sum((s) => s.lecHours)), _hours(sum((s) => s.labHours)), _num(sum((s) => s.units)), '', '', '', '', ''],
+          headers: evaluationHeaders,
+          rows: [for (final s in subjects) evaluationCells(s)],
+          totals: evaluationTotals(subjects),
+          fills: [for (final s in subjects) _evaluationFill(s)],
           widths: const {
             0: pw.FixedColumnWidth(44),
             1: pw.FlexColumnWidth(3),
@@ -211,7 +263,7 @@ Future<Uint8List> buildEvaluationPdf(
             5: pw.FlexColumnWidth(1.3),
             6: pw.FlexColumnWidth(1),
             7: pw.FixedColumnWidth(28),
-            8: pw.FixedColumnWidth(46),
+            8: pw.FixedColumnWidth(56),
             9: pw.FlexColumnWidth(1.4),
           },
           centered: const {2, 3, 4, 7},
@@ -228,6 +280,10 @@ Future<Uint8List> buildEvaluationPdf(
       ),
     ]),
   ));
+  body.add(pw.Padding(
+    padding: const pw.EdgeInsets.only(top: 4),
+    child: pw.Text('White: taken.  Light gray: in progress or not yet taken.  Dark gray: failed, dropped or withdrawn.', style: _label),
+  ));
   body.add(_signatures(['Evaluated by', 'Registrar']));
   return _save('STUDENT EVALUATION', student, logo, body, compress, printedAt ?? DateTime.now());
 }
@@ -242,7 +298,7 @@ Future<Uint8List> buildResidencyPdf(
   bool compress = true,
   DateTime? printedAt,
 }) {
-  final counted = grades.where((g) => g.loadStatus == null || g.loadStatus == 1).toList()
+  final rows = [...grades]
     ..sort((a, b) {
       final year = (a.schoolYear ?? '').compareTo(b.schoolYear ?? '');
       if (year != 0) return year;
@@ -251,7 +307,7 @@ Future<Uint8List> buildResidencyPdf(
       return (a.subjectCode ?? '').compareTo(b.subjectCode ?? '');
     });
   final terms = <String, List<StudentGradeModel>>{};
-  for (final g in counted) {
+  for (final g in rows) {
     terms.putIfAbsent(g.termLabel ?? 'Unknown term', () => []).add(g);
   }
 
@@ -266,24 +322,13 @@ Future<Uint8List> buildResidencyPdf(
   };
   final body = <pw.Widget>[];
   for (final t in terms.entries) {
-    final gwa = computeGwa(t.value);
     body.add(pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
       _sectionTitle(t.key.toUpperCase()),
       _table(
-        headers: ['Course Code', 'Descriptive Title', 'Credit', 'Midterm', 'Final Grade', 'Remarks', 'Instructor'],
-        rows: [
-          for (final g in t.value)
-            [
-              g.subjectCode ?? '',
-              g.subjectTitle ?? '',
-              g.units != null ? _num(g.units!) : '',
-              g.midtermGrade?.toStringAsFixed(2) ?? '',
-              g.finalGrade?.toStringAsFixed(2) ?? '',
-              g.isPassed ? 'Passed' : g.isFailed ? 'Failed' : 'No grade',
-              g.teacherName ?? '',
-            ],
-        ],
-        totals: ['', 'GWA', _num(t.value.fold(0.0, (s, g) => s + (g.units ?? 0))), '', gwa?.toStringAsFixed(2) ?? '-', '', ''],
+        headers: gradeHeaders,
+        rows: [for (final g in t.value) gradeCells(g)],
+        totals: gradeTotals(t.value),
+        fills: [for (final g in t.value) _gradeFill(g)],
         widths: widths,
         centered: const {2, 3, 4},
       ),
@@ -318,7 +363,7 @@ Future<Uint8List> buildResidencyPdf(
       ),
     ]));
   }
-  final overall = computeGwa(counted);
+  final overall = computeGwa(rows);
   body.add(pw.Padding(
     padding: const pw.EdgeInsets.only(top: 12),
     child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -328,8 +373,8 @@ Future<Uint8List> buildResidencyPdf(
       ),
     ]),
   ));
-  if (counted.isEmpty && credits.isEmpty) {
-    body.insert(0, pw.Padding(padding: const pw.EdgeInsets.only(top: 12), child: pw.Text('No grades recorded yet.', style: _label)));
+  if (rows.isEmpty && credits.isEmpty) {
+    body.insert(0, pw.Padding(padding: const pw.EdgeInsets.only(top: 12), child: pw.Text('No subjects on record yet.', style: _label)));
   }
   body.add(_signatures(['Prepared by', 'Registrar']));
   return _save('STUDENT RESIDENCY RECORD', student, logo, body, compress, printedAt ?? DateTime.now());
@@ -358,36 +403,18 @@ Future<Uint8List> buildGradeSheetPdf(
       if (sem != 0) return sem;
       return (a.subjectCode ?? '').compareTo(b.subjectCode ?? '');
     });
-  String remark(StudentGradeModel g) => switch (g.loadStatus) {
-        2 => 'Dropped',
-        3 => 'Withdrawn',
-        _ => g.isPassed ? 'Passed' : g.isFailed ? 'Failed' : 'No grade',
-      };
-  final gwa = computeGwa(rows);
   final body = <pw.Widget>[
     pw.Padding(
       padding: const pw.EdgeInsets.only(top: 10, bottom: 4),
       child: pw.Text(pdfSafe(scope), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
     ),
     _table(
-      headers: [if (bySubject) 'Term', 'Course Code', 'Descriptive Title', 'Credit', 'Midterm', 'Final Grade', 'Remarks', 'Instructor'],
+      headers: [if (bySubject) 'Term', ...gradeHeaders],
       rows: [
-        for (final g in rows)
-          [
-            if (bySubject) g.termLabel ?? '',
-            g.subjectCode ?? '',
-            g.subjectTitle ?? '',
-            g.units != null ? _num(g.units!) : '',
-            g.midtermGrade?.toStringAsFixed(2) ?? '',
-            g.finalGrade?.toStringAsFixed(2) ?? '',
-            remark(g),
-            g.teacherName ?? '',
-          ],
+        for (final g in rows) [if (bySubject) g.termLabel ?? '', ...gradeCells(g)],
       ],
-      totals: bySubject
-          ? null
-          : ['', 'GWA', _num(rows.where((g) => g.loadStatus == null || g.loadStatus == 1).fold(0.0, (s, g) => s + (g.units ?? 0))), '',
-              gwa?.toStringAsFixed(2) ?? '-', '', ''],
+      totals: bySubject ? null : gradeTotals(rows),
+      fills: [for (final g in rows) _gradeFill(g)],
       widths: {
         if (bySubject) 0: const pw.FixedColumnWidth(84),
         (bySubject ? 1 : 0): const pw.FixedColumnWidth(50),

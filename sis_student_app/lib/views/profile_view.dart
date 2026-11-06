@@ -4,6 +4,7 @@ import '../blocs/profile_bloc.dart';
 import '../models/student_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/password_reset.dart';
 
 class ProfileView extends StatefulWidget {
   final String email;
@@ -254,6 +255,13 @@ class _ProfileViewState extends State<ProfileView> {
           _detailRow('Email', widget.email, stacked: true),
           _divider(),
           _detailRow('Role', 'Student'),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('change_password_button'),
+            icon: const Icon(Icons.lock_reset_rounded, size: 18),
+            label: const Text('Change password'),
+            onPressed: () => confirmChangePassword(context, widget.email),
+          ),
         ],
       ),
     );

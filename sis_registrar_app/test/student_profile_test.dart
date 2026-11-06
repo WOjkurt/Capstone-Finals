@@ -72,7 +72,7 @@ void main() {
         body = {'items': [], 'page': 1, 'pageSize': 25, 'totalCount': 0};
       } else if (path.endsWith('/api/studyloads/unit-limit')) {
         body = {'maxUnits': 21, 'currentUnits': 0};
-      } else if (path.endsWith('/api/grades/student/u1')) {
+      } else if (path.endsWith('/api/student-records/u1/grades')) {
         body = [
           {'gradeId': 'g1', 'subjectCode': 'IT 101', 'subjectTitle': 'Intro', 'units': 3, 'finalGrade': 1.5, 'remarks': 1, 'loadStatus': 1, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
           {'gradeId': 'g2', 'subjectCode': 'IT 102', 'subjectTitle': 'Prog', 'units': 1, 'finalGrade': 3.5, 'remarks': 2, 'loadStatus': 1, 'schoolYear': '2025-2026', 'semester': 2, 'termLabel': '2025-2026 (2nd Sem)'},
@@ -209,10 +209,9 @@ void main() {
     expect(find.descendant(of: find.byKey(const ValueKey('evaluation_earned')), matching: find.text('6')), findsOneWidget);
     expect(find.text('units earned of 9'), findsOneWidget);
     expect(find.text('67% of the curriculum done'), findsOneWidget);
-    expect(find.text('1st Year · 1st Sem'), findsOneWidget);
-    expect(find.text('2nd Year · 1st Sem'), findsOneWidget);
-    expect(find.text('3 units · Minor · from USC'), findsOneWidget);
-    for (final c in ['IT 101', 'GE 1', 'IT 201']) {
+    expect(find.text('FIRST YEAR FIRST SEMESTER'), findsOneWidget);
+    expect(find.text('Credited - USC'), findsOneWidget);
+    for (final c in ['IT 101', 'GE 1']) {
       expect(find.byKey(ValueKey('evaluation_row_$c')), findsOneWidget, reason: c);
     }
 
@@ -221,6 +220,8 @@ void main() {
     expect(find.byKey(const ValueKey('evaluation_row_IT 101')), findsNothing);
     expect(find.byKey(const ValueKey('evaluation_row_GE 1')), findsNothing);
     expect(find.byKey(const ValueKey('evaluation_row_IT 201')), findsOneWidget);
+    expect(find.text('SECOND YEAR FIRST SEMESTER'), findsOneWidget);
+    expect(find.text('Not yet taken'), findsNWidgets(2));   // the row and the color key
   });
 
   testWidgets('Grades and Evaluation each print a PDF', (tester) async {
