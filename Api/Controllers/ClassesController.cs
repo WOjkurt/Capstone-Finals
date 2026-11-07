@@ -46,7 +46,7 @@ public class ClassesController : ControllerBase
 
         if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         int? programScope = null;
@@ -83,7 +83,7 @@ public class ClassesController : ControllerBase
                 // If teacherUserId is sent and is not caller's id, return 403.
                 if (teacherUserId.HasValue && teacherUserId.Value != authUserId)
                 {
-                    return Forbid();
+                    return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
                 }
                 teacherScope = authUserId;
                 break;
@@ -94,7 +94,7 @@ public class ClassesController : ControllerBase
                 break;
 
             default:
-                return Forbid();
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         var classes = await _classService.GetAllAsync(termId, subjectId, teacherScope, programScope, studentScope, yearLevel);
@@ -111,7 +111,7 @@ public class ClassesController : ControllerBase
 
         if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         var classDto = await _classService.GetByIdAsync(id);
@@ -123,7 +123,7 @@ public class ClassesController : ControllerBase
         var canAccess = await _classService.CanAccessClassAsync(id, authUserId, role);
         if (!canAccess)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         return Ok(classDto);
@@ -413,7 +413,7 @@ public class ClassesController : ControllerBase
 
         if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         // Only Admin(1), Registrar(2), Program Head(4) allowed

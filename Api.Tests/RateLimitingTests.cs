@@ -265,14 +265,14 @@ public class RateLimitingTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Search_FakeUnsignedTokenWithDifferentSubPerRequest_StillLimitedByIP()
     {
-        // Arrange — configure SearchPermitLimit = 2
+        // Arrange — fake tokens never reach the per-person limits, so the address guard must stop them
         var searchFactory = _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((ctx, config) =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["RateLimiting:SearchPermitLimit"] = "2"
+                    ["RateLimiting:IpPermitLimit"] = "2"
                 });
             });
         });

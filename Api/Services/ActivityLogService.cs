@@ -62,7 +62,7 @@ public class ActivityLogService : IActivityLogService
                 ActivityLogID = Guid.NewGuid(),
                 OccurredAt = DateTime.UtcNow,
                 ActorUserID = actorId,
-                ActorName = await NameOfAsync(actorId) ?? "Unknown staff",
+                ActorName = await NameOfAsync(actorId) ?? (actorId.HasValue ? "Unknown staff" : "Not signed in"),
                 ActorRole = role,
                 Action = action,
                 StudentUserID = studentId,

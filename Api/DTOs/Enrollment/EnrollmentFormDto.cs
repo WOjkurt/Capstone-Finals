@@ -8,15 +8,19 @@ public class EnrollmentFormDto
     // ── Name ────────────────────────────────────────────────────────────────
     [Required]
     [StringLength(ValidationConstants.NameMax)]
+    [Api.Common.PersonName]
     public required string FirstName { get; set; }
     [Required]
     [StringLength(ValidationConstants.ShortMax)]
+    [Api.Common.PersonName]
     public required string MiddleName { get; set; }
     [Required]
     [StringLength(ValidationConstants.NameMax)]
+    [Api.Common.PersonName]
     public required string LastName { get; set; }
     [Required]
     [StringLength(ValidationConstants.ShortMax)]
+    [Api.Common.PersonName]
     public required string Suffix { get; set; }
 
     // ── Personal Information ─────────────────────────────────────────────────

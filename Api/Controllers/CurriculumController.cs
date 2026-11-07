@@ -22,6 +22,7 @@ public class CurriculumController : ControllerBase
 
     [HttpPost("import")]
     [RequireRegistrarOrAdmin]
+    [RequestSizeLimit(10_000_000)]
     public async Task<IActionResult> Import(
         [FromForm] IFormFile? file,
         [FromQuery] bool dryRun = true,

@@ -118,8 +118,8 @@ public class PersonalDetailsDto
 /// <summary>What the Registrar saves. An empty field means "use the enrollment form".</summary>
 public class UpdatePersonalDetailsDto
 {
-    [System.ComponentModel.DataAnnotations.MaxLength(100)] public string? MiddleName { get; set; }
-    [System.ComponentModel.DataAnnotations.MaxLength(20)] public string? Suffix { get; set; }
+    [Api.Common.PersonName] [System.ComponentModel.DataAnnotations.MaxLength(100)] public string? MiddleName { get; set; }
+    [Api.Common.PersonName] [System.ComponentModel.DataAnnotations.MaxLength(20)] public string? Suffix { get; set; }
     [System.ComponentModel.DataAnnotations.MaxLength(300)] public string? Address { get; set; }
     public DateOnly? DateOfBirth { get; set; }
     [System.ComponentModel.DataAnnotations.MaxLength(150)] public string? PlaceOfBirth { get; set; }

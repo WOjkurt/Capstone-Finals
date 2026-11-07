@@ -12,12 +12,12 @@ public class CreateStaffDto
 
     [Required]
     [StringLength(100, MinimumLength = 1)]
-    [RegularExpression(@"^[\p{L}\p{M}\s\-'’\.]+$")]
+    [Api.Common.PersonName]
     public required string Firstname { get; set; }
 
     [Required]
     [StringLength(100, MinimumLength = 1)]
-    [RegularExpression(@"^[\p{L}\p{M}\s\-'’\.]+$")]
+    [Api.Common.PersonName]
     public required string Lastname { get; set; }
 
     [Required]

@@ -1,8 +1,7 @@
-using System.Security.Cryptography;
-using System.Text;
 using Api.Auth;
 using Api.DTOs.Enrollment;
 using Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -13,35 +12,19 @@ namespace Api.Controllers;
 public class EnrollmentResponsesController : ControllerBase
 {
     private readonly IEnrollmentService _enrollmentService;
-    private readonly IConfiguration _configuration;
 
-    public EnrollmentResponsesController(IEnrollmentService enrollmentService, IConfiguration configuration)
+    public EnrollmentResponsesController(IEnrollmentService enrollmentService)
     {
         _enrollmentService = enrollmentService;
-        _configuration = configuration;
     }
 
     [HttpPost]
+    [AllowAnonymous]
+    [RequireWebhookSecret]
     [EnableRateLimiting("webhook")]
     [RequestSizeLimit(65_536)] // 64 KB — more than sufficient for a Forms webhook payload
     public async Task<IActionResult> CreateResponse([FromBody] CreateEnrollmentResponseDto dto)
     {
-        string? secretHeader = Request.Headers["X-Webhook-Secret"].FirstOrDefault();
-        string? expectedSecret = _configuration["Webhook:GoogleFormsSecret"];
-
-        if (string.IsNullOrEmpty(expectedSecret) || string.IsNullOrEmpty(secretHeader))
-        {
-            return Unauthorized(new { message = "Invalid or missing webhook secret." });
-        }
-
-        var headerBytes = Encoding.UTF8.GetBytes(secretHeader);
-        var expectedBytes = Encoding.UTF8.GetBytes(expectedSecret);
-
-        if (!CryptographicOperations.FixedTimeEquals(headerBytes, expectedBytes))
-        {
-            return Unauthorized(new { message = "Invalid or missing webhook secret." });
-        }
-
         var responseId = await _enrollmentService.CreateResponseAsync(dto);
         return CreatedAtAction(nameof(GetResponseById), new { id = responseId }, new { responseID = responseId });
     }

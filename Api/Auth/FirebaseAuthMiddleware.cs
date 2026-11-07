@@ -19,6 +19,16 @@ public class FirebaseAuthMiddleware
         _verifier = verifier;
     }
 
+    /// <summary>Password failures stay with Firebase. These are real accounts the school refuses.</summary>
+    private static Task RecordBlockedAsync(HttpContext context, string email, Guid? userId, string reason)
+    {
+        var events = context.RequestServices?.GetService<Api.Services.SecurityEventLog>();
+        return events == null
+            ? Task.CompletedTask
+            : events.RecordAsync($"signin:{email}:{reason}", userId, Api.Domain.Audit.ActivityActions.SignInBlocked,
+                $"Sign-in blocked for {email}: {reason}");
+    }
+
     public async Task InvokeAsync(HttpContext context, AppDbContext db, IConfiguration configuration)
     {
         string? authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
@@ -83,6 +93,7 @@ public class FirebaseAuthMiddleware
 
         if (!SchoolEmailValidator.IsValidDomain(email, configuredDomain))
         {
+            await RecordBlockedAsync(context, email, null, "not a school email");
             _logger.LogWarning("Auth rejected: email domain not in allowed list. EmailDomain={EmailDomain}, AllowedDomain={AllowedDomain}", emailDomain, configuredDomain);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
@@ -146,6 +157,7 @@ public class FirebaseAuthMiddleware
                 // The token is valid (authenticated) but this email has no registered account.
                 // Use 403 (not 401) so clients do NOT trigger a re-login loop on 401.
                 // Generic message: we do not reveal whether an application exists.
+                await RecordBlockedAsync(context, email, null, "no registered account");
                 _logger.LogInformation("Auth denied: no registered account found for this email. Auto-creation skipped.");
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";
@@ -171,6 +183,7 @@ public class FirebaseAuthMiddleware
 
         if (!user.IsActive)
         {
+            await RecordBlockedAsync(context, email, user.UserID, "account is disabled");
             _logger.LogWarning("Auth denied: account is disabled. UserID={UserID}", user.UserID);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";

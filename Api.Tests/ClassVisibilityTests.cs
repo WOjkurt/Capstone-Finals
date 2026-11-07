@@ -293,7 +293,7 @@ public class ClassVisibilityControllerTests
         var result = await _controller.GetAll(null, null, otherTeacherId, null);
 
         // Assert
-        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
         _classServiceMock.Verify(s => s.GetAllAsync(It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<int?>(), It.IsAny<Guid?>(), It.IsAny<int?>()), Times.Never);
     }
 
@@ -327,7 +327,7 @@ public class ClassVisibilityControllerTests
         var result = await _controller.GetAll(null, null, null, null);
 
         // Assert
-        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
     // ── GetById: Role-based Visibility ────────────────────────────────────────
@@ -365,7 +365,7 @@ public class ClassVisibilityControllerTests
         var result = await _controller.GetById(classId);
 
         // Assert
-        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
     [Fact]
@@ -399,7 +399,7 @@ public class ClassVisibilityControllerTests
         var result = await _controller.GetById(classId);
 
         // Assert
-        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
     [Fact]
@@ -433,7 +433,7 @@ public class ClassVisibilityControllerTests
         var result = await _controller.GetById(classId);
 
         // Assert
-        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
     [Fact]

@@ -7,9 +7,11 @@ public class ContactDto
 {
     [Required]
     [StringLength(ValidationConstants.NameMax)]
+    [Api.Common.PersonName]
     public required string FirstName { get; set; }
     [Required]
     [StringLength(ValidationConstants.NameMax)]
+    [Api.Common.PersonName]
     public required string LastName { get; set; }
 
     /// <summary>1 = Father, 2 = Mother, 3 = Guardian.</summary>

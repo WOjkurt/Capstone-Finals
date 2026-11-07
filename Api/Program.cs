@@ -109,10 +109,12 @@ if (!string.IsNullOrEmpty(firebaseProjectId) && FirebaseApp.DefaultInstance == n
 
 
 
-// Rate Limiting Configuration (configurable in appsettings for testing and scaling)
-var globalPermitLimit = builder.Configuration.GetValue("RateLimiting:GlobalPermitLimit", 100);
-var webhookPermitLimit = builder.Configuration.GetValue("RateLimiting:WebhookPermitLimit", 10);
-var searchPermitLimit = builder.Configuration.GetValue("RateLimiting:SearchPermitLimit", 30);
+// Rate limits count per signed-in person, and per address for everyone else. Students on campus Wi-Fi
+// share one address, so counting by address alone would make them use up each other's limit.
+static string RateLimitKey(HttpContext context) =>
+    context.Items.TryGetValue("user_id", out var id) && id is Guid userId
+        ? $"user:{userId}"
+        : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip"}";
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -138,13 +140,12 @@ builder.Services.AddRateLimiter(options =>
         }, cancellationToken);
     };
 
-    // Global limiter: partition by client IP, 100 requests/minute (configurable)
+    // Global limiter: 100 requests/minute (configurable)
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
         var limit = config.GetValue("RateLimiting:GlobalPermitLimit", 100);
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
-        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = limit,
             Window = TimeSpan.FromMinutes(1),
@@ -157,8 +158,7 @@ builder.Services.AddRateLimiter(options =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
         var limit = config.GetValue("RateLimiting:WebhookPermitLimit", 60);
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
-        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = limit,
             Window = TimeSpan.FromMinutes(1),
@@ -166,14 +166,12 @@ builder.Services.AddRateLimiter(options =>
         });
     });
 
-    // Policy "search": 30 requests/minute per IP (configurable).
-    // Partitioned by IP only — never reads an unverified token.
+    // Policy "search": 30 requests/minute (configurable).
     options.AddPolicy("search", httpContext =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
         var limit = config.GetValue("RateLimiting:SearchPermitLimit", 30);
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
-        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = limit,
             Window = TimeSpan.FromMinutes(1),
@@ -182,7 +180,12 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-builder.Services.AddControllers()
+builder.Services.AddSingleton<SecurityEventLog>();
+
+// Largest request accepted. The curriculum upload sets its own higher limit.
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 2_000_000);
+
+builder.Services.AddControllers(options => options.Filters.Add<RequireSignedInFilter>(AuthFilterOrder.SignedIn))
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>
@@ -274,16 +277,22 @@ app.UseRouting();
 // 5. CORS (before rate limiter so preflight OPTIONS passes without consuming quota)
 app.UseCors("Frontend");
 
-// 6. Rate Limiter
-app.UseRateLimiter();
+// 6. Flood guard (before sign-in, so fake tokens are counted too)
+app.UseMiddleware<Api.Middleware.IpFloodGuardMiddleware>();
 
 // 7. Auth Middleware
 app.UseMiddleware<FirebaseAuthMiddleware>();
 
-// 8. Authorization
+// 8. Records refused requests
+app.UseMiddleware<Api.Middleware.DeniedRequestLogMiddleware>();
+
+// 9. Rate Limiter (after sign-in, so it can count per person)
+app.UseRateLimiter();
+
+// 10. Authorization
 app.UseAuthorization();
 
-// 9. Controllers
+// 11. Controllers
 app.MapControllers();
 
 app.Run();

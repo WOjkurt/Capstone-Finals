@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Api.Domain.Enrollment;
 using Api.Domain.IdentityAccess;
 using Api.DTOs.Enrollment;
@@ -72,6 +73,14 @@ public class EnrollmentService : IEnrollmentService
         };
         var dataJson = JsonSerializer.Serialize(responseData, jsonOptions);
 
+        // Google can deliver the same submission twice. A corrected form has different answers and is kept.
+        var duplicateId = await FindDuplicateResponseAsync(dto.EmailAddress, dataJson);
+        if (duplicateId.HasValue)
+        {
+            _logger.LogInformation("Ignored a repeated enrollment form submission. ResponseID={ResponseId}", duplicateId);
+            return duplicateId.Value;
+        }
+
         var response = new EnrollmentResponse
         {
             ResponseID = Guid.NewGuid(),
@@ -83,6 +92,23 @@ public class EnrollmentService : IEnrollmentService
 
         await _responseRepository.AddAsync(response);
         return response.ResponseID;
+    }
+
+    private async Task<Guid?> FindDuplicateResponseAsync(string email, string dataJson)
+    {
+        var since = DateTime.UtcNow.AddHours(-24);
+        var normalizedEmail = email.ToLower();
+        var recent = await _context.EnrollmentResponses
+            .AsNoTracking()
+            .Where(r => r.EmailAddress.ToLower() == normalizedEmail && r.Timestamp >= since)
+            .ToListAsync();
+
+        // Compared as JSON because Postgres stores the keys in a different order.
+        var incoming = JsonNode.Parse(dataJson);
+        return recent
+            .Where(r => r.Data != null && JsonNode.DeepEquals(JsonNode.Parse(r.Data.RootElement.GetRawText()), incoming))
+            .Select(r => (Guid?)r.ResponseID)
+            .FirstOrDefault();
     }
 
     private void SanitizeWebhookPayload(ResponseDataDto responseData)

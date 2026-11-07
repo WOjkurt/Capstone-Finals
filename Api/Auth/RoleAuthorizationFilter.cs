@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Api.Auth;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
-public class RoleAuthorizationAttribute : Attribute, IAsyncActionFilter
+public class RoleAuthorizationAttribute : Attribute, IAsyncActionFilter, IOrderedFilter
 {
+    public int Order => AuthFilterOrder.RoleCheck;
+
     private readonly int[] _allowedRoles;
 
     public RoleAuthorizationAttribute(params int[] allowedRoles)

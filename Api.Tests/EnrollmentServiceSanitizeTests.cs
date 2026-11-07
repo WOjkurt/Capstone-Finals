@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using Api.Constants;
@@ -31,7 +32,8 @@ public class EnrollmentServiceSanitizeTests
                 .Returns(Task.CompletedTask);
 
         var svc = new EnrollmentService(
-            null!,                                            // AppDbContext — not used by SanitizeWebhookPayload
+            new TestAppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+                .UseInMemoryDatabase("Sanitize_" + Guid.NewGuid()).Options),
             repoMock.Object,
             new Mock<IEnrollmentApplicationRepository>().Object,
             new Mock<IEnrollmentFormRepository>().Object,

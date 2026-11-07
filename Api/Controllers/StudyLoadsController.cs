@@ -384,7 +384,7 @@ public class StudyLoadsController : ControllerBase
 
         if (!isSelf && !isStaff)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         if (authRole == RoleUtils.ProgramHead && !isSelf)
@@ -434,7 +434,7 @@ public class StudyLoadsController : ControllerBase
 
         if (!isRegistrarOrAdminOrCollegeHead && !isTeacher && !isProgramHead)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         if (isProgramHead && !isTeacher)

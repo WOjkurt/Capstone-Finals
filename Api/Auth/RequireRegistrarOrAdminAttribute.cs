@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Api.Auth;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
-public class RequireRegistrarOrAdminAttribute : Attribute, IAsyncActionFilter
+public class RequireRegistrarOrAdminAttribute : Attribute, IAsyncActionFilter, IOrderedFilter
 {
+    public int Order => AuthFilterOrder.RoleCheck;
+
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var httpContext = context.HttpContext;

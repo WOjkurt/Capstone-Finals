@@ -37,6 +37,8 @@ public class ActivityLog
 
 public static class ActivityActions
 {
+    public const string SignInBlocked = "SIGN_IN_BLOCKED";
+    public const string AccessDenied = "ACCESS_DENIED";
     public const string LoadsSaved = "LOADS_SAVED";
     public const string ForcedEnrollment = "FORCED_ENROLLMENT";
     public const string LoadsFinalized = "LOADS_FINALIZED";
@@ -58,6 +60,6 @@ public static class ActivityActions
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditRemoved, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
-        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged
+        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, SignInBlocked, AccessDenied
     };
 }

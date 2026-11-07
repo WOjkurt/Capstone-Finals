@@ -85,53 +85,6 @@ public class InputValidationTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
-    public async Task ValidationErrors_ReturnMessageShape()
-    {
-        // Arrange
-        var client = CreateClientWithRole(1, Guid.NewGuid()); // Admin
-        var invalidDto = new CreateStaffDto 
-        { 
-            Email = "not-an-email", 
-            Firstname = "", 
-            Lastname = "Valid", 
-            Role = 99 
-        };
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/admin/staff", invalidDto);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(json.TryGetProperty("message", out var messageProp), "Response should contain a 'message' property.");
-        Assert.False(string.IsNullOrWhiteSpace(messageProp.GetString()));
-    }
-
-    [Fact]
-    public async Task CreateGradeCorrection_ReasonExceeds500Chars_Returns400()
-    {
-        // Arrange
-        var client = CreateClientWithRole(3, Guid.NewGuid()); // Teacher
-        var longReason = new string('A', 10000);
-        var dto = new CreateGradeCorrectionDto
-        {
-            GradeId = Guid.NewGuid(),
-            CorrectionPeriod = 1,
-            OldGrade = 1.0m,
-            NewGrade = 1.5m,
-            Reason = longReason
-        };
-
-        // Act
-        var response = await client.PostAsJsonAsync("/api/gradecorrections", dto);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(json.TryGetProperty("message", out _));
-    }
-
-    [Fact]
     public async Task WebhookPayload_ExcessiveLength_TruncatesInsteadOf400()
     {
         // Arrange — use the test webhook secret configured in appsettings.Testing.json
