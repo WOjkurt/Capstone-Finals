@@ -1,6 +1,8 @@
 /// Labels for the server's activity codes, in the order shown in the filter.
 const Map<String, String> kActivityActionLabels = {
   'LOADS_SAVED': 'Study load saved',
+  'SIGN_IN_BLOCKED': 'Sign-in blocked',
+  'ACCESS_DENIED': 'Access refused',
   'FORCED_ENROLLMENT': 'Forced enrollment',
   'LOADS_FINALIZED': 'Loads finalized',
   'LOAD_STATUS_CHANGED': 'Load status changed',
