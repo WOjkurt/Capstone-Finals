@@ -4,6 +4,7 @@ import '../blocs/responses_bloc.dart';
 import '../models/enrollment_models.dart';
 import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
+import 'widgets/enye_button.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../utils/formatters.dart';
@@ -1256,9 +1257,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                     flex: 3,
                     child: TextFormField(
                       controller: _firstNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'First Name *',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _firstNameCtrl),
                       ),
                       validator: (v) => v!.trim().isEmpty ? 'First name required' : null,
                     ),
@@ -1268,9 +1270,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                     flex: 3,
                     child: TextFormField(
                       controller: _middleNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Middle Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _middleNameCtrl),
                       ),
                     ),
                   ),
@@ -1279,9 +1282,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                     flex: 3,
                     child: TextFormField(
                       controller: _lastNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Last Name *',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _lastNameCtrl),
                       ),
                       validator: (v) => v!.trim().isEmpty ? 'Last name required' : null,
                     ),
@@ -1878,9 +1882,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                   Expanded(
                     child: TextFormField(
                       controller: _fatherFirstNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'First Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _fatherFirstNameCtrl),
                       ),
                     ),
                   ),
@@ -1888,9 +1893,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                   Expanded(
                     child: TextFormField(
                       controller: _fatherLastNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Last Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _fatherLastNameCtrl),
                       ),
                     ),
                   ),
@@ -1980,9 +1986,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                   Expanded(
                     child: TextFormField(
                       controller: _motherFirstNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'First Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _motherFirstNameCtrl),
                       ),
                     ),
                   ),
@@ -1990,9 +1997,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                   Expanded(
                     child: TextFormField(
                       controller: _motherLastNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Last Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _motherLastNameCtrl),
                       ),
                     ),
                   ),
@@ -2074,9 +2082,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                   Expanded(
                     child: TextFormField(
                       controller: _guardianFirstNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'First Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _guardianFirstNameCtrl),
                       ),
                     ),
                   ),
@@ -2084,9 +2093,10 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                   Expanded(
                     child: TextFormField(
                       controller: _guardianLastNameCtrl,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Last Name',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: EnyeButton(controller: _guardianLastNameCtrl),
                       ),
                     ),
                   ),

@@ -5,6 +5,7 @@ import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/formatters.dart';
+import 'enye_button.dart';
 
 /// The student's personal details for their records (Transcript of Records). Starts from the
 /// enrollment form; the Registrar fills in what is missing or corrects what is wrong.
@@ -249,7 +250,13 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
           child: TextField(
             key: ValueKey('details_$key'),
             controller: _c[key],
-            decoration: InputDecoration(labelText: label, hintText: hint, border: const OutlineInputBorder(), isDense: true),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              border: const OutlineInputBorder(),
+              isDense: true,
+              suffixIcon: key == 'middleName' ? EnyeButton(controller: _c[key]!) : null,
+            ),
           ),
         );
     return Column(

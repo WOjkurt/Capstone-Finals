@@ -7,6 +7,7 @@ import '../models/setup_models.dart';
 import '../models/staff_model.dart';
 import '../repositories/enrollment_repository.dart';
 import '../theme/app_theme.dart';
+import 'widgets/enye_button.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../utils/formatters.dart';
@@ -235,9 +236,10 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                   child: TextFormField(
                                     key: const ValueKey('staff_first_name_field'),
                                     controller: firstCtrl,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'First Name *',
-                                      border: OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: EnyeButton(controller: firstCtrl),
                                     ),
                                     textCapitalization: TextCapitalization.words,
                                     validator: (val) => (val == null || val.trim().isEmpty)
@@ -250,9 +252,10 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                   child: TextFormField(
                                     key: const ValueKey('staff_last_name_field'),
                                     controller: lastCtrl,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'Last Name *',
-                                      border: OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: EnyeButton(controller: lastCtrl),
                                     ),
                                     textCapitalization: TextCapitalization.words,
                                     validator: (val) => (val == null || val.trim().isEmpty)
@@ -473,9 +476,10 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                 Expanded(
                                   child: TextFormField(
                                     controller: firstCtrl,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'First Name *',
-                                      border: OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: EnyeButton(controller: firstCtrl),
                                     ),
                                     textCapitalization: TextCapitalization.words,
                                     validator: (val) => (val == null || val.trim().isEmpty)
@@ -487,9 +491,10 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                                 Expanded(
                                   child: TextFormField(
                                     controller: lastCtrl,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'Last Name *',
-                                      border: OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: EnyeButton(controller: lastCtrl),
                                     ),
                                     textCapitalization: TextCapitalization.words,
                                     validator: (val) => (val == null || val.trim().isEmpty)
