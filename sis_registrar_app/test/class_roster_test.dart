@@ -71,6 +71,10 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
   @override
   Future<void> deleteTerm(String id) async {}
   @override
+  Future<AcademicTermModel> setEnrollmentPeriod(String id, {DateTime? opensOn, DateTime? closesOn}) async =>
+      throw UnimplementedError();
+
+  @override
   Future<AcademicTermModel> activateTerm(String id) async => throw UnimplementedError();
   @override
   Future<List<SubjectModel>> getSubjects({int? programId, int? yearLevel}) async => [];

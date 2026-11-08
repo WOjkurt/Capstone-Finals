@@ -232,6 +232,18 @@ class AcademicSetupRepository {
     if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
   }
 
+  /// Sets the days old students can enroll online; both null closes enrollment.
+  Future<AcademicTermModel> setEnrollmentPeriod(String id, {DateTime? opensOn, DateTime? closesOn}) async {
+    String? day(DateTime? d) => d == null
+        ? null
+        : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(Uri.parse('$baseUrl/api/AcademicTerms/$id/enrollment-period'),
+        headers: headers, body: jsonEncode({'opensOn': day(opensOn), 'closesOn': day(closesOn)}));
+    if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    return AcademicTermModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<AcademicTermModel> activateTerm(String id) async {
     final headers = await _auth.getAuthHeaders();
     final res = await http.patch(

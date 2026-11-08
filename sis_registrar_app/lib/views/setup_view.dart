@@ -11,6 +11,7 @@ import 'widgets/open_term_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/accredited_schools_tab.dart';
+import 'widgets/enrollment_period.dart';
 import 'widgets/unit_limits_tab.dart';
 import '../repositories/report_repository.dart';
 import '../utils/report_pdf.dart';
@@ -447,19 +448,15 @@ class _TermsTab extends StatelessWidget {
                         horizontalMargin: 24,
                         columns: const [
                           DataColumn(
-                            label: Text('School Year',
-                                style: TextStyle(fontWeight: FontWeight.w700)),
-                          ),
-                          DataColumn(
-                            label: Text('Semester',
-                                style: TextStyle(fontWeight: FontWeight.w700)),
-                          ),
-                          DataColumn(
-                            label: Text('Term Label',
+                            label: Text('Term',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           DataColumn(
                             label: Text('Status',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          DataColumn(
+                            label: Text('Online Enrollment',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           DataColumn(
@@ -468,17 +465,8 @@ class _TermsTab extends StatelessWidget {
                           ),
                         ],
                         rows: state.terms.map((t) {
-                          final semText = t.semester == 1
-                              ? '1st Semester'
-                              : t.semester == 2
-                                  ? '2nd Semester'
-                                  : 'Summer Term';
-
                           return DataRow(
                             cells: [
-                              DataCell(Text(t.schoolYear,
-                                  style: const TextStyle(fontWeight: FontWeight.w600))),
-                              DataCell(Text(semText)),
                               DataCell(
                                 Text(
                                   t.label,
@@ -537,6 +525,7 @@ class _TermsTab extends StatelessWidget {
                                         ),
                                       ),
                               ),
+                              DataCell(EnrollmentPeriodCell(term: t)),
                               DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -574,6 +563,20 @@ class _TermsTab extends StatelessWidget {
                                       onPressed: () => context
                                           .read<SetupBloc>()
                                           .add(SelectTermForClassesEvent(t.termId)),
+                                    ),
+                                    IconButton(
+                                      key: ValueKey('enrollment_dates_${t.termId}'),
+                                      icon: const Icon(Icons.event_available_outlined,
+                                          size: 18,
+                                          color: AppColors.primary),
+                                      tooltip: 'Set Enrollment Dates',
+                                      onPressed: () async {
+                                        final bloc = context.read<SetupBloc>();
+                                        final choice = await showEnrollmentPeriodDialog(context, t);
+                                        if (choice != null) {
+                                          bloc.add(SetEnrollmentPeriodEvent(t.termId, choice.opensOn, choice.closesOn));
+                                        }
+                                      },
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.edit_outlined,

@@ -59,6 +59,13 @@ class DeleteTermEvent extends SetupEvent {
   DeleteTermEvent(this.id);
 }
 
+class SetEnrollmentPeriodEvent extends SetupEvent {
+  final String id;
+  final DateTime? opensOn;
+  final DateTime? closesOn;
+  SetEnrollmentPeriodEvent(this.id, this.opensOn, this.closesOn);
+}
+
 class ActivateTermEvent extends SetupEvent {
   final String id;
   ActivateTermEvent(this.id);
@@ -181,6 +188,7 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
     on<UpdateTermEvent>(_onUpdateTerm);
     on<DeleteTermEvent>(_onDeleteTerm);
     on<ActivateTermEvent>(_onActivateTerm);
+    on<SetEnrollmentPeriodEvent>(_onSetEnrollmentPeriod);
     on<CreateSubjectEvent>(_onCreateSubject);
     on<UpdateSubjectEvent>(_onUpdateSubject);
     on<DeleteSubjectEvent>(_onDeleteSubject);
@@ -315,6 +323,25 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
         isSubmitting: false,
         terms: updated,
         successMessage: 'Academic Term updated successfully!',
+      ));
+    } catch (e, st) {
+      emit(state.copyWith(
+        isSubmitting: false,
+        errorMessage: getFriendlyErrorMessage(e, st),
+      ));
+    }
+  }
+
+  Future<void> _onSetEnrollmentPeriod(
+      SetEnrollmentPeriodEvent event, Emitter<SetupState> emit) async {
+    emit(state.copyWith(isSubmitting: true, clearMessages: true));
+    try {
+      await _setupRepo.setEnrollmentPeriod(event.id, opensOn: event.opensOn, closesOn: event.closesOn);
+      final updated = await _setupRepo.getTerms();
+      emit(state.copyWith(
+        isSubmitting: false,
+        terms: updated,
+        successMessage: event.opensOn == null ? 'Online enrollment closed.' : 'Enrollment dates saved.',
       ));
     } catch (e, st) {
       emit(state.copyWith(

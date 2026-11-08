@@ -48,6 +48,10 @@ class _FakeSetupRepo implements AcademicSetupRepository {
   Future<void> deleteTerm(String id) async {}
 
   @override
+  Future<AcademicTermModel> setEnrollmentPeriod(String id, {DateTime? opensOn, DateTime? closesOn}) async =>
+      throw UnimplementedError();
+
+  @override
   Future<AcademicTermModel> activateTerm(String id) async =>
       AcademicTermModel(termId: id, schoolYear: '2025-2026', semester: 1, isActive: true);
 

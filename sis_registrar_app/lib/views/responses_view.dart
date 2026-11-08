@@ -8,6 +8,7 @@ import 'widgets/enye_button.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../utils/formatters.dart';
+import '../utils/phone_zip.dart';
 
 class ResponsesView extends StatefulWidget {
   /// False inside the Admissions page, whose tabs already name this page.
@@ -1446,7 +1447,7 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                         labelText: 'Mobile Number *',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (v) => v!.trim().isEmpty ? 'Mobile number required' : null,
+                      validator: (v) => v!.trim().isEmpty ? 'Mobile number required' : mobileError(v),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -1540,7 +1541,9 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                       decoration: const InputDecoration(
                         labelText: 'ZIP Code *',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 2,
                       ),
+                      validator: (v) => (v ?? '').trim().isEmpty ? 'ZIP code required' : zipError(v),
                     ),
                   ),
                 ],
@@ -1607,7 +1610,9 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Prov. ZIP',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 2,
                       ),
+                      validator: zipError,
                     ),
                   ),
                 ],
@@ -1907,7 +1912,9 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Contact Number',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 2,
                       ),
+                      validator: phoneError,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -2011,7 +2018,9 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Contact Number',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 2,
                       ),
+                      validator: phoneError,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -2107,7 +2116,9 @@ class _ProcessApplicationDialogState extends State<_ProcessApplicationDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Contact Number',
                         border: OutlineInputBorder(),
+                        errorMaxLines: 2,
                       ),
+                      validator: phoneError,
                     ),
                   ),
                   const SizedBox(width: 12),

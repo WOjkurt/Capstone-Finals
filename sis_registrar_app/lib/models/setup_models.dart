@@ -31,11 +31,21 @@ class AcademicTermModel {
   final int semester;
   final bool isActive;
 
+  /// The days old students can enroll online (both empty means closed).
+  final DateTime? enrollmentOpensOn;
+  final DateTime? enrollmentClosesOn;
+
+  /// Worked out by the API from today's date in the Philippines.
+  final bool isEnrollmentOpen;
+
   const AcademicTermModel({
     required this.termId,
     required this.schoolYear,
     required this.semester,
     this.isActive = false,
+    this.enrollmentOpensOn,
+    this.enrollmentClosesOn,
+    this.isEnrollmentOpen = false,
   });
 
   factory AcademicTermModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +54,9 @@ class AcademicTermModel {
       schoolYear: json['schoolYear'] as String? ?? '',
       semester: (json['semester'] as num?)?.toInt() ?? 1,
       isActive: json['isActive'] as bool? ?? false,
+      enrollmentOpensOn: DateTime.tryParse(json['enrollmentOpensOn'] as String? ?? ''),
+      enrollmentClosesOn: DateTime.tryParse(json['enrollmentClosesOn'] as String? ?? ''),
+      isEnrollmentOpen: json['isEnrollmentOpen'] as bool? ?? false,
     );
   }
 
