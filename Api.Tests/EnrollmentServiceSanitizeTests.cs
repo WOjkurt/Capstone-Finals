@@ -53,6 +53,31 @@ public class EnrollmentServiceSanitizeTests
         return JsonSerializer.Deserialize<ResponseDataDto>(captured.Data.RootElement.GetRawText(), opts)?.Form;
     }
 
+    [Fact]
+    public async Task CreateResponse_NamesLoseAccents_OtherFieldsKeepThem()
+    {
+        var (service, repo) = BuildService();
+        EnrollmentResponse? saved = null;
+        repo.Setup(r => r.AddAsync(It.IsAny<EnrollmentResponse>()))
+            .Callback<EnrollmentResponse>(r => saved = r)
+            .Returns(Task.CompletedTask);
+
+        await service.CreateResponseAsync(new CreateEnrollmentResponseDto
+        {
+            EmailAddress = "applicant@example.com",
+            Form = new ResponseFormDataDto { FirstName = "José", LastName = "Peña", PlaceOfBirth = "Parañaque, José Panganiban" },
+            Contacts = [new ResponseContactDto { FirstName = "María", LastName = "Núñez" }],
+        });
+
+        var form = ExtractForm(saved!)!;
+        var contact = Assert.Single(ExtractContacts(saved!));
+        Assert.Equal("Jose", form.FirstName);
+        Assert.Equal("Peña", form.LastName);
+        Assert.Equal("Parañaque, José Panganiban", form.PlaceOfBirth);
+        Assert.Equal("Maria", contact.FirstName);
+        Assert.Equal("Nuñez", contact.LastName);
+    }
+
     private static List<ResponseContactDto> ExtractContacts(EnrollmentResponse captured)
     {
         if (captured.Data == null) return [];

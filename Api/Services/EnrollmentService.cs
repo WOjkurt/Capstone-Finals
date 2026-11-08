@@ -125,13 +125,17 @@ public class EnrollmentService : IEnrollmentService
             return trimmed;
         }
 
+        // The Registrar reviews the same plain spelling that will be saved.
+        string? Name(string? value, int maxLen, string fieldName) =>
+            Truncate(value is null ? null : PersonNameText.Plain(value), maxLen, fieldName);
+
         var f = responseData.Form;
         if (f != null)
         {
-            f.FirstName = Truncate(f.FirstName, ValidationConstants.NameMax, nameof(f.FirstName)) ?? string.Empty;
-            f.MiddleName = Truncate(f.MiddleName, ValidationConstants.ShortMax, nameof(f.MiddleName));
-            f.LastName = Truncate(f.LastName, ValidationConstants.NameMax, nameof(f.LastName)) ?? string.Empty;
-            f.Suffix = Truncate(f.Suffix, ValidationConstants.ShortMax, nameof(f.Suffix));
+            f.FirstName = Name(f.FirstName, ValidationConstants.NameMax, nameof(f.FirstName)) ?? string.Empty;
+            f.MiddleName = Name(f.MiddleName, ValidationConstants.ShortMax, nameof(f.MiddleName));
+            f.LastName = Name(f.LastName, ValidationConstants.NameMax, nameof(f.LastName)) ?? string.Empty;
+            f.Suffix = Name(f.Suffix, ValidationConstants.ShortMax, nameof(f.Suffix));
             f.DateOfBirth = Truncate(f.DateOfBirth, ValidationConstants.DateStringMax, nameof(f.DateOfBirth));
             f.PlaceOfBirth = Truncate(f.PlaceOfBirth, ValidationConstants.AddressMax, nameof(f.PlaceOfBirth));
             f.Sex = Truncate(f.Sex, ValidationConstants.ShortMax, nameof(f.Sex));
@@ -194,8 +198,8 @@ public class EnrollmentService : IEnrollmentService
 
         foreach (var c in responseData.Contacts)
         {
-            c.FirstName = Truncate(c.FirstName, ValidationConstants.NameMax, nameof(c.FirstName)) ?? string.Empty;
-            c.LastName = Truncate(c.LastName, ValidationConstants.NameMax, nameof(c.LastName)) ?? string.Empty;
+            c.FirstName = Name(c.FirstName, ValidationConstants.NameMax, nameof(c.FirstName)) ?? string.Empty;
+            c.LastName = Name(c.LastName, ValidationConstants.NameMax, nameof(c.LastName)) ?? string.Empty;
             c.Occupation = Truncate(c.Occupation, ValidationConstants.AddressMax, nameof(c.Occupation));
             c.ContactNo = Truncate(c.ContactNo, ValidationConstants.PhoneMax, nameof(c.ContactNo)) ?? string.Empty;
             c.Email = Truncate(c.Email, 320, nameof(c.Email));

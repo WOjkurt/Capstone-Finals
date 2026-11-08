@@ -398,3 +398,38 @@ public class PersonNameTests
     public void Message_NamesTheField() =>
         Assert.StartsWith("First Name can only use", Rule.FormatErrorMessage("FirstName"));
 }
+
+public class PersonNameTextTests
+{
+    [Theory]
+    [InlineData("José", "Jose")]
+    [InlineData("JOSÉ", "JOSE")]
+    [InlineData("Zoë Müller", "Zoe Muller")]
+    [InlineData("Jose\u0301", "Jose")]
+    [InlineData("Peña", "Peña")]
+    [InlineData("NIÑO", "NIÑO")]
+    [InlineData("Pen\u0303a", "Peña")]
+    [InlineData("O'Brien-Cruz Jr.", "O'Brien-Cruz Jr.")]
+    [InlineData("Мария", "Мария")]
+    public void Plain_RemovesAccentsButKeepsEnye(string name, string expected) =>
+        Assert.Equal(expected, PersonNameText.Plain(name));
+
+    [Fact]
+    public void SavedName_LosesAccentsBeforeTheRuleChecksIt()
+    {
+        var dto = System.Text.Json.JsonSerializer.Deserialize<Api.DTOs.Admin.UpdateStaffDto>(
+            """{"Firstname":"José","Lastname":"Peña"}""")!;
+
+        Assert.Equal("Jose", dto.Firstname);
+        Assert.Equal("Peña", dto.Lastname);
+        Assert.True(new PersonNameAttribute().IsValid(dto.Firstname));
+    }
+
+    [Fact]
+    public void SavedName_CanStayEmpty()
+    {
+        var dto = System.Text.Json.JsonSerializer.Deserialize<Api.DTOs.Admin.UpdateStaffDto>("""{"Firstname":null}""")!;
+
+        Assert.Null(dto.Firstname);
+    }
+}

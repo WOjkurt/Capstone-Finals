@@ -9,18 +9,22 @@ public class EnrollmentFormDto
     [Required]
     [StringLength(ValidationConstants.NameMax)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string FirstName { get; set; }
     [Required]
     [StringLength(ValidationConstants.ShortMax)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string MiddleName { get; set; }
     [Required]
     [StringLength(ValidationConstants.NameMax)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string LastName { get; set; }
     [Required]
     [StringLength(ValidationConstants.ShortMax)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string Suffix { get; set; }
 
     // ── Personal Information ─────────────────────────────────────────────────

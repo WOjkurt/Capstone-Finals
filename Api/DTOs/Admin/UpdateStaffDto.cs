@@ -6,10 +6,12 @@ public class UpdateStaffDto
 {
     [StringLength(100, MinimumLength = 1)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public string? Firstname { get; set; }
 
     [StringLength(100, MinimumLength = 1)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public string? Lastname { get; set; }
 
     [Range(1, 6)]

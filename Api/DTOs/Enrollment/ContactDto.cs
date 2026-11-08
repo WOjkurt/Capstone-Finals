@@ -8,10 +8,12 @@ public class ContactDto
     [Required]
     [StringLength(ValidationConstants.NameMax)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string FirstName { get; set; }
     [Required]
     [StringLength(ValidationConstants.NameMax)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string LastName { get; set; }
 
     /// <summary>1 = Father, 2 = Mother, 3 = Guardian.</summary>

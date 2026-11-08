@@ -13,11 +13,13 @@ public class CreateStaffDto
     [Required]
     [StringLength(100, MinimumLength = 1)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string Firstname { get; set; }
 
     [Required]
     [StringLength(100, MinimumLength = 1)]
     [Api.Common.PersonName]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string Lastname { get; set; }
 
     [Required]
