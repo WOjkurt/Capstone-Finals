@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/formatters.dart';
 import 'enye_button.dart';
+import 'holds_card.dart';
 
 /// The student's personal details for their records (Transcript of Records). Starts from the
 /// enrollment form; the Registrar fills in what is missing or corrects what is wrong.
@@ -187,6 +188,7 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
         );
     return ListView(
       children: [
+        HoldsCard(key: ValueKey('holds_${widget.userId}'), userId: widget.userId),
         Row(
           children: [
             Expanded(

@@ -12,6 +12,7 @@ import 'package:sis_registrar_app/repositories/activity_log_repository.dart';
 import 'package:sis_registrar_app/repositories/class_repository.dart';
 import 'package:sis_registrar_app/repositories/enrollment_repository.dart';
 import 'package:sis_registrar_app/repositories/grading_repository.dart';
+import 'package:sis_registrar_app/repositories/hold_repository.dart';
 import 'package:sis_registrar_app/repositories/student_record_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
 import 'package:sis_registrar_app/utils/study_load_pdf.dart';
@@ -132,6 +133,7 @@ void main() {
     getIt.registerSingleton<CreditedSubjectRepository>(CreditedSubjectRepository(auth, client: client));
     getIt.registerSingleton<ActivityLogRepository>(ActivityLogRepository(auth, client: client));
     getIt.registerSingleton<StudentRecordRepository>(StudentRecordRepository(auth, client: client));
+    getIt.registerSingleton<HoldRepository>(HoldRepository(auth, client: client));
     savedDetails = null;
   });
 
@@ -296,6 +298,9 @@ void main() {
 
   testWidgets('Details: a student without a form shows what the TOR is missing; Edit and Save sends the values', (tester) async {
     await pump(tester);
+    // Taller screen: the Holds card sits above the details.
+    await tester.binding.setSurfaceSize(const Size(1440, 1100));
+    await tester.pumpAndSettle();
     await tester.tap(tab('Details'));
     await tester.pumpAndSettle();
 
