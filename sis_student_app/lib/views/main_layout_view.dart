@@ -8,9 +8,11 @@ import '../blocs/schedule_bloc.dart';
 import '../injection.dart';
 import '../theme/app_theme.dart';
 import 'clearance_status_view.dart';
+import 'enrollment_view.dart';
 import 'grades_view.dart';
 import 'profile_view.dart';
 import 'schedule_view.dart';
+import 'widgets/idle_sign_out.dart';
 
 /// Width breakpoint that separates mobile (bottom nav) from
 /// tablet/desktop (left sidebar) layouts.
@@ -18,6 +20,9 @@ const double _kSidebarBreakpoint = 700.0;
 
 /// Below this width the left menu shows icons only, as in the staff apps.
 const double _kCompactBelow = 1280.0;
+
+/// Signed out after this long with no taps, clicks or typing (shared or lab computers).
+const Duration idleTimeout = Duration(minutes: 15);
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -46,6 +51,12 @@ class MainLayoutView extends StatefulWidget {
         'label': 'Clearance',
         'icon': Icons.verified_user_outlined,
         'activeIcon': Icons.verified_user_rounded,
+      },
+      {
+        'title': 'Enrollment',
+        'label': 'Enroll',
+        'icon': Icons.how_to_reg_outlined,
+        'activeIcon': Icons.how_to_reg_rounded,
       },
       {
         'title': 'Profile',
@@ -126,6 +137,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           create: (_) => getIt<ClearanceBloc>(),
           child: ClearanceStatusView(userId: widget.auth.userId),
         ),
+        const EnrollmentView(),
         BlocProvider<ProfileBloc>(
           create: (_) => getIt<ProfileBloc>(),
           child: ProfileView(email: widget.auth.email),
@@ -139,7 +151,10 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     final navItems = _navItems;
     final currentIndex = _selectedIndex < navItems.length ? _selectedIndex : 0;
 
-    return LayoutBuilder(
+    return IdleSignOut(
+      timeout: idleTimeout,
+      onTimeout: () => context.read<AuthBloc>().add(LogoutRequested()),
+      child: LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _kSidebarBreakpoint;
 
@@ -154,6 +169,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           return _buildNarrowLayout(context, navItems, currentIndex);
         }
       },
+      ),
     );
   }
 

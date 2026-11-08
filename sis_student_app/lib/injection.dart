@@ -3,6 +3,7 @@ import 'blocs/clearance_bloc.dart';
 import 'blocs/grades_bloc.dart';
 import 'blocs/profile_bloc.dart';
 import 'blocs/schedule_bloc.dart';
+import 'repositories/reenrollment_repository.dart';
 import 'repositories/student_repository.dart';
 import 'services/auth_service.dart';
 
@@ -15,6 +16,9 @@ void setupLocator() {
   // Repositories
   getIt.registerLazySingleton<StudentRepository>(
     () => StudentRepository(getIt<AuthService>()),
+  );
+  getIt.registerLazySingleton<ReenrollmentRepository>(
+    () => ReenrollmentRepository(getIt<AuthService>()),
   );
 
   // Blocs

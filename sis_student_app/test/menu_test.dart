@@ -47,6 +47,11 @@ Future<http.Response> fakeApi(http.Request req) async {
       {'gradeId': 'g1', 'subjectCode': 'TED 305A', 'subjectTitle': 'The Teacher and the Community, School Culture and Organizational Leadership', 'className': 'BTVTED 2A', 'units': 3, 'midtermGrade': 1.75, 'finalGrade': 1.5, 'remarks': 1, 'remarksLabel': 'Passed', 'teacherName': 'Maria Christina Dela Cruz-Santos', 'termLabel': '2026-2027 (1st Sem)'},
       {'gradeId': 'g2', 'subjectCode': 'FT 102', 'subjectTitle': 'Engineering Drawing', 'className': 'BTVTED 2A', 'units': 3, 'midtermGrade': 3.0, 'finalGrade': 5.0, 'remarks': 2, 'remarksLabel': 'Failed', 'termLabel': '2026-2027 (1st Sem)'},
     ];
+  } else if (path.endsWith('/api/me/reenrollment')) {
+    body = {
+      'state': 'OnHold', 'termLabel': '2026-2027 (2nd Sem)', 'closesOn': '2026-11-28',
+      'reasons': ['You are not yet cleared for 2026-2027 (1st Sem) Bachelor of Technical-Vocational Teacher Education.', 'Please see the Registrar.'],
+    };
   } else if (path.endsWith('/api/userdetails/me')) {
     body = {
       'userDetailID': 'd1', 'userID': 'u1', 'firstname': 'Ana Maria Concepcion', 'lastname': 'Dela Cruz-Villanueva', 'lrn': '123456789012',
@@ -89,7 +94,7 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.byKey(const ValueKey('full_sidebar')), findsNothing);
         expect(find.byKey(const ValueKey('sign_out_button')), findsOneWidget);
-        for (final label in ['Grades', 'Clearance', 'Profile', 'Schedule']) {
+        for (final label in ['Grades', 'Clearance', 'Enroll', 'Profile', 'Schedule']) {
           await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text(label)));
           await tester.pumpAndSettle();
           if (label == 'Profile') {

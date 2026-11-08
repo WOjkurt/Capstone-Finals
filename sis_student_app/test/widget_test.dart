@@ -24,13 +24,14 @@ void main() {
     expect(theme.scaffoldBackgroundColor, AppColors.scaffoldBg);
   });
 
-  test('MainLayoutView nav items for Student role (5) contains 4 items', () {
+  test('MainLayoutView nav items for Student role (5) contains 5 items', () {
     final items = MainLayoutView.buildNavItems(role: 5, roleName: 'Student');
-    expect(items.length, 4);
+    expect(items.length, 5);
     expect(items.map((i) => i['title']).toList(), [
       'My Schedule',
       'My Grades',
       'Clearance Status',
+      'Enrollment',
       'Profile',
     ]);
     // Short labels used by the mobile NavigationBar
@@ -38,6 +39,7 @@ void main() {
       'Schedule',
       'Grades',
       'Clearance',
+      'Enroll',
       'Profile',
     ]);
   });
