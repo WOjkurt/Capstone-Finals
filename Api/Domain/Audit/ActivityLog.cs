@@ -55,11 +55,14 @@ public static class ActivityActions
     public const string StandingChanged = "STANDING_CHANGED";
     public const string ProgramShifted = "PROGRAM_SHIFTED";
     public const string SettingsChanged = "SETTINGS_CHANGED";
+    public const string HoldAdded = "HOLD_ADDED";
+    public const string HoldRemoved = "HOLD_REMOVED";
 
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditRemoved, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
-        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, SignInBlocked, AccessDenied
+        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved,
+        SignInBlocked, AccessDenied
     };
 }

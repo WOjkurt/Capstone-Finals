@@ -575,6 +575,48 @@ namespace Api.Migrations
                     b.ToTable("EnrollmentForms");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentHold", b =>
+                {
+                    b.Property<Guid>("HoldID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("AddedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("RemovalNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RemovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RemovedByUserID")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserID")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("HoldID");
+
+                    b.HasIndex("UserID", "RemovedAt")
+                        .HasDatabaseName("IX_EnrollmentHolds_UserID_RemovedAt");
+
+                    b.ToTable("EnrollmentHolds");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentResponse", b =>
                 {
                     b.Property<Guid>("ResponseID")
@@ -1252,6 +1294,17 @@ namespace Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Application");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentHold", b =>
+                {
+                    b.HasOne("Api.Domain.IdentityAccess.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Api.Domain.Enrollment.OverloadApproval", b =>

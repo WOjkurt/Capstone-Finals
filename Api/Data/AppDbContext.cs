@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<AccreditedSchool> AccreditedSchools { get; set; }
     public DbSet<StudyLoadChange> StudyLoadChanges { get; set; }
     public DbSet<SchoolSettings> SchoolSettings { get; set; }
+    public DbSet<EnrollmentHold> EnrollmentHolds { get; set; }
     public DbSet<Api.Domain.Audit.ActivityLog> ActivityLogs { get; set; }
 
     // IdentityAccess
@@ -395,6 +396,17 @@ public class AppDbContext : DbContext
             entity.HasOne(o => o.ApprovedByUser)
                 .WithMany()
                 .HasForeignKey(o => o.ApprovedByUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EnrollmentHold>(entity =>
+        {
+            entity.HasIndex(h => new { h.UserID, h.RemovedAt }).HasDatabaseName("IX_EnrollmentHolds_UserID_RemovedAt");
+            entity.Ignore(h => h.IsOpen);
+
+            entity.HasOne(h => h.User)
+                .WithMany()
+                .HasForeignKey(h => h.UserID)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
