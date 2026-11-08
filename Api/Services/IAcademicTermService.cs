@@ -10,5 +10,6 @@ public interface IAcademicTermService
     Task<AcademicTermDto?> GetActiveAsync();
     Task<AcademicTermDto> UpdateAsync(Guid termId, CreateAcademicTermDto dto);
     Task<AcademicTermDto> ActivateAsync(Guid termId);
+    Task<AcademicTermDto> SetEnrollmentPeriodAsync(Guid termId, SetEnrollmentPeriodDto dto);
     Task DeleteAsync(Guid termId);
 }

@@ -23,6 +23,8 @@ public class ContactDto
     public string? Occupation { get; set; }
     [Required]
     [StringLength(ValidationConstants.PhoneMax)]
+    [Api.Common.PhoneNumber]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.CleanPhoneConverter))]
     public required string ContactNo { get; set; }
 
     // ── Extended contact fields (new) ────────────────────────────────────────

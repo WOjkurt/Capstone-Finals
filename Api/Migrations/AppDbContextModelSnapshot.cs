@@ -103,6 +103,12 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateOnly?>("EnrollmentClosesOn")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EnrollmentOpensOn")
+                        .HasColumnType("date");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

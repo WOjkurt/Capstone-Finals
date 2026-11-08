@@ -1,4 +1,6 @@
 using Api.Auth;
+using Api.Common;
+using Api.Domain.Audit;
 using Api.DTOs.Setup;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -103,6 +105,32 @@ public class AcademicTermsController : ControllerBase
         try
         {
             var term = await _termService.ActivateAsync(id);
+            return Ok(term);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Sets the days old students can enroll online for this term; both empty closes it.</summary>
+    [HttpPatch("{id:guid}/enrollment-period")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> SetEnrollmentPeriod(Guid id, [FromBody] SetEnrollmentPeriodDto dto)
+    {
+        try
+        {
+            var term = await _termService.SetEnrollmentPeriodAsync(id, dto);
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                var label = TermLabel.Format(term.SchoolYear, term.Semester);
+                await log.LogAsync(this.CallerId(), ActivityActions.SettingsChanged,
+                    term.EnrollmentOpensOn is { } opens && term.EnrollmentClosesOn is { } closes
+                        ? $"Online enrollment for {label} set to {opens:MMM d, yyyy} - {closes:MMM d, yyyy}"
+                        : $"Online enrollment for {label} closed (dates cleared)",
+                    termId: term.TermID);
+            }
             return Ok(term);
         }
         catch (KeyNotFoundException ex)

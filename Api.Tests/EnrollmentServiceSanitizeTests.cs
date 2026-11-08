@@ -78,6 +78,30 @@ public class EnrollmentServiceSanitizeTests
         Assert.Equal("Nuñez", contact.LastName);
     }
 
+    [Fact]
+    public async Task CreateResponse_CleansNumbers_KeepsOnesItCannotFix()
+    {
+        var (service, repo) = BuildService();
+        EnrollmentResponse? saved = null;
+        repo.Setup(r => r.AddAsync(It.IsAny<EnrollmentResponse>()))
+            .Callback<EnrollmentResponse>(r => saved = r)
+            .Returns(Task.CompletedTask);
+
+        await service.CreateResponseAsync(new CreateEnrollmentResponseDto
+        {
+            EmailAddress = "applicant@example.com",
+            Form = new ResponseFormDataDto { FirstName = "Juan", LastName = "Cruz", MobileNumber = "+63 917-123-4567", ZipCode = "60 00", ProvZipCode = "abc" },
+            Contacts = [new ResponseContactDto { FirstName = "Maria", LastName = "Cruz", ContactNo = "0917 12" }],
+        });
+
+        // A number the system cannot fix is kept as typed, so the application is not lost; the Registrar fixes it.
+        var form = ExtractForm(saved!)!;
+        Assert.Equal("09171234567", form.MobileNumber);
+        Assert.Equal("6000", form.ZipCode);
+        Assert.Equal("abc", form.ProvZipCode);
+        Assert.Equal("0917 12", Assert.Single(ExtractContacts(saved!)).ContactNo);
+    }
+
     private static List<ResponseContactDto> ExtractContacts(EnrollmentResponse captured)
     {
         if (captured.Data == null) return [];

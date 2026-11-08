@@ -30,25 +30,13 @@ public class AcademicTermService : IAcademicTermService
 
         await _termRepository.AddAsync(term);
 
-        return new AcademicTermDto
-        {
-            TermID = term.TermID,
-            SchoolYear = term.SchoolYear,
-            Semester = term.Semester,
-            IsActive = term.IsActive
-        };
+        return ToDto(term);
     }
 
     public async Task<List<AcademicTermDto>> GetAllAsync()
     {
         var terms = await _termRepository.GetAllAsync();
-        return terms.Select(t => new AcademicTermDto
-        {
-            TermID = t.TermID,
-            SchoolYear = t.SchoolYear,
-            Semester = t.Semester,
-            IsActive = t.IsActive
-        }).ToList();
+        return terms.Select(t => ToDto(t)).ToList();
     }
 
     public async Task<AcademicTermDto?> GetByIdAsync(Guid termId)
@@ -59,13 +47,7 @@ public class AcademicTermService : IAcademicTermService
             return null;
         }
 
-        return new AcademicTermDto
-        {
-            TermID = term.TermID,
-            SchoolYear = term.SchoolYear,
-            Semester = term.Semester,
-            IsActive = term.IsActive
-        };
+        return ToDto(term);
     }
 
     public async Task<AcademicTermDto?> GetActiveAsync()
@@ -76,13 +58,7 @@ public class AcademicTermService : IAcademicTermService
             return null;
         }
 
-        return new AcademicTermDto
-        {
-            TermID = term.TermID,
-            SchoolYear = term.SchoolYear,
-            Semester = term.Semester,
-            IsActive = term.IsActive
-        };
+        return ToDto(term);
     }
 
     public async Task<AcademicTermDto> UpdateAsync(Guid termId, CreateAcademicTermDto dto)
@@ -100,13 +76,7 @@ public class AcademicTermService : IAcademicTermService
 
         await _termRepository.UpdateAsync(term);
 
-        return new AcademicTermDto
-        {
-            TermID = term.TermID,
-            SchoolYear = term.SchoolYear,
-            Semester = term.Semester,
-            IsActive = term.IsActive
-        };
+        return ToDto(term);
     }
 
     public async Task<AcademicTermDto> ActivateAsync(Guid termId)
@@ -119,14 +89,31 @@ public class AcademicTermService : IAcademicTermService
 
         await _termRepository.SetActiveAsync(termId);
 
-        return new AcademicTermDto
-        {
-            TermID = term.TermID,
-            SchoolYear = term.SchoolYear,
-            Semester = term.Semester,
-            IsActive = true
-        };
+        term.IsActive = true;
+        return ToDto(term);
     }
+
+    public async Task<AcademicTermDto> SetEnrollmentPeriodAsync(Guid termId, SetEnrollmentPeriodDto dto)
+    {
+        var term = await _termRepository.GetByIdAsync(termId)
+            ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+
+        term.EnrollmentOpensOn = dto.OpensOn;
+        term.EnrollmentClosesOn = dto.ClosesOn;
+        await _termRepository.UpdateAsync(term);
+        return ToDto(term);
+    }
+
+    private static AcademicTermDto ToDto(AcademicTerm term, DateOnly? today = null) => new()
+    {
+        TermID = term.TermID,
+        SchoolYear = term.SchoolYear,
+        Semester = term.Semester,
+        IsActive = term.IsActive,
+        EnrollmentOpensOn = term.EnrollmentOpensOn,
+        EnrollmentClosesOn = term.EnrollmentClosesOn,
+        IsEnrollmentOpen = term.IsEnrollmentOpen(today ?? SchoolClock.Today()),
+    };
 
     public async Task DeleteAsync(Guid termId)
     {

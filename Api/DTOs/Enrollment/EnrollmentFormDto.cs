@@ -57,6 +57,8 @@ public class EnrollmentFormDto
     // ── Primary Address ──────────────────────────────────────────────────────
     [Required]
     [StringLength(ValidationConstants.PhoneMax)]
+    [Api.Common.MobileNumber]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.CleanPhoneConverter))]
     public required string MobileNumber { get; set; }
     [StringLength(ValidationConstants.LongAddressMax)]
     public string? HouseStreet { get; set; }
@@ -79,6 +81,8 @@ public class EnrollmentFormDto
     public required string Province { get; set; }
     [Required]
     [StringLength(ValidationConstants.ZipCodeMax)]
+    [Api.Common.ZipCode]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.CleanZipConverter))]
     public required string ZipCode { get; set; }
 
     // ── Secondary / Provincial Address (optional) ────────────────────────────
@@ -91,6 +95,8 @@ public class EnrollmentFormDto
     [StringLength(ValidationConstants.AddressMax)]
     public string? ProvProvince { get; set; }
     [StringLength(ValidationConstants.AddressMax)]
+    [Api.Common.ZipCode]
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.CleanZipConverter))]
     public string? ProvZipCode { get; set; }
 
     // ── Educational Background ───────────────────────────────────────────────
