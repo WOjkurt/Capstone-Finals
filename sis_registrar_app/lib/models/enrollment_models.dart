@@ -412,6 +412,12 @@ class EnrollmentApplicationModel {
   final EnrollmentFormModel? form;
   final List<ContactModel> contacts;
 
+  /// An old student who enrolled again from the Student Portal.
+  final bool isReturning;
+
+  /// What a returning student changed since their last enrollment ("Mobile Number", "Father"...).
+  final List<String> changedFields;
+
   const EnrollmentApplicationModel({
     required this.applicationId,
     required this.responseId,
@@ -425,6 +431,8 @@ class EnrollmentApplicationModel {
     this.schoolEmail,
     this.form,
     this.contacts = const [],
+    this.isReturning = false,
+    this.changedFields = const [],
   });
 
   factory EnrollmentApplicationModel.fromJson(Map<String, dynamic> json) {
@@ -440,6 +448,8 @@ class EnrollmentApplicationModel {
           DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
       createdByUserId: json['createdByUserID'] as String? ?? json['createdByUserId'] as String?,
       schoolEmail: json['schoolEmail'] as String?,
+      isReturning: json['isReturning'] as bool? ?? false,
+      changedFields: [for (final f in json['changedFields'] as List<dynamic>? ?? const []) f as String],
       form: json['form'] != null
           ? EnrollmentFormModel.fromJson(
               json['form'] as Map<String, dynamic>)

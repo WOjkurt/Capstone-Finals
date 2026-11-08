@@ -349,12 +349,21 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                       return DataRow(
                         cells: [
                           DataCell(
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                if (app.isReturning) ...[
+                                  const SizedBox(width: 8),
+                                  const _ReturningChip(),
+                                ],
+                              ],
                             ),
                           ),
                           DataCell(Text(prog,
@@ -582,6 +591,15 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                   Text(
                     'Are you sure you want to approve the application for ${app.form?.fullName ?? "this applicant"}?',
                   ),
+                  if (app.isReturning) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Returning student. ${app.changedFields.isEmpty ? 'No changes since the last enrollment.' : 'Changed: ${app.changedFields.join(', ')}.'}\n'
+                      'No login is needed: approving enrolls them for this term, ready for their study load.',
+                      key: const ValueKey('approve_returning_note'),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const Text(
                     'Confirmed Year Level (Registrar Override):',
@@ -715,6 +733,9 @@ class _ApplicationDetailDialog extends StatelessWidget {
             : fallbackApp;
 
         final form = detail.form;
+        final changed = {for (final f in detail.changedFields) f.toLowerCase()};
+        Widget pair(String label, String value) =>
+            _buildInfoPair(label, value, changed: changed.contains(label.toLowerCase()));
         final progName = programs
             .firstWhere((p) => p.programId == detail.programId,
                 orElse: () => AcademicProgramModel(
@@ -796,23 +817,43 @@ class _ApplicationDetailDialog extends StatelessWidget {
                           child: Row(
                             children: [
                               Expanded(
-                                child: _buildInfoPair('Program', progName),
+                                child: pair('Program', progName),
                               ),
                               Expanded(
-                                child: _buildInfoPair('Term', termLabel),
+                                child: pair('Term', termLabel),
                               ),
                               Expanded(
-                                child: _buildInfoPair('Year Level',
+                                child: pair('Year Level',
                                      (form != null && form.yearLevel > 0) ? 'Year ${form.yearLevel}' : '—'),
                               ),
                               Expanded(
-                                child: _buildInfoPair(
+                                child: pair(
                                     'Submission Date',
                                     formatDate(detail.createdAt)),
                               ),
                             ],
                           ),
                         ),
+                        if (detail.isReturning) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            key: const ValueKey('returning_banner'),
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFFCD34D)),
+                            ),
+                            child: Text(
+                              detail.changedFields.isEmpty
+                                  ? 'Returning student, enrolled online. No changes since the last enrollment.'
+                                  : 'Returning student, enrolled online. Changed since the last enrollment: '
+                                      '${detail.changedFields.join(', ')}. Changed fields are highlighted below.',
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
 
                         // Section 1
@@ -820,27 +861,27 @@ class _ApplicationDetailDialog extends StatelessWidget {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('First Name', form?.firstName ?? '—')),
-                            Expanded(child: _buildInfoPair('Middle Name', form?.middleName.isNotEmpty == true ? form!.middleName : '—')),
-                            Expanded(child: _buildInfoPair('Last Name', form?.lastName ?? '—')),
-                            Expanded(child: _buildInfoPair('Suffix', form?.suffix.isNotEmpty == true ? form!.suffix : '—')),
+                            Expanded(child: pair('First Name', form?.firstName ?? '—')),
+                            Expanded(child: pair('Middle Name', form?.middleName.isNotEmpty == true ? form!.middleName : '—')),
+                            Expanded(child: pair('Last Name', form?.lastName ?? '—')),
+                            Expanded(child: pair('Suffix', form?.suffix.isNotEmpty == true ? form!.suffix : '—')),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('Date of Birth', form?.dateOfBirth ?? '—')),
-                            Expanded(child: _buildInfoPair('Place of Birth', form?.placeOfBirth ?? '—')),
-                            Expanded(child: _buildInfoPair('Sex', form?.sex ?? '—')),
-                            Expanded(child: _buildInfoPair('Civil Status', form?.civilStatus ?? '—')),
+                            Expanded(child: pair('Date of Birth', form?.dateOfBirth ?? '—')),
+                            Expanded(child: pair('Place of Birth', form?.placeOfBirth ?? '—')),
+                            Expanded(child: pair('Sex', form?.sex ?? '—')),
+                            Expanded(child: pair('Civil Status', form?.civilStatus ?? '—')),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('Nationality', form?.nationality ?? '—')),
-                            Expanded(child: _buildInfoPair('Mobile Number', form?.mobileNumber ?? '—')),
-                            Expanded(child: _buildInfoPair('Previous Physical Student ID', form?.previousStudentID ?? 'None')),
+                            Expanded(child: pair('Nationality', form?.nationality ?? '—')),
+                            Expanded(child: pair('Mobile Number', form?.mobileNumber ?? '—')),
+                            Expanded(child: pair('Previous Physical Student ID', form?.previousStudentID ?? 'None')),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -924,6 +965,12 @@ class _ApplicationDetailDialog extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
+                                  if (detail.isReturning)
+                                    const Text(
+                                      'Already has a student account',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                    )
+                                  else
                                   Row(
                                     children: [
                                       if (detail.schoolEmail != null && detail.schoolEmail!.isNotEmpty)
@@ -1018,10 +1065,10 @@ class _ApplicationDetailDialog extends StatelessWidget {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('Barangay', form?.barangay ?? '—')),
-                            Expanded(child: _buildInfoPair('City / Municipality', form?.cityMunicipality ?? '—')),
-                            Expanded(child: _buildInfoPair('Province', form?.province ?? '—')),
-                            Expanded(child: _buildInfoPair('ZIP Code', form?.zipCode ?? '—')),
+                            Expanded(child: pair('Barangay', form?.barangay ?? '—')),
+                            Expanded(child: pair('City / Municipality', form?.cityMunicipality ?? '—')),
+                            Expanded(child: pair('Province', form?.province ?? '—')),
+                            Expanded(child: pair('ZIP Code', form?.zipCode ?? '—')),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -1031,17 +1078,17 @@ class _ApplicationDetailDialog extends StatelessWidget {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('Last School Attended', form?.lastSchoolAttended ?? '—')),
-                            Expanded(child: _buildInfoPair('School Address', form?.schoolAddress ?? '—')),
+                            Expanded(child: pair('Last School Attended', form?.lastSchoolAttended ?? '—')),
+                            Expanded(child: pair('School Address', form?.schoolAddress ?? '—')),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildInfoPair('SHS Strand', form?.strandName ?? '—')),
-                            Expanded(child: _buildInfoPair('Year Graduated', form?.yearGraduated ?? '—')),
-                            Expanded(child: _buildInfoPair('Previous College', form?.previousCollege.isNotEmpty == true ? form!.previousCollege : 'None')),
-                            Expanded(child: _buildInfoPair('Previous Course', form?.previousCourse.isNotEmpty == true ? form!.previousCourse : 'None')),
+                            Expanded(child: pair('SHS Strand', form?.strandName ?? '—')),
+                            Expanded(child: pair('Year Graduated', form?.yearGraduated ?? '—')),
+                            Expanded(child: pair('Previous College', form?.previousCollege.isNotEmpty == true ? form!.previousCollege : 'None')),
+                            Expanded(child: pair('Previous Course', form?.previousCourse.isNotEmpty == true ? form!.previousCourse : 'None')),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -1064,10 +1111,10 @@ class _ApplicationDetailDialog extends StatelessWidget {
                               ),
                               child: Row(
                                 children: [
-                                  Expanded(child: _buildInfoPair('Name', '${c.firstName} ${c.lastName}')),
-                                  Expanded(child: _buildInfoPair('Relation', c.relationName)),
-                                  Expanded(child: _buildInfoPair('Occupation', c.occupation)),
-                                  Expanded(child: _buildInfoPair('Phone', c.contactNo)),
+                                  Expanded(child: pair('Name', '${c.firstName} ${c.lastName}')),
+                                  Expanded(child: pair('Relation', c.relationName)),
+                                  Expanded(child: pair('Occupation', c.occupation)),
+                                  Expanded(child: pair('Phone', c.contactNo)),
                                 ],
                               ),
                             );
@@ -1121,8 +1168,8 @@ class _ApplicationDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoPair(String label, String value) {
-    return Column(
+  Widget _buildInfoPair(String label, String value, {bool changed = false}) {
+    final pair = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -1142,7 +1189,34 @@ class _ApplicationDetailDialog extends StatelessWidget {
             color: Color(0xFF0F172A),
           ),
         ),
+        if (changed)
+          const Text('changed', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFB45309))),
       ],
     );
+    if (!changed) return pair;
+    return Container(
+      key: ValueKey('changed_$label'),
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+      child: pair,
+    );
   }
+}
+
+/// Small label for an old student who enrolled again online.
+class _ReturningChip extends StatelessWidget {
+  const _ReturningChip();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F2FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF93C5FD)),
+        ),
+        child: const Text('Returning',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF014F8E))),
+      );
 }
