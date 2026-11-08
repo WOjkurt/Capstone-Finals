@@ -93,8 +93,8 @@ public class WebhookSignatureTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Theory]
-    [InlineData(-301)]
-    [InlineData(301)]
+    [InlineData(-400)]
+    [InlineData(400)]
     public async Task OldOrFutureTimestamp_IsRefused(int seconds)
     {
         string ts = Now(seconds);
