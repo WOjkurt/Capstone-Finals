@@ -181,11 +181,14 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
     {
         var user = role == RoleUtils.Student ? SecurityApiFactory.Student : SecurityApiFactory.Teacher;
         var teacherOnly = new[] { "POST api/grades/submit", "POST api/grades/submit-batch" };
+        // A student's own online enrollment; every other role (teachers included) must get 403 here.
+        var studentOnly = new[] { "GET api/me/reenrollment", "POST api/me/reenrollment" };
         var wrong = new List<string>();
         foreach (var (key, method, url) in AllEndpoints())
         {
             if (OpenToAnySignedInUser.Contains(key) || key.Contains("EnrollmentResponses") && method == "POST") continue;
             if (role == RoleUtils.Teacher && teacherOnly.Contains(key)) continue;
+            if (role == RoleUtils.Student && studentOnly.Contains(key)) continue;
             var response = await SendAsync(method, url, user, role);
             if (response.StatusCode != HttpStatusCode.Forbidden) wrong.Add($"{key} -> {(int)response.StatusCode}");
         }

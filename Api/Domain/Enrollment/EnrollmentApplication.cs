@@ -31,4 +31,11 @@ public class EnrollmentApplication
 
     public Guid? CreatedByUserID { get; set; }
     public User? CreatedByUser { get; set; }
+
+    /// <summary>True when an old student enrolled again from the Student Portal (their account already exists).</summary>
+    public bool IsReturning { get; set; }
+
+    /// <summary>For a returning student: what they changed since last time, e.g. "Mobile Number, Barangay, Father".</summary>
+    [MaxLength(2000)]
+    public string? ChangedFields { get; set; }
 }

@@ -297,90 +297,14 @@ public class EnrollmentService : IEnrollmentService
             };
             await _applicationRepository.AddAsync(application);
 
-            var form = new EnrollmentForm
-            {
-                EnrollmentID = Guid.NewGuid(),
-                ApplicationID = application.ApplicationID,
-                // ── Name ────────────────────────────────────────────────────
-                FirstName = dto.Form.FirstName,
-                MiddleName = dto.Form.MiddleName,
-                LastName = dto.Form.LastName,
-                Suffix = dto.Form.Suffix,
-                // ── Personal ────────────────────────────────────────────────
-                DateOfBirth = dto.Form.DateOfBirth,
-                PlaceOfBirth = dto.Form.PlaceOfBirth,
-                Sex = dto.Form.Sex,
-                CivilStatus = dto.Form.CivilStatus,
-                Nationality = dto.Form.Nationality,
-                Gender = dto.Form.Gender,
-                Age = dto.Form.Age,
-                BloodType = dto.Form.BloodType,
-                Religion = dto.Form.Religion,
-                FacebookName = dto.Form.FacebookName,
-                // ── Primary Address ─────────────────────────────────────────
-                MobileNumber = dto.Form.MobileNumber,
-                HouseStreet = dto.Form.HouseStreet,
-                Barangay = dto.Form.Barangay,
-                CityMunicipality = dto.Form.CityMunicipality,
-                Province = dto.Form.Province,
-                ZipCode = dto.Form.ZipCode,
-                // ── Secondary / Provincial Address ──────────────────────────
-                ProvHouseStreet = dto.Form.ProvHouseStreet,
-                ProvBarangay = dto.Form.ProvBarangay,
-                ProvCityMunicipality = dto.Form.ProvCityMunicipality,
-                ProvProvince = dto.Form.ProvProvince,
-                ProvZipCode = dto.Form.ProvZipCode,
-                // ── Educational ─────────────────────────────────────────────
-                LastSchoolAttended = dto.Form.LastSchoolAttended,
-                SchoolAddress = dto.Form.SchoolAddress,
-                ProgramTrackStrand = dto.Form.ProgramTrackStrand,
-                YearGraduated = dto.Form.YearGraduated,
-                PreviousCollege = dto.Form.PreviousCollege,
-                PreviousCourse = dto.Form.PreviousCourse,
-                // ── Enrollment Metadata ─────────────────────────────────────
-                YearLevel = dto.Form.YearLevel,
-                StudentType = dto.Form.StudentType,
-                LRN = LrnHelper.Normalize(dto.Form.LRN).IsValid ? LrnHelper.Normalize(dto.Form.LRN).Lrn : null,
-                AcademicYear = dto.Form.AcademicYear,
-                IncomingCourse = dto.Form.IncomingCourse,
-                PreviousStudentID = dto.Form.PreviousStudentID,
-                // ── Family Information ───────────────────────────────────────
-                BirthOrder = dto.Form.BirthOrder,
-                NumberOfSiblings = dto.Form.NumberOfSiblings,
-                FamilyStatus = dto.Form.FamilyStatus,
-                // ── Medical Multi-Select ────────────────────────────────────
-                FamilyMedicalConditionsSelected = dto.Form.FamilyMedicalConditionsSelected,
-                PastMedicalHistory = dto.Form.PastMedicalHistory,
-                ImmunizationHistory = dto.Form.ImmunizationHistory,
-                // ── Family Health History (free text) ───────────────────────
-                FamilyMedicalConditionsNotes = dto.Form.FamilyMedicalConditionsNotes,
-                OngoingMedications = dto.Form.OngoingMedications,
-                DevelopmentalConditions = dto.Form.DevelopmentalConditions,
-                OtherMedicalDiagnosis = dto.Form.OtherMedicalDiagnosis
-            };
+            var form = EnrollmentFormMapping.ToEntity(dto.Form, application.ApplicationID);
             await _formRepository.AddAsync(form);
 
             if (dto.Contacts != null && dto.Contacts.Count > 0)
             {
                 foreach (var cDto in dto.Contacts)
                 {
-                    var contact = new Contact
-                    {
-                        ContactID = Guid.NewGuid(),
-                        EnrollmentID = form.EnrollmentID,
-                        FirstName = cDto.FirstName,
-                        LastName = cDto.LastName,
-                        RelationType = cDto.RelationType,
-                        Occupation = cDto.Occupation,
-                        ContactNo = cDto.ContactNo,
-                        // ── Extended contact fields ──────────────────────────
-                        Email = cDto.Email,
-                        DateOfBirth = cDto.DateOfBirth,
-                        Workplace = cDto.Workplace,
-                        FacebookAccount = cDto.FacebookAccount,
-                        LivingWithGuardian = cDto.LivingWithGuardian,
-                        GuardianRelationshipDescription = cDto.GuardianRelationshipDescription
-                    };
+                    var contact = EnrollmentFormMapping.ToEntity(cDto, form.EnrollmentID);
                     await _contactRepository.AddAsync(contact);
                 }
             }
@@ -423,8 +347,25 @@ public class EnrollmentService : IEnrollmentService
             }
         }
 
-        application.Status = EnrollmentApplicationStatus.Approved; // 2 = Approved
         application.ReviewedByUserID = reviewedByUserId;
+
+        // A returning student already has an account and a profile: there is no login to create, so the
+        // application goes straight to Active and their year level follows the approved form.
+        if (application.IsReturning && application.StudentUserID is { } studentId)
+        {
+            var form = await _formRepository.GetByApplicationIdAsync(applicationId);
+            var details = await _userDetailsRepository.GetByUserIdAsync(studentId);
+            if (details != null && form != null && form.YearLevel is >= 1 and <= 5)
+            {
+                details.YearLevel = form.YearLevel;
+                await _userDetailsRepository.UpdateAsync(details);
+            }
+            application.Status = EnrollmentApplicationStatus.Active;
+            await _applicationRepository.UpdateAsync(application);
+            return;
+        }
+
+        application.Status = EnrollmentApplicationStatus.Approved; // 2 = Approved
         await _applicationRepository.UpdateAsync(application);
     }
 
@@ -687,81 +628,13 @@ public class EnrollmentService : IEnrollmentService
             CreatedAt = application.CreatedAt,
             CreatedByUserID = application.CreatedByUserID,
             SchoolEmail = application.SchoolEmail,
+            IsReturning = application.IsReturning,
+            ChangedFields = string.IsNullOrEmpty(application.ChangedFields)
+                ? new()
+                : application.ChangedFields.Split(", ").ToList(),
             UserDetails = userDetailsDto,
-            Form = form == null ? null : new EnrollmentFormDto
-            {
-                // ── Name ────────────────────────────────────────────────────
-                FirstName = form.FirstName,
-                MiddleName = form.MiddleName,
-                LastName = form.LastName,
-                Suffix = form.Suffix,
-                // ── Personal ────────────────────────────────────────────────
-                DateOfBirth = form.DateOfBirth,
-                PlaceOfBirth = form.PlaceOfBirth,
-                Sex = form.Sex,
-                CivilStatus = form.CivilStatus,
-                Nationality = form.Nationality,
-                Gender = form.Gender,
-                Age = form.Age,
-                BloodType = form.BloodType,
-                Religion = form.Religion,
-                FacebookName = form.FacebookName,
-                // ── Primary Address ─────────────────────────────────────────
-                MobileNumber = form.MobileNumber,
-                HouseStreet = form.HouseStreet,
-                Barangay = form.Barangay,
-                CityMunicipality = form.CityMunicipality,
-                Province = form.Province,
-                ZipCode = form.ZipCode,
-                // ── Secondary / Provincial Address ──────────────────────────
-                ProvHouseStreet = form.ProvHouseStreet,
-                ProvBarangay = form.ProvBarangay,
-                ProvCityMunicipality = form.ProvCityMunicipality,
-                ProvProvince = form.ProvProvince,
-                ProvZipCode = form.ProvZipCode,
-                // ── Educational ─────────────────────────────────────────────
-                LastSchoolAttended = form.LastSchoolAttended,
-                SchoolAddress = form.SchoolAddress,
-                ProgramTrackStrand = form.ProgramTrackStrand,
-                YearGraduated = form.YearGraduated,
-                PreviousCollege = form.PreviousCollege,
-                PreviousCourse = form.PreviousCourse,
-                // ── Enrollment Metadata ─────────────────────────────────────
-                YearLevel = form.YearLevel,
-                StudentType = form.StudentType,
-                LRN = form.LRN,
-                AcademicYear = form.AcademicYear,
-                IncomingCourse = form.IncomingCourse,
-                PreviousStudentID = form.PreviousStudentID,
-                // ── Family Information ───────────────────────────────────────
-                BirthOrder = form.BirthOrder,
-                NumberOfSiblings = form.NumberOfSiblings,
-                FamilyStatus = form.FamilyStatus,
-                // ── Medical Multi-Select ────────────────────────────────────
-                FamilyMedicalConditionsSelected = form.FamilyMedicalConditionsSelected,
-                PastMedicalHistory = form.PastMedicalHistory,
-                ImmunizationHistory = form.ImmunizationHistory,
-                // ── Family Health History (free text) ───────────────────────
-                FamilyMedicalConditionsNotes = form.FamilyMedicalConditionsNotes,
-                OngoingMedications = form.OngoingMedications,
-                DevelopmentalConditions = form.DevelopmentalConditions,
-                OtherMedicalDiagnosis = form.OtherMedicalDiagnosis
-            },
-            Contacts = contacts.Select(c => new ContactDto
-            {
-                FirstName = c.FirstName,
-                LastName = c.LastName,
-                RelationType = c.RelationType,
-                Occupation = c.Occupation,
-                ContactNo = c.ContactNo,
-                // ── Extended contact fields ──────────────────────────────────
-                Email = c.Email,
-                DateOfBirth = c.DateOfBirth,
-                Workplace = c.Workplace,
-                FacebookAccount = c.FacebookAccount,
-                LivingWithGuardian = c.LivingWithGuardian,
-                GuardianRelationshipDescription = c.GuardianRelationshipDescription
-            }).ToList()
+            Form = form == null ? null : EnrollmentFormMapping.ToDto(form),
+            Contacts = contacts.Select(EnrollmentFormMapping.ToDto).ToList()
         };
     }
 }

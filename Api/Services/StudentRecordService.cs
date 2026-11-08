@@ -334,7 +334,9 @@ public class StudentRecordService : IStudentRecordService
         var saved = await _context.StudentPersonalDetails.AsNoTracking().FirstOrDefaultAsync(d => d.UserID == userId);
         var form = await _context.EnrollmentForms
             .AsNoTracking()
-            .Where(f => f.Application != null && f.Application.StudentUserID == userId)
+            .Where(f => f.Application != null && f.Application.StudentUserID == userId &&
+                        f.Application.Status != EnrollmentApplicationStatus.Rejected &&
+                        !(f.Application.IsReturning && f.Application.Status == EnrollmentApplicationStatus.Pending))
             .OrderByDescending(f => f.Application!.CreatedAt)
             .FirstOrDefaultAsync();
         var firstTerm = await _context.StudyLoads

@@ -46,6 +46,7 @@ builder.Services.AddScoped<IAcademicTermService, AcademicTermService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ICreditedSubjectService, CreditedSubjectService>();
 builder.Services.AddScoped<IEnrollmentHoldService, EnrollmentHoldService>();
+builder.Services.AddScoped<IReenrollmentService, ReenrollmentService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IStudentRecordService, StudentRecordService>();
 builder.Services.AddScoped<IAccreditedSchoolService, AccreditedSchoolService>();
@@ -159,6 +160,19 @@ builder.Services.AddRateLimiter(options =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
         var limit = config.GetValue("RateLimiting:WebhookPermitLimit", 60);
+        return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = limit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+
+    // Policy "reenroll": a student sending their enrollment, 5 per minute (configurable).
+    options.AddPolicy("reenroll", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var limit = config.GetValue("RateLimiting:ReenrollPermitLimit", 5);
         return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = limit,

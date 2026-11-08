@@ -161,6 +161,13 @@ public class AppDbContext : DbContext
                 .HasForeignKey(ea => ea.StudentUserID)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            // One application per student per term (a rejected one does not count), so a double click
+            // or two open tabs cannot enroll the same student twice.
+            entity.HasIndex(ea => new { ea.StudentUserID, ea.TermID })
+                .IsUnique()
+                .HasFilter("\"StudentUserID\" IS NOT NULL AND \"Status\" <> 3")
+                .HasDatabaseName("UQ_EnrollmentApplications_Student_Term");
+
             entity.HasOne(ea => ea.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(ea => ea.CreatedByUserID)

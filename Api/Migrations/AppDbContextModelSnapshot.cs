@@ -347,6 +347,10 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ChangedFields")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -354,6 +358,9 @@ namespace Api.Migrations
 
                     b.Property<Guid?>("CreatedByUserID")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("IsReturning")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("ProgramID")
                         .HasColumnType("integer");
@@ -391,9 +398,12 @@ namespace Api.Migrations
                         .HasDatabaseName("UQ_EnrollmentApplications_SchoolEmail")
                         .HasFilter("\"SchoolEmail\" IS NOT NULL");
 
-                    b.HasIndex("StudentUserID");
-
                     b.HasIndex("TermID");
+
+                    b.HasIndex("StudentUserID", "TermID")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_EnrollmentApplications_Student_Term")
+                        .HasFilter("\"StudentUserID\" IS NOT NULL AND \"Status\" <> 3");
 
                     b.ToTable("EnrollmentApplications");
                 });

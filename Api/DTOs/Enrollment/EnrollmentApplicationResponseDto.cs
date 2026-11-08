@@ -14,6 +14,12 @@ public class EnrollmentApplicationResponseDto
     public Guid? CreatedByUserID { get; set; }
     public string? SchoolEmail { get; set; }
 
+    /// <summary>An old student who enrolled again from the Student Portal.</summary>
+    public bool IsReturning { get; set; }
+
+    /// <summary>What a returning student changed since their last enrollment.</summary>
+    public List<string> ChangedFields { get; set; } = new();
+
     public EnrollmentFormDto? Form { get; set; }
     public List<ContactDto> Contacts { get; set; } = new();
     public UserDetailsDto? UserDetails { get; set; }
