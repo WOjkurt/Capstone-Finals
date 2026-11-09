@@ -179,6 +179,29 @@ public class CurriculumTests : IDisposable
         Assert.Equal(4, result.PerYear[2]);
     }
 
+    [Fact]
+    public async Task ClassList_NamesTheCurriculum_OnlyWhenTheProgramHasSeveral()
+    {
+        var mt = _context.Subjects.Local.First(s => s.SubjectCode == "MT 101A");
+        var bsitCurriculum = Guid.NewGuid();
+        _context.Curricula.Add(new Curriculum { CurriculumID = bsitCurriculum, ProgramID = 2, Name = "BSIT only", EffectiveFromYear = 2023 });
+        var it = AddSubject("IT 101", 1, bsitCurriculum, programId: 2);
+        _context.Classes.AddRange(
+            new Class { ClassID = Guid.NewGuid(), SubjectID = mt.SubjectID, TermID = _termId, ClassName = "BTVTED-MT 1A" },
+            new Class { ClassID = Guid.NewGuid(), SubjectID = it.SubjectID, TermID = _termId, ClassName = "BSIT 1A" });
+        await _context.SaveChangesAsync();
+
+        var classes = await new ClassService(_context, new ClassRepository(_context), new ClassScheduleRepository(_context))
+            .GetAllAsync(termId: _termId);
+
+        var mtClass = classes.Single(c => c.ClassName == "BTVTED-MT 1A");
+        Assert.Equal("2026 curriculum", mtClass.CurriculumName);
+        Assert.True(mtClass.ShowCurriculum);
+        var itClass = classes.Single(c => c.ClassName == "BSIT 1A");
+        Assert.Equal("BSIT only", itClass.CurriculumName);
+        Assert.False(itClass.ShowCurriculum);
+    }
+
     // ── Subjects in curricula ──────────────────────────────────────────
 
     private SubjectService Subjects() => new(_context, new SubjectRepository(_context),

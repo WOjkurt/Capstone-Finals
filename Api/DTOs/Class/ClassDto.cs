@@ -28,5 +28,11 @@ public class ClassDto
 
     public int? ProgramID { get; set; }
 
+    public Guid? CurriculumID { get; set; }
+    public string? CurriculumName { get; set; }
+
+    /// <summary>True when the subject's program has more than one curriculum, so screens should say which one.</summary>
+    public bool ShowCurriculum { get; set; }
+
     public List<ClassScheduleDto> Schedules { get; set; } = new();
 }

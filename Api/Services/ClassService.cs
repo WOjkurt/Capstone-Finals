@@ -136,7 +136,26 @@ public class ClassService : IClassService
             result.Add(MapToDto(c, schedules ?? new List<ClassSchedule>(), teacherName, enrolledCount));
         }
 
+        await FillCurriculaAsync(result);
         return result;
+    }
+
+    /// <summary>Adds the curriculum name, and whether to show it (only when the program has several curricula).</summary>
+    private async Task FillCurriculaAsync(List<ClassDto> classes)
+    {
+        var programIds = classes.Where(c => c.ProgramID != null).Select(c => c.ProgramID!.Value).Distinct().ToList();
+        if (programIds.Count == 0) return;
+        var curricula = await _context.Curricula.AsNoTracking()
+            .Where(c => programIds.Contains(c.ProgramID))
+            .Select(c => new { c.CurriculumID, c.ProgramID, c.Name })
+            .ToListAsync();
+        var names = curricula.ToDictionary(c => c.CurriculumID, c => c.Name);
+        var several = curricula.GroupBy(c => c.ProgramID).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
+        foreach (var dto in classes)
+        {
+            if (dto.CurriculumID is { } id && names.TryGetValue(id, out var name)) dto.CurriculumName = name;
+            dto.ShowCurriculum = dto.ProgramID is { } pid && several.Contains(pid) && dto.CurriculumName != null;
+        }
     }
 
     public async Task<ClassDto?> GetByIdAsync(Guid classId)
@@ -162,7 +181,9 @@ public class ClassService : IClassService
             }
         }
 
-        return MapToDto(entity, schedules, teacherName, enrolledCount);
+        var single = MapToDto(entity, schedules, teacherName, enrolledCount);
+        await FillCurriculaAsync([single]);
+        return single;
     }
 
     public async Task<bool> CanAccessClassAsync(Guid classId, Guid userId, int role)
@@ -235,7 +256,9 @@ public class ClassService : IClassService
             }
         }
 
-        return MapToDto(entity, schedules, teacherName, enrolledCount);
+        var single = MapToDto(entity, schedules, teacherName, enrolledCount);
+        await FillCurriculaAsync([single]);
+        return single;
     }
 
     public async Task<ClassDto> AssignTeacherAsync(Guid classId, Guid? userId)
@@ -272,7 +295,9 @@ public class ClassService : IClassService
             }
         }
 
-        return MapToDto(entity, schedules, teacherName, enrolledCount);
+        var single = MapToDto(entity, schedules, teacherName, enrolledCount);
+        await FillCurriculaAsync([single]);
+        return single;
     }
 
     public async Task DeleteAsync(Guid classId)
@@ -318,6 +343,7 @@ public class ClassService : IClassService
             YearLevel = entity.Subject?.YearLevel,
             IsMinor = entity.Subject?.IsMinor ?? false,
             ProgramID = entity.Subject?.ProgramID,
+            CurriculumID = entity.Subject?.CurriculumID,
             Schedules = schedules.Select(s => new ClassScheduleDto
             {
                 ScheduleID = s.ScheduleID,
