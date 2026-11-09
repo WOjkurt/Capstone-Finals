@@ -350,7 +350,7 @@ class _ClassCardState extends State<_ClassCard> {
               const SizedBox(height: 12),
               // Subject Title
               Text(
-                c.subjectTitle ?? 'Untitled Subject',
+                c.titleWithCurriculum('Untitled Subject'),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -523,7 +523,7 @@ class _ClassDetailDialogState extends State<_ClassDetailDialog> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        c.subjectTitle ?? 'Untitled Subject',
+                        c.titleWithCurriculum('Untitled Subject'),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,

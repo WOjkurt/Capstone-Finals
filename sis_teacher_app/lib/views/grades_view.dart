@@ -1025,7 +1025,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        c.subjectTitle ?? '',
+                        c.titleWithCurriculum(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,

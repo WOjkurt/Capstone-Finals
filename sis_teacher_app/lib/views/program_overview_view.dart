@@ -1079,7 +1079,7 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             ),
             const SizedBox(height: 8),
             Text(
-              c.subjectTitle ?? 'Untitled Subject',
+              c.titleWithCurriculum('Untitled Subject'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -1526,7 +1526,7 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
               const SizedBox(height: 10),
               // Subject Title
               Text(
-                c.subjectTitle ?? 'Untitled Subject',
+                c.titleWithCurriculum('Untitled Subject'),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1917,7 +1917,7 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        c.subjectTitle ?? 'Untitled Subject',
+                        c.titleWithCurriculum('Untitled Subject'),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,

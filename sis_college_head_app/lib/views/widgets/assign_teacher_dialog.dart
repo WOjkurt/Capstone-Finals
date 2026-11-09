@@ -231,7 +231,7 @@ class _AssignTeacherDialogState extends State<AssignTeacherDialog> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${c.subjectCode ?? ''} · ${c.subjectTitle ?? ''} · ${c.className}',
+                        '${c.subjectCode ?? ''} · ${c.titleWithCurriculum()} · ${c.className}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

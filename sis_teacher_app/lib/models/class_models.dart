@@ -70,6 +70,10 @@ class ClassModel {
   final String? termSchoolYear;
   final int? termSemester;
   final String className;
+
+  /// The subject's curriculum; [showCurriculum] is true when its program has several curricula.
+  final String? curriculumName;
+  final bool showCurriculum;
   final DateTime? createdAt;
   final String? createdByUserId;
   final int enrolledCount;
@@ -90,6 +94,8 @@ class ClassModel {
     this.termSchoolYear,
     this.termSemester,
     required this.className,
+    this.curriculumName,
+    this.showCurriculum = false,
     this.createdAt,
     this.createdByUserId,
     this.enrolledCount = 0,
@@ -110,6 +116,8 @@ class ClassModel {
       termSchoolYear: json['termSchoolYear'] as String?,
       termSemester: (json['termSemester'] as num?)?.toInt(),
       className: json['className'] as String? ?? '',
+      curriculumName: json['curriculumName'] as String?,
+      showCurriculum: json['showCurriculum'] as bool? ?? false,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
           : null,
@@ -122,6 +130,12 @@ class ClassModel {
               .toList() ??
           [],
     );
+  }
+
+  /// The subject title, followed by the curriculum when the program has more than one (e.g. "Machining · CHED 2026").
+  String titleWithCurriculum([String fallback = '']) {
+    final title = subjectTitle ?? fallback;
+    return showCurriculum && curriculumName != null ? '$title · $curriculumName' : title;
   }
 
   String get termLabel {

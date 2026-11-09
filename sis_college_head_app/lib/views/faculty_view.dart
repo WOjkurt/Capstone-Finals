@@ -242,7 +242,7 @@ class _FacultyViewState extends State<FacultyView> {
     return Row(
       children: [
         Flexible(
-          child: Text('${c.subjectCode ?? ''} - ${c.subjectTitle ?? ''}',
+          child: Text('${c.subjectCode ?? ''} - ${c.titleWithCurriculum()}',
               style: const TextStyle(fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis),
         ),

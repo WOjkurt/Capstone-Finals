@@ -836,7 +836,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
           ),
           const SizedBox(height: 8),
           Text(
-            c.subjectTitle ?? 'Untitled Subject',
+            c.titleWithCurriculum('Untitled Subject'),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1447,7 +1447,7 @@ class _AssignClassToTeacherDialogState
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          c.subjectTitle ?? 'Untitled',
+                                          c.titleWithCurriculum('Untitled'),
                                           style: const TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
