@@ -8,6 +8,7 @@ import 'activity_log_browser.dart';
 import 'credited_subjects_dialog.dart';
 import 'edit_lrn_dialog.dart';
 import 'edit_student_id_dialog.dart';
+import 'edit_student_email_dialog.dart';
 import 'edit_year_level_dialog.dart';
 import 'initialize_clearance_dialog.dart';
 import 'shift_program_dialog.dart';
@@ -37,6 +38,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
   late final TabController _tabController = TabController(length: _tabs.length, vsync: this);
   int? _yearLevel;
   String? _studentId;
+  String? _email;
 
   String? get _termId => currentTerm.termId;
 
@@ -47,6 +49,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
     super.initState();
     _yearLevel = _student.yearLevel;
     _studentId = _student.studentId;
+    _email = _student.email;
   }
 
   @override
@@ -58,6 +61,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
     if (old.data.selectedStudent?.userId != _student.userId) {
       _yearLevel = _student.yearLevel;
       _studentId = _student.studentId;
+      _email = _student.email;
     }
   }
 
@@ -81,6 +85,11 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
     final saved = await EditStudentIdDialog.show(context,
         userId: _student.userId, studentName: _student.fullName, current: _studentId);
     if (saved != null && mounted) setState(() => _studentId = saved.isEmpty ? null : saved);
+  }
+
+  Future<void> _editEmail() async {
+    final saved = await EditStudentEmailDialog.show(context, userId: _student.userId, studentName: _student.fullName, current: _email);
+    if (saved != null && mounted) setState(() => _email = saved);
   }
 
   void _editYearLevel() {
@@ -235,7 +244,14 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(s.email, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                if (s.hasSignedIn)
+                  Text(s.email, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: chip(Icons.alternate_email, (_email ?? '').isEmpty ? 'No school email yet' : '${_email!} (not signed in yet)',
+                        onEdit: _editEmail, key: const ValueKey('profile_school_email'), color: const Color(0xFFB45309)),
+                  ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,

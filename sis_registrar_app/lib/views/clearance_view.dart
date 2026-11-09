@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/clearance_bloc.dart';
 import 'promotion_view.dart';
 import 'widgets/page_header.dart';
+import 'widgets/records_import_dialog.dart';
 import 'widgets/student_profile_panel.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/edit_lrn_dialog.dart';
@@ -77,14 +78,28 @@ class _ClearanceViewState extends State<ClearanceView> {
                 title: 'Students',
                 subtitle: 'Find a student to see their study load, grades, curriculum progress and history.',
                 // Used once a year, so it lives here instead of in the menu.
-                action: OutlinedButton.icon(
-                  key: const ValueKey('open_promotion_button'),
-                  icon: const Icon(Icons.trending_up_rounded, size: 18),
-                  label: const Text('End-of-year promotion'),
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (routeContext) => PromotionView(onBack: () => Navigator.of(routeContext).pop()),
-                  )),
-                ),
+                action: Wrap(spacing: 8, runSpacing: 8, children: [
+                  OutlinedButton.icon(
+                    key: const ValueKey('open_records_import_button'),
+                    icon: const Icon(Icons.upload_file_outlined, size: 18),
+                    label: const Text('Import from Excel'),
+                    onPressed: () async {
+                      final bloc = context.read<ClearanceBloc>();
+                      if (await RecordsImportDialog.show(context) == true) {
+                        _searchController.clear();
+                        bloc.add(SearchStudentsEvent(''));
+                      }
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    key: const ValueKey('open_promotion_button'),
+                    icon: const Icon(Icons.trending_up_rounded, size: 18),
+                    label: const Text('End-of-year promotion'),
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (routeContext) => PromotionView(onBack: () => Navigator.of(routeContext).pop()),
+                    )),
+                  ),
+                ]),
                 onRefresh: () {
                   _searchController.clear();
                   context.read<ClearanceBloc>().add(SearchStudentsEvent(''));

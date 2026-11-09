@@ -123,6 +123,9 @@ class UserSearchResultModel {
   /// DBTC student ID (e.g. 25060208); empty until the school assigns one.
   final String? studentId;
 
+  /// False for a student imported from Excel who hasn't signed in yet (their school email can still be set).
+  final bool hasSignedIn;
+
   const UserSearchResultModel({
     required this.userId,
     required this.firstname,
@@ -137,6 +140,7 @@ class UserSearchResultModel {
     this.lrn,
     this.hasLrn,
     this.studentId,
+    this.hasSignedIn = true,
   });
 
   factory UserSearchResultModel.fromJson(Map<String, dynamic> json) {
@@ -168,6 +172,7 @@ class UserSearchResultModel {
       lrn: rawLrn,
       hasLrn: rawHasLrn ?? (rawLrn != null && rawLrn.isNotEmpty),
       studentId: json['studentID'] as String? ?? json['studentId'] as String?,
+      hasSignedIn: json['hasSignedIn'] as bool? ?? true,
     );
   }
 
@@ -203,6 +208,7 @@ class UserSearchResultModel {
       lrn: clearLrn ? null : (lrn ?? this.lrn),
       hasLrn: hasLrn ?? this.hasLrn,
       studentId: studentId ?? this.studentId,
+      hasSignedIn: hasSignedIn,
     );
   }
 }
