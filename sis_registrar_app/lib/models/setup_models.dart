@@ -114,6 +114,8 @@ class SubjectModel {
   final double labHours;
   final int programId;
   final String? programCode;
+  final String? curriculumId;
+  final String? curriculumName;
   final int yearLevel;
   final int defaultSemester;
   final int? standingYear;
@@ -132,6 +134,8 @@ class SubjectModel {
     required this.labHours,
     required this.programId,
     this.programCode,
+    this.curriculumId,
+    this.curriculumName,
     required this.yearLevel,
     required this.defaultSemester,
     this.standingYear,
@@ -150,6 +154,8 @@ class SubjectModel {
       labHours: (json['labHours'] as num?)?.toDouble() ?? 0,
       programId: (json['programID'] as num?)?.toInt() ?? (json['programId'] as num?)?.toInt() ?? 0,
       programCode: json['programCode'] as String?,
+      curriculumId: json['curriculumID'] as String? ?? json['curriculumId'] as String?,
+      curriculumName: json['curriculumName'] as String?,
       yearLevel: (json['yearLevel'] as num?)?.toInt() ?? 1,
       defaultSemester: (json['defaultSemester'] as num?)?.toInt() ?? 1,
       standingYear: (json['standingYear'] as num?)?.toInt(),

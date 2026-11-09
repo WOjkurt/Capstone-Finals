@@ -13,6 +13,9 @@ import 'widgets/status_badge.dart';
 import 'widgets/accredited_schools_tab.dart';
 import 'widgets/enrollment_period.dart';
 import 'widgets/unit_limits_tab.dart';
+import 'widgets/curricula_tab.dart';
+import '../models/curriculum_models.dart';
+import '../repositories/curriculum_repository.dart';
 import '../repositories/report_repository.dart';
 import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
@@ -103,6 +106,7 @@ class _SetupViewState extends State<SetupView> {
   Widget _buildSubTabBar(BuildContext context, SetupState state) {
     final tabs = [
       {'title': 'Academic Programs', 'index': 0, 'icon': Icons.school_outlined},
+      {'title': 'Curricula', 'index': 6, 'icon': Icons.layers_outlined},
       {'title': 'Academic Terms', 'index': 1, 'icon': Icons.calendar_month_outlined},
       {'title': 'Subjects & Prerequisites', 'index': 2, 'icon': Icons.menu_book_outlined},
       {'title': 'Classes & Rosters', 'index': 3, 'icon': Icons.groups_outlined},
@@ -181,6 +185,11 @@ class _SetupViewState extends State<SetupView> {
         return const AccreditedSchoolsTab();
       case 5:
         return const UnitLimitsTab();
+      case 6:
+        return CurriculaTab(
+          programs: state.programs,
+          onSubjectsChanged: () => context.read<SetupBloc>().add(LoadSetupData(activeTab: 6)),
+        );
       case 3:
       default:
         return _ClassesTab(state: state);
@@ -816,12 +825,101 @@ class _TermsTab extends StatelessWidget {
 // ==========================================
 // 3. SUBJECTS & PREREQUISITES TAB
 // ==========================================
-class _SubjectsTab extends StatelessWidget {
+class _SubjectsTab extends StatefulWidget {
   final SetupState state;
   const _SubjectsTab({required this.state});
 
   @override
+  State<_SubjectsTab> createState() => _SubjectsTabState();
+}
+
+class _SubjectsTabState extends State<_SubjectsTab> {
+  SetupState get state => widget.state;
+
+  /// Curricula for the filters and the subject form (empty when the API isn't available, e.g. in some tests).
+  List<CurriculumModel> _curricula = const [];
+  int? _programFilter;
+  String? _curriculumFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurricula();
+  }
+
+  @override
+  void didUpdateWidget(_SubjectsTab old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.state.subjects, widget.state.subjects)) _loadCurricula();
+  }
+
+  Future<void> _loadCurricula() async {
+    if (!getIt.isRegistered<CurriculumRepository>()) return;
+    try {
+      final list = await getIt<CurriculumRepository>().list();
+      if (mounted) setState(() => _curricula = list);
+    } catch (_) {
+      // The table still works without the curriculum filter.
+    }
+  }
+
+  List<CurriculumModel> _curriculaOf(int? programId) =>
+      _curricula.where((c) => programId == null || c.programId == programId).toList();
+
+  List<SubjectModel> get _shownSubjects => state.subjects
+      .where((s) => _programFilter == null || s.programId == _programFilter)
+      .where((s) => _curriculumFilter == null || s.curriculumId == _curriculumFilter)
+      .toList();
+
+  Widget _filters() {
+    final curricula = _curriculaOf(_programFilter);
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        SizedBox(
+          width: 170,
+          child: DropdownButtonFormField<int?>(
+            key: const ValueKey('subjects_program_filter'),
+            initialValue: _programFilter,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Program', border: OutlineInputBorder(), isDense: true),
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('All programs')),
+              for (final p in state.programs) DropdownMenuItem<int?>(value: p.programId, child: Text(p.programCode)),
+            ],
+            onChanged: (v) => setState(() {
+              _programFilter = v;
+              _curriculumFilter = null;
+            }),
+          ),
+        ),
+        if (_curricula.isNotEmpty)
+          SizedBox(
+            width: 260,
+            child: DropdownButtonFormField<String?>(
+              key: ValueKey('subjects_curriculum_filter_$_programFilter'),
+              initialValue: _curriculumFilter,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Curriculum', border: OutlineInputBorder(), isDense: true),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('All curricula')),
+                for (final c in curricula)
+                  DropdownMenuItem<String?>(
+                    value: c.curriculumId,
+                    child: Text(_programFilter == null ? '${c.programCode} ${c.name}' : c.label, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _curriculumFilter = v),
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final subjects = _shownSubjects;
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Row(
@@ -837,7 +935,7 @@ class _SubjectsTab extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Subjects (${state.subjects.length})',
+                      'Subjects (${subjects.length})',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -857,7 +955,9 @@ class _SubjectsTab extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                _filters(),
+                const SizedBox(height: 12),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -889,7 +989,7 @@ class _SubjectsTab extends StatelessWidget {
                                     DataColumn(label: Text('Prog / Year / Sem', style: TextStyle(fontWeight: FontWeight.w700))),
                                     DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.w700))),
                                   ],
-                                  rows: state.subjects.map((sub) {
+                                  rows: subjects.map((sub) {
                                     final isSelected = state.selectedSubjectForPrereqs?.subjectId == sub.subjectId;
 
                                     return DataRow(
@@ -929,7 +1029,16 @@ class _SubjectsTab extends StatelessWidget {
                                           Text('${sub.lecUnits.toStringAsFixed(1)} / ${sub.labUnits.toStringAsFixed(1)}'),
                                         ),
                                         DataCell(
-                                          Text('${sub.programCode ?? sub.programId} • Y${sub.yearLevel} • S${sub.defaultSemester}'),
+                                          Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('${sub.programCode ?? sub.programId} • Y${sub.yearLevel} • S${sub.defaultSemester}'),
+                                              if (sub.curriculumName != null && _curriculaOf(sub.programId).length > 1)
+                                                Text(sub.curriculumName!,
+                                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                            ],
+                                          ),
                                         ),
                                         DataCell(
                                           Row(
@@ -1257,6 +1366,14 @@ class _SubjectsTab extends StatelessWidget {
         ? sub.programId
         : (validProgIds.isNotEmpty ? validProgIds.first : null);
 
+    // New subjects go to the program's newest curriculum unless another one is picked.
+    String? newestOf(int? programId) =>
+        _curriculaOf(programId).where((c) => c.isNewest).map((c) => c.curriculumId).firstOrNull;
+    String? curriculumId = (sub?.curriculumId != null &&
+            _curriculaOf(progId).any((c) => c.curriculumId == sub!.curriculumId))
+        ? sub!.curriculumId
+        : newestOf(progId);
+
     const validYears = [1, 2, 3, 4, 5];
     int yearLevel = (sub != null && validYears.contains(sub.yearLevel))
         ? sub.yearLevel
@@ -1324,7 +1441,10 @@ class _SubjectsTab extends StatelessWidget {
                                   ),
                                 );
                               }).toList(),
-                              onChanged: (v) => setState(() => progId = v),
+                              onChanged: (v) => setState(() {
+                                progId = v;
+                                curriculumId = newestOf(v);
+                              }),
                             ),
                           ),
                         ],
@@ -1339,6 +1459,23 @@ class _SubjectsTab extends StatelessWidget {
                         ),
                         validator: (v) => v!.isEmpty ? 'Title required' : null,
                       ),
+                      if (_curriculaOf(progId).isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('subject_curriculum_field_$progId'),
+                          isExpanded: true,
+                          initialValue: curriculumId,
+                          decoration: const InputDecoration(
+                            labelText: 'Curriculum *',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            for (final c in _curriculaOf(progId))
+                              DropdownMenuItem(value: c.curriculumId, child: Text(c.label, overflow: TextOverflow.ellipsis)),
+                          ],
+                          onChanged: (v) => setState(() => curriculumId = v),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -1520,6 +1657,7 @@ class _SubjectsTab extends StatelessWidget {
                     'lecHours': double.tryParse(lecHoursCtrl.text) ?? 3.0,
                     'labHours': double.tryParse(labHoursCtrl.text) ?? 0.0,
                     'programID': progId,
+                    'curriculumID': ?curriculumId,
                     'yearLevel': yearLevel,
                     'defaultSemester': defSem,
                     'standingYear': standingYear,

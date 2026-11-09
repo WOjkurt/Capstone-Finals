@@ -11,6 +11,7 @@ import 'edit_year_level_dialog.dart';
 import 'initialize_clearance_dialog.dart';
 import 'shift_program_dialog.dart';
 import 'status_badge.dart';
+import 'student_curriculum_chip.dart';
 import 'student_details_tab.dart';
 import 'student_evaluation_tab.dart';
 import 'student_grades_dialog.dart';
@@ -235,6 +236,12 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                             color: const Color(0xFFB45309))
                         : chip(Icons.badge_outlined, 'LRN ${s.lrn}', onEdit: _editLrn, key: const ValueKey('profile_lrn')),
                     chip(Icons.school_outlined, s.programCode ?? 'No program', onEdit: _shiftProgram, key: const ValueKey('profile_program')),
+                    // Recreated after a shift, since shifting picks the new program's curriculum.
+                    StudentCurriculumChip(
+                      key: ValueKey('curriculum_${s.userId}_${s.programId}'),
+                      userId: s.userId,
+                      studentName: s.fullName,
+                    ),
                     _yearLevel == null
                         ? chip(Icons.stairs_outlined, 'Year not set', onEdit: _editYearLevel,
                             key: const ValueKey('profile_year'), color: AppColors.error)
