@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import 'activity_log_browser.dart';
 import 'credited_subjects_dialog.dart';
 import 'edit_lrn_dialog.dart';
+import 'edit_student_id_dialog.dart';
 import 'edit_year_level_dialog.dart';
 import 'initialize_clearance_dialog.dart';
 import 'shift_program_dialog.dart';
@@ -35,6 +36,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
 
   late final TabController _tabController = TabController(length: _tabs.length, vsync: this);
   int? _yearLevel;
+  String? _studentId;
 
   String? get _termId => currentTerm.termId;
 
@@ -44,6 +46,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
   void initState() {
     super.initState();
     _yearLevel = _student.yearLevel;
+    _studentId = _student.studentId;
   }
 
   @override
@@ -54,6 +57,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
     super.didUpdateWidget(old);
     if (old.data.selectedStudent?.userId != _student.userId) {
       _yearLevel = _student.yearLevel;
+      _studentId = _student.studentId;
     }
   }
 
@@ -71,6 +75,12 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
       currentLrn: _student.lrn,
       onSaved: (newLrn) => context.read<ClearanceBloc>().add(StudentLrnUpdatedEvent(_student.userId, newLrn)),
     );
+  }
+
+  Future<void> _editStudentId() async {
+    final saved = await EditStudentIdDialog.show(context,
+        userId: _student.userId, studentName: _student.fullName, current: _studentId);
+    if (saved != null && mounted) setState(() => _studentId = saved.isEmpty ? null : saved);
   }
 
   void _editYearLevel() {
@@ -231,6 +241,11 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                   spacing: 6,
                   runSpacing: 6,
                   children: [
+                    (_studentId ?? '').isEmpty
+                        ? chip(Icons.numbers, 'No student ID', onEdit: _editStudentId,
+                            key: const ValueKey('profile_student_id'), color: const Color(0xFFB45309))
+                        : chip(Icons.numbers, 'ID $_studentId', onEdit: _editStudentId,
+                            key: const ValueKey('profile_student_id')),
                     s.hasLrn == false || (s.lrn ?? '').isEmpty
                         ? chip(Icons.badge_outlined, 'No LRN', onEdit: _editLrn, key: const ValueKey('profile_lrn'),
                             color: const Color(0xFFB45309))

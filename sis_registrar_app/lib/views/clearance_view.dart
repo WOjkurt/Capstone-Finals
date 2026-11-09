@@ -164,7 +164,7 @@ class _ClearanceViewState extends State<ClearanceView> {
                     context.read<ClearanceBloc>().add(SearchStudentsEvent(val));
                   },
                   decoration: InputDecoration(
-                    hintText: 'Search by name, email or LRN...',
+                    hintText: 'Search by name, email, LRN or student ID...',
                     hintStyle:
                         TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     prefixIcon:
@@ -249,7 +249,7 @@ class _ClearanceViewState extends State<ClearanceView> {
                         data.isSearching
                             ? 'Searching students...'
                             : data.searchQuery.trim().isEmpty
-                                ? 'Type a name, email or LRN to find a student.'
+                                ? 'Type a name, email, LRN or student ID to find a student.'
                                 : 'No students found matching "${data.searchQuery}".',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF64748B)),

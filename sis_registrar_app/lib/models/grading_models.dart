@@ -120,6 +120,9 @@ class UserSearchResultModel {
   final String? lrn;
   final bool? hasLrn;
 
+  /// DBTC student ID (e.g. 25060208); empty until the school assigns one.
+  final String? studentId;
+
   const UserSearchResultModel({
     required this.userId,
     required this.firstname,
@@ -133,6 +136,7 @@ class UserSearchResultModel {
     this.roleName,
     this.lrn,
     this.hasLrn,
+    this.studentId,
   });
 
   factory UserSearchResultModel.fromJson(Map<String, dynamic> json) {
@@ -163,6 +167,7 @@ class UserSearchResultModel {
       roleName: json['roleName'] as String?,
       lrn: rawLrn,
       hasLrn: rawHasLrn ?? (rawLrn != null && rawLrn.isNotEmpty),
+      studentId: json['studentID'] as String? ?? json['studentId'] as String?,
     );
   }
 
@@ -182,6 +187,7 @@ class UserSearchResultModel {
     String? lrn,
     bool clearLrn = false,
     bool? hasLrn,
+    String? studentId,
   }) {
     return UserSearchResultModel(
       userId: userId ?? this.userId,
@@ -196,6 +202,7 @@ class UserSearchResultModel {
       roleName: roleName ?? this.roleName,
       lrn: clearLrn ? null : (lrn ?? this.lrn),
       hasLrn: hasLrn ?? this.hasLrn,
+      studentId: studentId ?? this.studentId,
     );
   }
 }

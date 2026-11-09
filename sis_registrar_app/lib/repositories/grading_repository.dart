@@ -191,6 +191,21 @@ class UserSearchRepository {
     }
   }
 
+  /// Saves the student ID (null or empty clears it) and returns what the server stored.
+  Future<String?> updateStudentId(String userId, String? studentId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/UserDetails/$userId/student-id'),
+      headers: headers,
+      body: jsonEncode({'studentID': studentId}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return body['studentID'] as String? ?? body['studentId'] as String?;
+  }
+
   Future<void> updateStudentYearLevel(String userId, int yearLevel) async {
     final headers = await _auth.getAuthHeaders();
     final res = await http.patch(

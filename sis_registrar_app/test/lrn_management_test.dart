@@ -32,6 +32,9 @@ class MockUserSearchRepository implements UserSearchRepository {
   }
 
   @override
+  @override
+  Future<String?> updateStudentId(String userId, String? studentId) async => studentId;
+
   Future<void> updateStudentLrn(String userId, String? lrn) async {
     updatedUserId = userId;
     updatedLrn = lrn;
