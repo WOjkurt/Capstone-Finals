@@ -341,6 +341,35 @@ namespace Api.Migrations
                     b.ToTable("CreditedSubjects");
                 });
 
+            modelBuilder.Entity("Api.Domain.Enrollment.Curriculum", b =>
+                {
+                    b.Property<Guid>("CurriculumID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EffectiveFromYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ProgramID")
+                        .HasColumnType("integer");
+
+                    b.HasKey("CurriculumID");
+
+                    b.HasIndex("ProgramID", "EffectiveFromYear")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_Curricula_ProgramID_EffectiveFromYear");
+
+                    b.ToTable("Curricula");
+                });
+
             modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentApplication", b =>
                 {
                     b.Property<Guid>("ApplicationID")
@@ -867,6 +896,9 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("CurriculumID")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("DefaultSemester")
                         .HasColumnType("integer");
 
@@ -904,9 +936,11 @@ namespace Api.Migrations
 
                     b.HasKey("SubjectID");
 
-                    b.HasIndex("ProgramID", "SubjectCode")
+                    b.HasIndex("ProgramID");
+
+                    b.HasIndex("CurriculumID", "SubjectCode")
                         .IsUnique()
-                        .HasDatabaseName("UQ_Subjects_ProgramID_SubjectCode");
+                        .HasDatabaseName("UQ_Subjects_CurriculumID_SubjectCode");
 
                     b.ToTable("Subjects");
                 });
@@ -1103,6 +1137,9 @@ namespace Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CurriculumID")
+                        .HasColumnType("uuid");
+
                     b.Property<int?>("EmployeeID")
                         .HasColumnType("integer");
 
@@ -1142,6 +1179,8 @@ namespace Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("UserDetailID");
+
+                    b.HasIndex("CurriculumID");
 
                     b.HasIndex("LRN")
                         .IsUnique()
@@ -1245,6 +1284,17 @@ namespace Api.Migrations
                     b.Navigation("Term");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Api.Domain.Enrollment.Curriculum", b =>
+                {
+                    b.HasOne("Api.Domain.Enrollment.AcademicProgram", "Program")
+                        .WithMany()
+                        .HasForeignKey("ProgramID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Program");
                 });
 
             modelBuilder.Entity("Api.Domain.Enrollment.EnrollmentApplication", b =>
@@ -1409,11 +1459,19 @@ namespace Api.Migrations
 
             modelBuilder.Entity("Api.Domain.Enrollment.Subject", b =>
                 {
+                    b.HasOne("Api.Domain.Enrollment.Curriculum", "Curriculum")
+                        .WithMany()
+                        .HasForeignKey("CurriculumID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("Api.Domain.Enrollment.AcademicProgram", "Program")
                         .WithMany()
                         .HasForeignKey("ProgramID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Curriculum");
 
                     b.Navigation("Program");
                 });
@@ -1510,6 +1568,11 @@ namespace Api.Migrations
 
             modelBuilder.Entity("Api.Domain.IdentityAccess.UserDetails", b =>
                 {
+                    b.HasOne("Api.Domain.Enrollment.Curriculum", "Curriculum")
+                        .WithMany()
+                        .HasForeignKey("CurriculumID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Api.Domain.IdentityAccess.Position", "Position")
                         .WithMany()
                         .HasForeignKey("PositionID")
@@ -1525,6 +1588,8 @@ namespace Api.Migrations
                         .HasForeignKey("Api.Domain.IdentityAccess.UserDetails", "UserID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Curriculum");
 
                     b.Navigation("Position");
 

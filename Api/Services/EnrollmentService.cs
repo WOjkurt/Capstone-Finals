@@ -433,6 +433,12 @@ public class EnrollmentService : IEnrollmentService
             }
         }
 
+        // New students get the curriculum of their batch: the newest one in effect when they start.
+        var termYear = CurriculumService.StartYear(await _context.AcademicTerms.AsNoTracking()
+            .Where(t => t.TermID == application.TermID).Select(t => t.SchoolYear).FirstOrDefaultAsync()) ?? DateTime.UtcNow.Year;
+        Guid? curriculumId = await new CurriculumService(_context)
+            .ForBatchAsync(application.ProgramID, CurriculumService.BatchYear(termYear, form.YearLevel));
+
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -444,6 +450,7 @@ public class EnrollmentService : IEnrollmentService
                 Lastname = form.LastName,
                 LRN = studentLrn,
                 ProgramID = application.ProgramID,
+                CurriculumID = curriculumId,
                 StudentType = 1,   // New
                 StudentStatus = 1, // Enrolled
                 YearLevel = form.YearLevel, // Read from form (may have been overridden by registrar at approval time)

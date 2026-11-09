@@ -42,6 +42,7 @@ public class StudentRecordService : IStudentRecordService
         var student = await _context.UserDetails
             .AsNoTracking()
             .Include(ud => ud.Program)
+            .Include(ud => ud.Curriculum)
             .FirstOrDefaultAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student)
             ?? throw new KeyNotFoundException("Student not found.");
         if (student.ProgramID == null || student.Program == null)
@@ -51,7 +52,7 @@ public class StudentRecordService : IStudentRecordService
 
         var subjects = await _context.Subjects
             .AsNoTracking()
-            .Where(s => s.ProgramID == student.ProgramID)
+            .ForStudent(student)
             .OrderBy(s => s.YearLevel).ThenBy(s => s.DefaultSemester).ThenBy(s => s.SubjectCode)
             .ToListAsync();
         var subjectIds = subjects.Select(s => s.SubjectID).ToList();
@@ -100,7 +101,11 @@ public class StudentRecordService : IStudentRecordService
             Lrn = student.LRN,
             ProgramCode = student.Program.ProgramCode,
             ProgramName = student.Program.ProgramName,
-            YearLevel = student.YearLevel
+            YearLevel = student.YearLevel,
+            CurriculumId = student.CurriculumID,
+            CurriculumName = student.Curriculum == null
+                ? null
+                : $"{student.Curriculum.Name} (from SY {CurriculumService.SchoolYearLabel(student.Curriculum.EffectiveFromYear)})"
         };
 
         foreach (var subject in subjects)
@@ -615,6 +620,11 @@ public class StudentRecordService : IStudentRecordService
             ProgramCode = program.ProgramCode
         };
         student.ProgramID = dto.ProgramId;
+        // The new program's curriculum for the student's batch (the Registrar can still pick another one).
+        var termYear = CurriculumService.StartYear(await _context.AcademicTerms.AsNoTracking()
+            .Where(t => t.IsActive).Select(t => t.SchoolYear).FirstOrDefaultAsync()) ?? DateTime.UtcNow.Year;
+        student.CurriculumID = await new CurriculumService(_context)
+            .ForBatchAsync(dto.ProgramId, CurriculumService.BatchYear(termYear, student.YearLevel));
         await _context.SaveChangesAsync();
 
         var loads = await _context.StudyLoads.AsNoTracking()
@@ -664,7 +674,7 @@ public class StudentRecordService : IStudentRecordService
         var grades = await _context.Grades.AsNoTracking()
             .Where(g => ids.Contains(g.StudyLoadID))
             .ToDictionaryAsync(g => g.StudyLoadID, g => new { g.Remarks, g.FinalGrade });
-        var curriculum = await _context.Subjects.AsNoTracking().Where(s => s.ProgramID == student.ProgramID).ToListAsync();
+        var curriculum = await _context.Subjects.AsNoTracking().ForStudent(student).ToListAsync();
         var credited = (await _context.CreditedSubjects.AsNoTracking()
                 .Where(c => c.UserID == userId)
                 .Select(c => c.SubjectID)

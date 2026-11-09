@@ -44,8 +44,9 @@ public class SubjectService : ISubjectService
             throw new ArgumentException("SubjectCode cannot be empty.", nameof(dto.SubjectCode));
         }
 
+        var curriculum = await ResolveCurriculumAsync(dto.ProgramID, dto.CurriculumID);
         var duplicateExists = await _context.Subjects
-            .AnyAsync(s => s.ProgramID == dto.ProgramID && s.SubjectCode == normalizedCode);
+            .AnyAsync(s => s.CurriculumID == curriculum.CurriculumID && s.SubjectCode == normalizedCode);
         if (duplicateExists)
         {
             throw new DuplicateSubjectCodeException(normalizedCode, program.ProgramCode);
@@ -61,6 +62,7 @@ public class SubjectService : ISubjectService
             LecHours = dto.LecHours,
             LabHours = dto.LabHours,
             ProgramID = dto.ProgramID,
+            CurriculumID = curriculum.CurriculumID,
             YearLevel = dto.YearLevel,
             DefaultSemester = dto.DefaultSemester,
             StandingYear = dto.StandingYear,
@@ -80,6 +82,8 @@ public class SubjectService : ISubjectService
             LabHours = subject.LabHours,
             ProgramID = subject.ProgramID,
             ProgramCode = program.ProgramCode,
+            CurriculumID = subject.CurriculumID,
+            CurriculumName = curriculum.Name,
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
             StandingYear = subject.StandingYear,
@@ -88,17 +92,43 @@ public class SubjectService : ISubjectService
         };
     }
 
+    private async Task<Dictionary<Guid, string>> CurriculumNamesAsync(IEnumerable<Guid> ids)
+    {
+        var wanted = ids.Distinct().ToList();
+        return await _context.Curricula.AsNoTracking()
+            .Where(c => wanted.Contains(c.CurriculumID))
+            .ToDictionaryAsync(c => c.CurriculumID, c => c.Name);
+    }
+
+    /// <summary>The given curriculum (it must be one of the program's), or the program's newest one.</summary>
+    private async Task<Curriculum> ResolveCurriculumAsync(int programId, Guid? curriculumId)
+    {
+        var id = curriculumId ?? await new CurriculumService(_context).NewestOrCreateAsync(programId);
+        var curriculum = await _context.Curricula.AsNoTracking().FirstOrDefaultAsync(c => c.CurriculumID == id)
+            ?? throw new KeyNotFoundException($"Curriculum with ID '{id}' was not found.");
+        if (curriculum.ProgramID != programId)
+        {
+            throw new ArgumentException("That curriculum belongs to another program.");
+        }
+        return curriculum;
+    }
+
     public static string NormalizeSubjectCode(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return string.Empty;
         return System.Text.RegularExpressions.Regex.Replace(code.Trim(), @"\s+", " ").ToUpperInvariant();
     }
 
-    public async Task<List<SubjectDto>> GetAllAsync(int? programId = null, int? yearLevel = null)
+    public async Task<List<SubjectDto>> GetAllAsync(int? programId = null, int? yearLevel = null, Guid? curriculumId = null)
     {
         var query = _context.Subjects
             .Include(s => s.Program)
             .AsQueryable();
+
+        if (curriculumId.HasValue)
+        {
+            query = query.Where(s => s.CurriculumID == curriculumId.Value);
+        }
 
         if (programId.HasValue)
         {
@@ -111,6 +141,7 @@ public class SubjectService : ISubjectService
         }
 
         var subjects = await query.ToListAsync();
+        var curriculumNames = await CurriculumNamesAsync(subjects.Select(s => s.CurriculumID));
         var allPrereqs = await _context.SubjectPrerequisites
             .Include(sp => sp.PrerequisiteSubject)
             .ToListAsync();
@@ -130,6 +161,8 @@ public class SubjectService : ISubjectService
             LabHours = s.LabHours,
             ProgramID = s.ProgramID,
             ProgramCode = s.Program?.ProgramCode,
+            CurriculumID = s.CurriculumID,
+            CurriculumName = curriculumNames.GetValueOrDefault(s.CurriculumID),
             YearLevel = s.YearLevel,
             DefaultSemester = s.DefaultSemester,
             StandingYear = s.StandingYear,
@@ -169,6 +202,8 @@ public class SubjectService : ISubjectService
             LabHours = subject.LabHours,
             ProgramID = subject.ProgramID,
             ProgramCode = subject.Program?.ProgramCode,
+            CurriculumID = subject.CurriculumID,
+            CurriculumName = (await CurriculumNamesAsync([subject.CurriculumID])).GetValueOrDefault(subject.CurriculumID),
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
             StandingYear = subject.StandingYear,
@@ -210,8 +245,11 @@ public class SubjectService : ISubjectService
             throw new ArgumentException("SubjectCode cannot be empty.", nameof(dto.SubjectCode));
         }
 
+        // Same program keeps its curriculum unless another is given; a new program means its newest curriculum.
+        var curriculum = await ResolveCurriculumAsync(dto.ProgramID,
+            dto.CurriculumID ?? (subject.ProgramID == dto.ProgramID && subject.CurriculumID != Guid.Empty ? subject.CurriculumID : null));
         var duplicateExists = await _context.Subjects
-            .AnyAsync(s => s.SubjectID != subjectId && s.ProgramID == dto.ProgramID && s.SubjectCode == normalizedCode);
+            .AnyAsync(s => s.SubjectID != subjectId && s.CurriculumID == curriculum.CurriculumID && s.SubjectCode == normalizedCode);
         if (duplicateExists)
         {
             throw new DuplicateSubjectCodeException(normalizedCode, program.ProgramCode);
@@ -224,6 +262,7 @@ public class SubjectService : ISubjectService
         subject.LecHours = dto.LecHours;
         subject.LabHours = dto.LabHours;
         subject.ProgramID = dto.ProgramID;
+        subject.CurriculumID = curriculum.CurriculumID;
         subject.YearLevel = dto.YearLevel;
         subject.DefaultSemester = dto.DefaultSemester;
         subject.StandingYear = dto.StandingYear;
@@ -247,6 +286,8 @@ public class SubjectService : ISubjectService
             LabHours = subject.LabHours,
             ProgramID = subject.ProgramID,
             ProgramCode = program.ProgramCode,
+            CurriculumID = subject.CurriculumID,
+            CurriculumName = curriculum.Name,
             YearLevel = subject.YearLevel,
             DefaultSemester = subject.DefaultSemester,
             StandingYear = subject.StandingYear,
@@ -316,6 +357,12 @@ public class SubjectService : ISubjectService
         if (prereqSubject == null)
         {
             throw new KeyNotFoundException($"Prerequisite subject with ID '{dto.PrerequisiteSubjectID}' was not found.");
+        }
+
+        if (subject.CurriculumID != prereqSubject.CurriculumID)
+        {
+            throw new InvalidOperationException(
+                $"'{subject.SubjectCode}' and '{prereqSubject.SubjectCode}' are in different curricula. Link subjects of the same curriculum.");
         }
 
         // ── 2. Exact-duplicate guard: same pair AND same type ─────────────────

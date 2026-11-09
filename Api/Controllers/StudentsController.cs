@@ -32,6 +32,7 @@ public class StudentsController : ControllerBase
             .AsNoTracking()
             .Include(ud => ud.User)
             .Include(ud => ud.Program)
+            .Include(ud => ud.Curriculum)
             .Where(ud => ud.User != null && ud.User.Role == RoleUtils.Student);
 
         if (programId.HasValue)
@@ -114,6 +115,8 @@ public class StudentsController : ControllerBase
             ProgramCode = ud.Program?.ProgramCode,
             ProgramName = ud.Program?.ProgramName,
             YearLevel = ud.YearLevel,
+            CurriculumId = ud.CurriculumID,
+            CurriculumName = ud.Curriculum?.Name,
             StudentType = ud.StudentType,
             StudentStatus = ud.StudentStatus,
             Status = ud.StudentStatus.HasValue ? ud.StudentStatus.Value.ToString() : null

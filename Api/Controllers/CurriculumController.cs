@@ -26,7 +26,8 @@ public class CurriculumController : ControllerBase
     public async Task<IActionResult> Import(
         [FromForm] IFormFile? file,
         [FromQuery] bool dryRun = true,
-        [FromQuery] bool updateExisting = false)
+        [FromQuery] bool updateExisting = false,
+        [FromQuery] Guid? curriculumId = null)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid callerUserId || callerUserId == Guid.Empty)
         {
@@ -65,7 +66,8 @@ public class CurriculumController : ControllerBase
             file.Length,
             dryRun,
             updateExisting,
-            callerUserId);
+            callerUserId,
+            curriculumId);
 
         _logger.LogInformation(
             "Curriculum import executed: CallerID={CallerId}, DryRun={DryRun}, UpdateExisting={UpdateExisting}, Program={Program}, Created={Created}, Updated={Updated}, Unchanged={Unchanged}, PrereqsToAdd={PrereqsToAdd}, CoreqsToAdd={CoreqsToAdd}, AlreadyExist={AlreadyExist}, ExtrasInDb={ExtrasInDb}, TotalWarnings={TotalWarnings}, TotalErrors={TotalErrors}",

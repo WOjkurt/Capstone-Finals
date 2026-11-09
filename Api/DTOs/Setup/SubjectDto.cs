@@ -11,6 +11,8 @@ public class SubjectDto
     public decimal LabHours { get; set; }
     public int ProgramID { get; set; }
     public string? ProgramCode { get; set; }
+    public Guid CurriculumID { get; set; }
+    public string? CurriculumName { get; set; }
     public int YearLevel { get; set; }
     public int DefaultSemester { get; set; }
     public int? StandingYear { get; set; }

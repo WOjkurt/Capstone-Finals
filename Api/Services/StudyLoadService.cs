@@ -52,7 +52,7 @@ public class StudyLoadService : IStudyLoadService
 
         var programSubjects = await _context.Subjects
             .AsNoTracking()
-            .Where(s => s.ProgramID == userDetails.ProgramID.Value)
+            .ForStudent(userDetails)
             .ToListAsync();
 
         var candidates = new List<(Subject Subject, string Category, decimal? LastGrade, string? LastGradeTerm)>();
@@ -656,7 +656,7 @@ public class StudyLoadService : IStudyLoadService
         int current = userDetails.YearLevel.Value;
         var programSubjects = await _context.Subjects
             .AsNoTracking()
-            .Where(s => s.ProgramID == userDetails.ProgramID.Value)
+            .ForStudent(userDetails)
             .ToListAsync();
 
         var currentSubjects = programSubjects.Where(s => s.YearLevel == current).ToList();
@@ -711,10 +711,13 @@ public class StudyLoadService : IStudyLoadService
             .ToHashSet();
         var attemptsBy = attempts.ToLookup(a => (a.UserID, a.SubjectID));
 
+        // Each student is measured against their own curriculum (old records without one: the whole program).
+        var byCurriculum = programSubjects.ToLookup(s => s.CurriculumID);
         var result = new List<StudentYearLevelSuggestionDto>();
         foreach (var student in students.OrderBy(s => s.YearLevel).ThenBy(s => s.Lastname).ThenBy(s => s.Firstname))
         {
-            var suggestion = BuildYearLevelSuggestion(student.YearLevel!.Value, programSubjects, subject =>
+            var mySubjects = student.CurriculumID is { } cid ? byCurriculum[cid].ToList() : programSubjects;
+            var suggestion = BuildYearLevelSuggestion(student.YearLevel!.Value, mySubjects, subject =>
                 ClassifyAttempts(
                     credited.Contains((student.UserID, subject.SubjectID)),
                     attemptsBy[(student.UserID, subject.SubjectID)]
@@ -867,7 +870,7 @@ public class StudyLoadService : IStudyLoadService
             ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
 
         var programSubjects = userDetails.ProgramID.HasValue
-            ? await _context.Subjects.AsNoTracking().Where(s => s.ProgramID == userDetails.ProgramID.Value).ToListAsync()
+            ? await _context.Subjects.AsNoTracking().ForStudent(userDetails).ToListAsync()
             : new List<Subject>();
 
         int? yearLevel = userDetails.YearLevel;

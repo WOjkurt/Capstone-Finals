@@ -19,6 +19,10 @@ public class UserDetails
     public int? ProgramID { get; set; }
     public AcademicProgram? Program { get; set; }
 
+    /// <summary>For students: the curriculum they follow. Empty means "all subjects of the program" (old records).</summary>
+    public Guid? CurriculumID { get; set; }
+    public Curriculum? Curriculum { get; set; }
+
     public int? StudentType { get; set; }
     public int? StudentStatus { get; set; }
     public int? YearLevel { get; set; }

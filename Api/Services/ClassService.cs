@@ -373,6 +373,17 @@ public class ClassService : IClassService
 
         var allSubjects = await subjectsQuery.AsNoTracking().ToListAsync();
 
+        // Each year level follows its batch's curriculum: in 2026-2027 the 1st years (batch 2026) may be on a new
+        // curriculum while the 2nd years (batch 2025) stay on the old one. Programs without curricula use every subject.
+        var curricula = await _context.Curricula.AsNoTracking().Where(c => c.ProgramID == request.ProgramId).ToListAsync();
+        var termStartYear = CurriculumService.StartYear(term.SchoolYear);
+        if (curricula.Count > 0 && termStartYear is int startYear)
+        {
+            allSubjects = allSubjects
+                .Where(s => s.CurriculumID == CurriculumService.ForBatch(curricula, CurriculumService.BatchYear(startYear, s.YearLevel))?.CurriculumID)
+                .ToList();
+        }
+
         // ── Split: no-default-semester subjects are always skipped ──────────
         // DefaultSemester == 0 means not set
         var toProcess = allSubjects.Where(s => s.DefaultSemester != 0).ToList();

@@ -21,7 +21,7 @@ public class SubjectsController : ControllerBase
 
     [HttpGet]
     [EnableRateLimiting("search")]
-    public async Task<IActionResult> GetAll([FromQuery] int? programId, [FromQuery] int? yearLevel)
+    public async Task<IActionResult> GetAll([FromQuery] int? programId, [FromQuery] int? yearLevel, [FromQuery] Guid? curriculumId = null)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
         {
@@ -39,7 +39,7 @@ public class SubjectsController : ControllerBase
             programId = headProgramId.Value;
         }
 
-        var subjects = await _subjectService.GetAllAsync(programId, yearLevel);
+        var subjects = await _subjectService.GetAllAsync(programId, yearLevel, curriculumId);
         return Ok(subjects);
     }
 

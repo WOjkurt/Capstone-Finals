@@ -9,6 +9,9 @@ public class StudentEvaluationDto
     public string ProgramCode { get; set; } = string.Empty;
     public string ProgramName { get; set; } = string.Empty;
     public int? YearLevel { get; set; }
+    public Guid? CurriculumId { get; set; }
+    /// <summary>For example "2018 curriculum (from SY 2018-2019)"; empty for old records without one.</summary>
+    public string? CurriculumName { get; set; }
 
     public decimal TotalUnits { get; set; }
     /// <summary>Passed or credited.</summary>

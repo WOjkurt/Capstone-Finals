@@ -46,6 +46,7 @@ builder.Services.AddScoped<IAcademicTermService, AcademicTermService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ICreditedSubjectService, CreditedSubjectService>();
 builder.Services.AddScoped<IEnrollmentHoldService, EnrollmentHoldService>();
+builder.Services.AddScoped<ICurriculumService, CurriculumService>();
 builder.Services.AddScoped<IReenrollmentService, ReenrollmentService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IStudentRecordService, StudentRecordService>();

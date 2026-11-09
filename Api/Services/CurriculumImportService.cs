@@ -31,7 +31,8 @@ public class CurriculumImportService : ICurriculumImportService
         long fileLength,
         bool dryRun,
         bool updateExisting,
-        Guid callerUserId)
+        Guid callerUserId,
+        Guid? curriculumId = null)
     {
         var warnings = new List<CurriculumImportFindingDto>();
         var errors = new List<CurriculumImportFindingDto>();
@@ -376,6 +377,36 @@ public class CurriculumImportService : ICurriculumImportService
             });
         }
 
+        // The curriculum to import into: the one asked for, else the program's newest (made on apply if none).
+        Curriculum? curriculumEntity = null;
+        if (programEntity != null)
+        {
+            if (curriculumId is { } wantedId)
+            {
+                curriculumEntity = await _context.Curricula.AsNoTracking().FirstOrDefaultAsync(c => c.CurriculumID == wantedId);
+                if (curriculumEntity == null || curriculumEntity.ProgramID != programEntity.ProgramID)
+                {
+                    errors.Add(new CurriculumImportFindingDto
+                    {
+                        Row = 0,
+                        Code = "",
+                        Message = curriculumEntity == null
+                            ? "The chosen curriculum was not found."
+                            : $"The chosen curriculum is not a {programEntity.ProgramCode} curriculum."
+                    });
+                    curriculumEntity = null;
+                }
+            }
+            else
+            {
+                curriculumEntity = await _context.Curricula.AsNoTracking()
+                    .Where(c => c.ProgramID == programEntity.ProgramID)
+                    .OrderByDescending(c => c.EffectiveFromYear)
+                    .FirstOrDefaultAsync();
+            }
+        }
+        Guid? targetCurriculumId = curriculumEntity?.CurriculumID;
+
         // ── 5. Duplicate Codes in File ──────────────────────────────────────────────
         var seenCodes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in parsedRows.Where(r => !string.IsNullOrEmpty(r.NormalizedCode)))
@@ -396,10 +427,14 @@ public class CurriculumImportService : ICurriculumImportService
         }
 
         // ── 6. Requisite Rules & Cycle Detection ───────────────────────────────────
-        var dbSubjects = programEntity != null
-            ? await _context.Subjects.Where(s => s.ProgramID == programEntity.ProgramID).ToListAsync()
-            : new List<Subject>();
+        // A program without curricula yet (older data): its subjects are matched by program as before.
+        var dbSubjects = targetCurriculumId != null
+            ? await _context.Subjects.Where(s => s.CurriculumID == targetCurriculumId).ToListAsync()
+            : programEntity != null
+                ? await _context.Subjects.Where(s => s.ProgramID == programEntity.ProgramID).ToListAsync()
+                : new List<Subject>();
 
+        var dbSubjectIds = dbSubjects.Select(s => s.SubjectID).ToList();
         var dbSubjectMap = dbSubjects.ToDictionary(s => SubjectService.NormalizeSubjectCode(s.SubjectCode), StringComparer.OrdinalIgnoreCase);
         var fileSubjectMap = parsedRows
             .Where(r => !string.IsNullOrEmpty(r.NormalizedCode))
@@ -407,11 +442,11 @@ public class CurriculumImportService : ICurriculumImportService
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         // Load existing prerequisite edges (type 0 only) for this program
-        var dbPrereqs = programEntity != null
+        var dbPrereqs = dbSubjectIds.Count > 0
             ? await _context.SubjectPrerequisites
                 .Include(sp => sp.Subject)
                 .Include(sp => sp.PrerequisiteSubject)
-                .Where(sp => sp.Subject!.ProgramID == programEntity.ProgramID && sp.RequisiteType == RequisiteTypeConstants.Prerequisite)
+                .Where(sp => dbSubjectIds.Contains(sp.SubjectID) && sp.RequisiteType == RequisiteTypeConstants.Prerequisite)
                 .ToListAsync()
             : new List<SubjectPrerequisite>();
 
@@ -640,11 +675,11 @@ public class CurriculumImportService : ICurriculumImportService
         int alreadyExist = 0;
         int extrasInDb = 0;
 
-        var allDbLinks = programEntity != null
+        var allDbLinks = dbSubjectIds.Count > 0
             ? await _context.SubjectPrerequisites
                 .Include(sp => sp.Subject)
                 .Include(sp => sp.PrerequisiteSubject)
-                .Where(sp => sp.Subject!.ProgramID == programEntity.ProgramID)
+                .Where(sp => dbSubjectIds.Contains(sp.SubjectID))
                 .ToListAsync()
             : new List<SubjectPrerequisite>();
 
@@ -705,6 +740,8 @@ public class CurriculumImportService : ICurriculumImportService
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                var applyCurriculumId = targetCurriculumId
+                    ?? await new CurriculumService(_context).NewestOrCreateAsync(programEntity.ProgramID);
                 var entityMap = new Dictionary<string, Subject>(StringComparer.OrdinalIgnoreCase);
                 foreach (var s in dbSubjects)
                 {
@@ -745,6 +782,7 @@ public class CurriculumImportService : ICurriculumImportService
                             LecHours = row.LecHours,
                             LabHours = row.LabHours,
                             ProgramID = programEntity.ProgramID,
+                            CurriculumID = applyCurriculumId,
                             YearLevel = row.Year,
                             DefaultSemester = row.Semester,
                             StandingYear = row.StandingYear,

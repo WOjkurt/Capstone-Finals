@@ -11,6 +11,9 @@ public class CreateSubjectDto
     public decimal LecHours { get; set; }
     public decimal LabHours { get; set; }
     public int ProgramID { get; set; }
+
+    /// <summary>Curriculum of the program to put the subject in. Empty means the program's newest curriculum.</summary>
+    public Guid? CurriculumID { get; set; }
     public int YearLevel { get; set; }
 
     /// <summary>1 = 1st Semester, 2 = 2nd Semester, 3 = Summer Term.</summary>

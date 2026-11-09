@@ -16,6 +16,10 @@ public class Subject
     public int ProgramID { get; set; }
     public AcademicProgram? Program { get; set; }
 
+    /// <summary>The curriculum version this subject belongs to (always one of the program's curricula).</summary>
+    public Guid CurriculumID { get; set; }
+    public Curriculum? Curriculum { get; set; }
+
     public int YearLevel { get; set; }
     public int DefaultSemester { get; set; }
 

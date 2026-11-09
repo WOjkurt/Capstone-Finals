@@ -10,5 +10,6 @@ public interface ICurriculumImportService
         long fileLength,
         bool dryRun,
         bool updateExisting,
-        Guid callerUserId);
+        Guid callerUserId,
+        Guid? curriculumId = null);
 }

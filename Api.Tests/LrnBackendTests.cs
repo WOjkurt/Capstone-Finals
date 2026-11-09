@@ -1,3 +1,4 @@
+using Api.DTOs.Records;
 using Api.Auth;
 using Api.Common;
 using Api.Controllers;
@@ -100,6 +101,46 @@ public class LrnBackendTests : IDisposable
         Assert.True(result.IsValid);
         Assert.Equal(expected, result.Lrn);
         Assert.Null(result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task LinkAccountAsync_NewStudent_GetsTheCurriculumOfTheirBatch()
+    {
+        // Term is 2025-2026 and the form says 1st year, so the batch is 2025: the 2025 curriculum, not the 2021 one.
+        var (app, _) = await CreateTestApplicationAsync(status: 2, lrn: null);
+        var old2021 = new Curriculum { CurriculumID = Guid.NewGuid(), ProgramID = 1, Name = "2021", EffectiveFromYear = 2021 };
+        var new2025 = new Curriculum { CurriculumID = Guid.NewGuid(), ProgramID = 1, Name = "2025", EffectiveFromYear = 2025 };
+        var later2027 = new Curriculum { CurriculumID = Guid.NewGuid(), ProgramID = 1, Name = "2027", EffectiveFromYear = 2027 };
+        _context.Curricula.AddRange(old2021, new2025, later2027);
+        await _context.SaveChangesAsync();
+        var studentUser = await CreateTestUserAsync("batch2025@dbtc.edu.ph", RoleUtils.Student);
+
+        await _enrollmentService.LinkAccountAsync(app.ApplicationID, studentUser.Email, Guid.NewGuid());
+
+        var details = await _userDetailsRepo.GetByUserIdAsync(studentUser.UserID);
+        Assert.Equal(new2025.CurriculumID, details!.CurriculumID);
+    }
+
+    [Fact]
+    public async Task ShiftProgram_PutsTheStudentOnTheNewProgramsBatchCurriculum()
+    {
+        var (app, _) = await CreateTestApplicationAsync(status: 2, lrn: null);   // active term 2025-2026, program 1
+        _context.AcademicPrograms.Add(new AcademicProgram { ProgramID = 2, ProgramCode = "BSME", ProgramName = "ME" });
+        var me2021 = new Curriculum { CurriculumID = Guid.NewGuid(), ProgramID = 2, Name = "ME 2021", EffectiveFromYear = 2021 };
+        var me2025 = new Curriculum { CurriculumID = Guid.NewGuid(), ProgramID = 2, Name = "ME 2025", EffectiveFromYear = 2025 };
+        _context.Curricula.AddRange(me2021, me2025);
+        await _context.SaveChangesAsync();
+        var studentUser = await CreateTestUserAsync("shift@dbtc.edu.ph", RoleUtils.Student);
+        await _enrollmentService.LinkAccountAsync(app.ApplicationID, studentUser.Email, Guid.NewGuid());
+        var details = await _context.UserDetails.FirstAsync(u => u.UserID == studentUser.UserID);
+        details.YearLevel = 2;   // a 2nd year in 2025-2026 started in 2024
+        await _context.SaveChangesAsync();
+
+        await new StudentRecordService(_context).ShiftProgramAsync(studentUser.UserID, new ShiftProgramDto { ProgramId = 2, Reason = "Shift" });
+
+        var after = await _context.UserDetails.AsNoTracking().FirstAsync(u => u.UserID == studentUser.UserID);
+        Assert.Equal(2, after.ProgramID);
+        Assert.Equal(me2021.CurriculumID, after.CurriculumID);
     }
 
     [Theory]

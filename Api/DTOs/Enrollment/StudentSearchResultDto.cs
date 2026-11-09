@@ -10,6 +10,8 @@ public class StudentSearchResultDto
     public string? ProgramCode { get; set; }
     public string? ProgramName { get; set; }
     public int? YearLevel { get; set; }
+    public Guid? CurriculumId { get; set; }
+    public string? CurriculumName { get; set; }
     public int? StudentType { get; set; }
     public int? StudentStatus { get; set; }
     public string? Status { get; set; }

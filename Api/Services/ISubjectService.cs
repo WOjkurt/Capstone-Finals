@@ -5,7 +5,7 @@ namespace Api.Services;
 public interface ISubjectService
 {
     Task<SubjectDto> CreateAsync(CreateSubjectDto dto);
-    Task<List<SubjectDto>> GetAllAsync(int? programId = null, int? yearLevel = null);
+    Task<List<SubjectDto>> GetAllAsync(int? programId = null, int? yearLevel = null, Guid? curriculumId = null);
     Task<SubjectDto?> GetByIdAsync(Guid subjectId);
     Task<SubjectDto> UpdateAsync(Guid subjectId, CreateSubjectDto dto);
     Task DeleteAsync(Guid subjectId);

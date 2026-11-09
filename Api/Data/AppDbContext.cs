@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<AcademicProgram> AcademicPrograms { get; set; }
     public DbSet<AcademicTerm> AcademicTerms { get; set; }
     public DbSet<Subject> Subjects { get; set; }
+    public DbSet<Curriculum> Curricula { get; set; }
     public DbSet<SubjectPrerequisite> SubjectPrerequisites { get; set; }
     public DbSet<EnrollmentResponse> EnrollmentResponses { get; set; }
     public DbSet<EnrollmentApplication> EnrollmentApplications { get; set; }
@@ -91,6 +92,11 @@ public class AppDbContext : DbContext
                 .HasForeignKey(ud => ud.ProgramID)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            entity.HasOne(ud => ud.Curriculum)
+                .WithMany()
+                .HasForeignKey(ud => ud.CurriculumID)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(ud => ud.Position)
                 .WithMany()
                 .HasForeignKey(ud => ud.PositionID)
@@ -105,9 +111,28 @@ public class AppDbContext : DbContext
                 .HasForeignKey(s => s.ProgramID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasIndex(s => new { s.ProgramID, s.SubjectCode })
+            entity.HasOne(s => s.Curriculum)
+                .WithMany()
+                .HasForeignKey(s => s.CurriculumID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(s => new { s.CurriculumID, s.SubjectCode })
                 .IsUnique()
-                .HasDatabaseName("UQ_Subjects_ProgramID_SubjectCode");
+                .HasDatabaseName("UQ_Subjects_CurriculumID_SubjectCode");
+            entity.HasIndex(s => s.ProgramID);
+        });
+
+        // ── Curriculum ───────────────────────────────────────────────
+        modelBuilder.Entity<Curriculum>(entity =>
+        {
+            entity.HasOne(c => c.Program)
+                .WithMany()
+                .HasForeignKey(c => c.ProgramID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(c => new { c.ProgramID, c.EffectiveFromYear })
+                .IsUnique()
+                .HasDatabaseName("UQ_Curricula_ProgramID_EffectiveFromYear");
         });
 
         // ── SubjectPrerequisite ──────────────────────────────────────
