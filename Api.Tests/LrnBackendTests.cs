@@ -324,6 +324,106 @@ public class LrnBackendTests : IDisposable
         Assert.Contains("students", badRequest.Value?.ToString());
     }
 
+    // ── Student IDs (DBTC IDs such as 25060208) ──────────────────────────────
+
+    [Theory]
+    [InlineData(" 25060208 ", "25060208")]
+    [InlineData("2506-0208", "25060208")]
+    [InlineData("08090037", "08090037")]   // leading zeros are kept
+    [InlineData("8090037", "8090037")]     // older 7-digit numbers
+    public void StudentID_Normalize_Valid(string raw, string expected)
+    {
+        var r = StudentIdHelper.Normalize(raw);
+        Assert.True(r.IsValid);
+        Assert.Equal(expected, r.Number);
+    }
+
+    [Theory]
+    [InlineData("2.5060208E7")]
+    [InlineData("ABC123")]
+    [InlineData("123")]
+    [InlineData("1234567890123456")]
+    public void StudentID_Normalize_Invalid(string raw)
+    {
+        Assert.False(StudentIdHelper.Normalize(raw).IsValid);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("  ")]
+    public void StudentID_Normalize_Empty_MeansNone(string? raw)
+    {
+        var r = StudentIdHelper.Normalize(raw);
+        Assert.True(r.IsValid);
+        Assert.Null(r.Number);
+    }
+
+    private async Task<User> StudentWithDetailsAsync(string email, string first, string? number = null)
+    {
+        var user = await CreateTestUserAsync(email, RoleUtils.Student);
+        await _userDetailsRepo.AddAsync(new UserDetails
+        {
+            UserDetailID = Guid.NewGuid(), UserID = user.UserID, Firstname = first, Lastname = "Cruz", StudentID = number
+        });
+        return user;
+    }
+
+    [Fact]
+    public async Task PatchStudentID_SetsAndClears()
+    {
+        var student = await StudentWithDetailsAsync("num1@dbtc.edu.ph", "Ana");
+        SetControllerContext(_userDetailsController, RoleUtils.Registrar, Guid.NewGuid());
+
+        Assert.IsType<OkObjectResult>(await _userDetailsController.UpdateStudentId(student.UserID,
+            new UpdateStudentIdRequestDto { StudentID = " 2506 0208 " }));
+        Assert.Equal("25060208", (await _context.UserDetails.AsNoTracking().FirstAsync(u => u.UserID == student.UserID)).StudentID);
+
+        Assert.IsType<OkObjectResult>(await _userDetailsController.UpdateStudentId(student.UserID,
+            new UpdateStudentIdRequestDto { StudentID = "" }));
+        Assert.Null((await _context.UserDetails.AsNoTracking().FirstAsync(u => u.UserID == student.UserID)).StudentID);
+    }
+
+    [Fact]
+    public async Task PatchStudentID_TakenByAnotherStudent_IsConflict()
+    {
+        await StudentWithDetailsAsync("num2@dbtc.edu.ph", "Ben", "25060208");
+        var other = await StudentWithDetailsAsync("num3@dbtc.edu.ph", "Cara");
+        SetControllerContext(_userDetailsController, RoleUtils.Registrar, Guid.NewGuid());
+
+        var result = await _userDetailsController.UpdateStudentId(other.UserID,
+            new UpdateStudentIdRequestDto { StudentID = "25060208" });
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains("already belongs to Ben Cruz", conflict.Value?.ToString());
+    }
+
+    [Fact]
+    public async Task PatchStudentID_BadFormat_OrNotAStudent_IsRejected()
+    {
+        var student = await StudentWithDetailsAsync("num4@dbtc.edu.ph", "Dan");
+        SetControllerContext(_userDetailsController, RoleUtils.Registrar, Guid.NewGuid());
+        Assert.IsType<BadRequestObjectResult>(await _userDetailsController.UpdateStudentId(student.UserID,
+            new UpdateStudentIdRequestDto { StudentID = "2.5060208E7" }));
+
+        var teacher = await CreateTestUserAsync("teach-num@dbtc.edu.ph", RoleUtils.Teacher);
+        await _userDetailsRepo.AddAsync(new UserDetails { UserDetailID = Guid.NewGuid(), UserID = teacher.UserID, Firstname = "T", Lastname = "T" });
+        Assert.IsType<NotFoundObjectResult>(await _userDetailsController.UpdateStudentId(teacher.UserID,
+            new UpdateStudentIdRequestDto { StudentID = "25060208" }));
+    }
+
+    [Fact]
+    public async Task StudentSearch_ByStudentID_FindsThatStudent()
+    {
+        await StudentWithDetailsAsync("num5@dbtc.edu.ph", "Eve", "25060208");
+        await StudentWithDetailsAsync("num6@dbtc.edu.ph", "Fay", "25060209");
+        SetControllerContext(_studentsController, RoleUtils.Registrar, Guid.NewGuid());
+
+        var ok = Assert.IsType<OkObjectResult>(await _studentsController.Search("25060208", null, null));
+        var list = Assert.IsAssignableFrom<IEnumerable<StudentSearchResultDto>>(ok.Value).ToList();
+        Assert.Single(list);
+        Assert.Equal("25060208", list[0].StudentID);
+        Assert.Contains("Eve", list[0].FullName);
+    }
+
     [Fact]
     public async Task PatchUserDetailsLrn_DuplicateLrn_ReturnsBadRequest()
     {

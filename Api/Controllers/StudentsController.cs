@@ -45,7 +45,13 @@ public class StudentsController : ControllerBase
             query = query.Where(ud => ud.LRN == null || ud.LRN == "");
         }
 
-        if (!string.IsNullOrWhiteSpace(q))
+        // A whole student ID (e.g. 25060208) finds that student directly. 12 digits is an LRN instead.
+        var numberResult = StudentIdHelper.Normalize(q);
+        if (!string.IsNullOrWhiteSpace(q) && numberResult.IsValid && numberResult.Number is { Length: not LrnHelper.RequiredDigits } number)
+        {
+            query = query.Where(ud => ud.StudentID == number);
+        }
+        else if (!string.IsNullOrWhiteSpace(q))
         {
             var lrnResult = LrnHelper.Normalize(q);
             var isPostgres = _context.Database.IsNpgsql();
@@ -110,6 +116,7 @@ public class StudentsController : ControllerBase
             UserId = ud.UserID,
             FullName = $"{ud.Firstname} {ud.Lastname}".Trim(),
             Lrn = ud.LRN,
+            StudentID = ud.StudentID,
             HasLrn = !string.IsNullOrWhiteSpace(ud.LRN),
             ProgramId = ud.ProgramID,
             ProgramCode = ud.Program?.ProgramCode,

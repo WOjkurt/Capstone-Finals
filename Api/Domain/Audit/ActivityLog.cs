@@ -59,12 +59,13 @@ public static class ActivityActions
     public const string HoldRemoved = "HOLD_REMOVED";
     public const string ReenrollmentSubmitted = "REENROLLMENT_SUBMITTED";
     public const string CurriculumChanged = "CURRICULUM_CHANGED";
+    public const string StudentIdChanged = "STUDENT_ID_CHANGED";
 
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditRemoved, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
-        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged,
+        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged,
         SignInBlocked, AccessDenied
     };
 }

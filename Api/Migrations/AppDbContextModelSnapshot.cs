@@ -1166,6 +1166,10 @@ namespace Api.Migrations
                     b.Property<int?>("ProgramID")
                         .HasColumnType("integer");
 
+                    b.Property<string>("StudentID")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<int?>("StudentStatus")
                         .HasColumnType("integer");
 
@@ -1190,6 +1194,11 @@ namespace Api.Migrations
                     b.HasIndex("PositionID");
 
                     b.HasIndex("ProgramID");
+
+                    b.HasIndex("StudentID")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_UserDetails_StudentID")
+                        .HasFilter("\"StudentID\" IS NOT NULL");
 
                     b.HasIndex("UserID")
                         .IsUnique()

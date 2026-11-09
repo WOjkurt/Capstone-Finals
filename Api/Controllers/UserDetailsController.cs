@@ -114,6 +114,7 @@ public class UserDetailsController : ControllerBase
             Firstname = userDetails.Firstname,
             Lastname = userDetails.Lastname,
             LRN = userDetails.LRN,
+            StudentID = userDetails.StudentID,
             ProgramID = userDetails.ProgramID,
             ProgramCode = userDetails.Program?.ProgramCode,
             ProgramName = userDetails.Program?.ProgramName,
@@ -175,6 +176,50 @@ public class UserDetailsController : ControllerBase
             lrn = userDetails.LRN,
             hasLrn = !string.IsNullOrEmpty(userDetails.LRN)
         });
+    }
+
+    [HttpPatch("{userId:guid}/student-id")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> UpdateStudentId(Guid userId, [FromBody] UpdateStudentIdRequestDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var callerUserIdObj) || callerUserIdObj is not Guid callerUserId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        var userDetails = await _userDetailsRepository.GetByUserIdAsync(userId);
+        if (userDetails == null || userDetails.User?.Role != RoleUtils.Student)
+        {
+            return NotFound(new { message = "Student not found." });
+        }
+
+        var result = StudentIdHelper.Normalize(dto.StudentID);
+        if (!result.IsValid)
+        {
+            return BadRequest(new { message = result.ErrorMessage });
+        }
+
+        if (result.Number != null)
+        {
+            var other = await _userDetailsRepository.GetByStudentIdAsync(result.Number);
+            if (other != null && other.UserID != userId)
+            {
+                return Conflict(new { message = $"Student ID {result.Number} already belongs to {other.Firstname} {other.Lastname}." });
+            }
+        }
+
+        var old = userDetails.StudentID;
+        userDetails.StudentID = result.Number;
+        await _userDetailsRepository.UpdateAsync(userDetails);
+
+        var log = this.ActivityLog();
+        if (log != null && old != result.Number)
+        {
+            await log.LogAsync(callerUserId, ActivityActions.StudentIdChanged,
+                $"Student ID {old ?? "not set"} -> {result.Number ?? "not set"}", userId);
+        }
+
+        return Ok(new { userId = userDetails.UserID, studentID = userDetails.StudentID });
     }
 
     [HttpPatch("{userId:guid}/year-level")]

@@ -6,6 +6,7 @@ public class StudentEvaluationDto
     public Guid UserId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string? Lrn { get; set; }
+    public string? StudentID { get; set; }
     public string ProgramCode { get; set; } = string.Empty;
     public string ProgramName { get; set; } = string.Empty;
     public int? YearLevel { get; set; }

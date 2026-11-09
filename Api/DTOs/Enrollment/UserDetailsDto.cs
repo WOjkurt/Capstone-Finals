@@ -7,6 +7,7 @@ public class UserDetailsDto
     public string Firstname { get; set; } = string.Empty;
     public string Lastname { get; set; } = string.Empty;
     public string? LRN { get; set; }
+    public string? StudentID { get; set; }
     public int? ProgramID { get; set; }
     public string? ProgramCode { get; set; }
     public string? ProgramName { get; set; }

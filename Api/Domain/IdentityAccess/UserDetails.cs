@@ -16,6 +16,10 @@ public class UserDetails
 
     public string? LRN { get; set; }
 
+    /// <summary>For students: the DBTC student ID (digits, e.g. 25060208). Empty until the school assigns one.</summary>
+    [MaxLength(20)]
+    public string? StudentID { get; set; }
+
     public int? ProgramID { get; set; }
     public AcademicProgram? Program { get; set; }
 

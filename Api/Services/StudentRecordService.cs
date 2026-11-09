@@ -99,6 +99,7 @@ public class StudentRecordService : IStudentRecordService
             UserId = userId,
             FullName = $"{student.Firstname} {student.Lastname}".Trim(),
             Lrn = student.LRN,
+            StudentID = student.StudentID,
             ProgramCode = student.Program.ProgramCode,
             ProgramName = student.Program.ProgramName,
             YearLevel = student.YearLevel,

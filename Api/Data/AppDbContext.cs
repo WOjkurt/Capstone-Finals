@@ -82,6 +82,11 @@ public class AppDbContext : DbContext
                 .HasFilter("\"LRN\" IS NOT NULL")
                 .HasDatabaseName("UQ_UserDetails_LRN");
 
+            entity.HasIndex(ud => ud.StudentID)
+                .IsUnique()
+                .HasFilter("\"StudentID\" IS NOT NULL")
+                .HasDatabaseName("UQ_UserDetails_StudentID");
+
             entity.HasOne(ud => ud.User)
                 .WithOne()
                 .HasForeignKey<UserDetails>(ud => ud.UserID)

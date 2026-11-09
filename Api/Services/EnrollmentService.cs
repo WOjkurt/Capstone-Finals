@@ -612,6 +612,7 @@ public class EnrollmentService : IEnrollmentService
                     Firstname = ud.Firstname,
                     Lastname = ud.Lastname,
                     LRN = ud.LRN,
+                    StudentID = ud.StudentID,
                     ProgramID = ud.ProgramID,
                     StudentType = ud.StudentType,
                     StudentStatus = ud.StudentStatus,
