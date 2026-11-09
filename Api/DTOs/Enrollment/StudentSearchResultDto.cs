@@ -4,6 +4,9 @@ public class StudentSearchResultDto
 {
     public Guid UserId { get; set; }
     public string FullName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    /// <summary>False for students imported from the registrar's records who have not signed in yet.</summary>
+    public bool HasSignedIn { get; set; } = true;
     public string? Lrn { get; set; }
     public string? StudentID { get; set; }
     public bool HasLrn { get; set; }

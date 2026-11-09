@@ -140,6 +140,23 @@ public class FirebaseAuthMiddleware
 
         if (user == null)
         {
+            // A student imported from the registrar's records has a pending account with their school email:
+            // the first sign-in with that (verified) email makes it theirs.
+            var loginEmail = email.ToLowerInvariant();
+            var pending = await db.Users.FirstOrDefaultAsync(u =>
+                u.FirebaseUID.StartsWith(Api.Services.RecordsImportService.PendingUidPrefix) &&
+                u.Role == RoleUtils.Student && u.Email == loginEmail);
+            if (pending != null)
+            {
+                pending.FirebaseUID = uid;
+                await db.SaveChangesAsync();
+                user = pending;
+                _logger.LogInformation("Imported student signed in for the first time; pending account claimed. UserID={UserID}", user.UserID);
+            }
+        }
+
+        if (user == null)
+        {
             // Only auto-create a Users row if there is an approved EnrollmentApplication whose
             // SchoolEmail matches this login email (lowercase) and the account hasn't
             // been linked yet (StudentUserID == null). This prevents staff whose accounts haven't

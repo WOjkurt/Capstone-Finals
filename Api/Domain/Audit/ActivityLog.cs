@@ -60,12 +60,14 @@ public static class ActivityActions
     public const string ReenrollmentSubmitted = "REENROLLMENT_SUBMITTED";
     public const string CurriculumChanged = "CURRICULUM_CHANGED";
     public const string StudentIdChanged = "STUDENT_ID_CHANGED";
+    public const string RecordsImported = "RECORDS_IMPORTED";
+    public const string SchoolEmailSet = "SCHOOL_EMAIL_SET";
 
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditRemoved, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
-        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged,
+        PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged, RecordsImported, SchoolEmailSet,
         SignInBlocked, AccessDenied
     };
 }

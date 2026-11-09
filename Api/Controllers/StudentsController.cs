@@ -3,6 +3,7 @@ using Api.Common;
 using Api.Data;
 using Api.DTOs.Enrollment;
 using Api.Repositories;
+using Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -115,6 +116,8 @@ public class StudentsController : ControllerBase
         {
             UserId = ud.UserID,
             FullName = $"{ud.Firstname} {ud.Lastname}".Trim(),
+            Email = ud.User?.Email,
+            HasSignedIn = ud.User == null || !ud.User.FirebaseUID.StartsWith(Api.Services.RecordsImportService.PendingUidPrefix),
             Lrn = ud.LRN,
             StudentID = ud.StudentID,
             HasLrn = !string.IsNullOrWhiteSpace(ud.LRN),
@@ -131,4 +134,57 @@ public class StudentsController : ControllerBase
 
         return Ok(results);
     }
+    /// <summary>
+    /// Sets the school email of a student who was imported from the registrar's records and has not signed in yet.
+    /// Their first sign-in with this email makes the account theirs. After that the email comes from their sign-in.
+    /// </summary>
+    [HttpPatch("{userId:guid}/school-email")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> SetSchoolEmail(Guid userId, [FromBody] SetSchoolEmailDto dto)
+    {
+        if (this.CallerId() is not { } callerId) return Unauthorized(new { message = "Authentication required." });
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId && u.Role == RoleUtils.Student);
+        if (user == null) return NotFound(new { message = "Student not found." });
+        if (!user.FirebaseUID.StartsWith(Api.Services.RecordsImportService.PendingUidPrefix))
+        {
+            return Conflict(new { message = "This student has already signed in; their email is the one they sign in with." });
+        }
+
+        var email = (dto.SchoolEmail ?? "").Trim().ToLowerInvariant();
+        if (email.Length > 0)
+        {
+            var domain = SchoolEmailValidator.GetAllowedDomain(HttpContext.RequestServices.GetService<IConfiguration>());
+            if (!System.Net.Mail.MailAddress.TryCreate(email, out var parsed) || parsed.Address != email ||
+                !SchoolEmailValidator.IsValidDomain(email, domain))
+            {
+                return BadRequest(new { message = $"Enter a school email that ends with @{domain}." });
+            }
+            var other = await _context.Users.AsNoTracking()
+                .Where(u => u.UserID != userId && u.Email.ToLower() == email)
+                .Select(u => new { u.UserID })
+                .FirstOrDefaultAsync();
+            if (other != null)
+            {
+                var name = await _context.UserDetails.AsNoTracking().Where(d => d.UserID == other.UserID)
+                    .Select(d => d.Firstname + " " + d.Lastname).FirstOrDefaultAsync();
+                return Conflict(new { message = $"{email} already belongs to {name ?? "another account"}." });
+            }
+        }
+
+        var old = user.Email;
+        user.Email = email;
+        await _context.SaveChangesAsync();
+        if (old != email && this.ActivityLog() is { } log)
+        {
+            await log.LogAsync(callerId, Api.Domain.Audit.ActivityActions.SchoolEmailSet,
+                $"School email {(old.Length == 0 ? "not set" : old)} -> {(email.Length == 0 ? "not set" : email)}", userId);
+        }
+        return Ok(new { userId, schoolEmail = email, hasSignedIn = false });
+    }
+}
+
+public class SetSchoolEmailDto
+{
+    public string? SchoolEmail { get; set; }
 }

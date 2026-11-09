@@ -414,6 +414,60 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
     }
 
     /// <summary>
+    /// A student imported from the registrar's Excel has a pending account. Their first sign-in with the school email
+    /// the Registrar entered claims it (same user, same records); a different email does not.
+    /// </summary>
+    [Fact]
+    public async Task Middleware_FirstLogin_ImportedPendingStudent_ClaimsTheirAccount()
+    {
+        var mock = new Mock<IFirebaseAuthVerifier>();
+        mock.Setup(v => v.IsInitialized).Returns(true);
+        mock.Setup(v => v.VerifyIdTokenAsync("token-imported", true))
+            .ReturnsAsync(CreateFakeFirebaseToken("real-uid-1", "Ana.Cruz@dbtc-cebu.edu.ph"));
+        mock.Setup(v => v.VerifyIdTokenAsync("token-other", true))
+            .ReturnsAsync(CreateFakeFirebaseToken("real-uid-2", "someone.else@dbtc-cebu.edu.ph"));
+
+        var dbName = "PendingClaimDb_" + Guid.NewGuid();
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                ReplaceDbWithInMemory(services, dbName);
+                services.AddSingleton(mock.Object);
+            });
+        }).CreateClient();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(dbName).Options;
+        var pendingId = Guid.NewGuid();
+        using (var db = new TestAppDbContext(options))
+        {
+            db.Users.Add(new Domain.IdentityAccess.User
+            {
+                UserID = pendingId, FirebaseUID = Api.Services.RecordsImportService.PendingUidPrefix + pendingId.ToString("N"),
+                Email = "ana.cruz@dbtc-cebu.edu.ph", Role = RoleUtils.Student, IsActive = true, CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        HttpRequestMessage Me(string token) => new(HttpMethod.Get, "/api/Me")
+        {
+            Headers = { Authorization = new AuthenticationHeaderValue("Bearer", token) }
+        };
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(Me("token-other"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Me("token-imported"))).StatusCode);
+
+        using (var db = new TestAppDbContext(options))
+        {
+            var user = await db.Users.SingleAsync(u => u.Email == "ana.cruz@dbtc-cebu.edu.ph");
+            Assert.Equal(pendingId, user.UserID);
+            Assert.Equal("real-uid-1", user.FirebaseUID);
+            Assert.Equal(1, await db.Users.CountAsync(u => u.Email == "ana.cruz@dbtc-cebu.edu.ph"));
+        }
+    }
+
+    /// <summary>
     /// Case (f): verified token, school-domain email, but no Users row AND no approved
     /// EnrollmentApplication with a matching SchoolEmail. Must return 403 with
     /// {"error": "account_not_registered"} — not 401, never "session expired".
