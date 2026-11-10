@@ -17,11 +17,11 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
       ];
 
   @override
-  Future<AcademicProgramModel> createProgram({required String code, required String name}) async =>
+  Future<AcademicProgramModel> createProgram({required String code, required String name, String? major}) async =>
       AcademicProgramModel(programId: 1, programCode: code, programName: name);
 
   @override
-  Future<AcademicProgramModel> updateProgram(int id, {required String code, required String name}) async =>
+  Future<AcademicProgramModel> updateProgram(int id, {required String code, required String name, String? major}) async =>
       AcademicProgramModel(programId: id, programCode: code, programName: name);
 
   @override

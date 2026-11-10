@@ -265,6 +265,10 @@ class _ProgramsTab extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           DataColumn(
+                            label: Text('Major',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          DataColumn(
                             label: Text('Actions',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
@@ -281,6 +285,8 @@ class _ProgramsTab extends StatelessWidget {
                                 ),
                               ),
                               DataCell(Text(p.programName)),
+                              DataCell(Text(p.major ?? '—',
+                                  style: TextStyle(color: p.major == null ? AppColors.textMuted : null))),
                               DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -326,6 +332,7 @@ class _ProgramsTab extends StatelessWidget {
   void _openProgramModal(BuildContext context, AcademicProgramModel? program) {
     final codeCtrl = TextEditingController(text: program?.programCode ?? '');
     final nameCtrl = TextEditingController(text: program?.programName ?? '');
+    final majorCtrl = TextEditingController(text: program?.major ?? '');
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -358,6 +365,18 @@ class _ProgramsTab extends StatelessWidget {
                 ),
                 validator: (v) => v!.isEmpty ? 'Name required' : null,
               ),
+              const SizedBox(height: 14),
+              TextFormField(
+                key: const ValueKey('program_major_field'),
+                controller: majorCtrl,
+                maxLength: 100,
+                decoration: const InputDecoration(
+                  labelText: 'Major',
+                  hintText: 'e.g. Mechanical Technology (leave empty if none)',
+                  helperText: 'Records show "Program Name, Major in …".',
+                  border: OutlineInputBorder(),
+                ),
+              ),
             ],
           ),
         ),
@@ -371,7 +390,8 @@ class _ProgramsTab extends StatelessWidget {
               if (!formKey.currentState!.validate()) return;
               if (program == null) {
                 context.read<SetupBloc>().add(
-                      CreateProgramEvent(codeCtrl.text.trim(), nameCtrl.text.trim()),
+                      CreateProgramEvent(codeCtrl.text.trim(), nameCtrl.text.trim(),
+                          major: majorCtrl.text.trim().isEmpty ? null : majorCtrl.text.trim()),
                     );
               } else {
                 context.read<SetupBloc>().add(
@@ -379,6 +399,7 @@ class _ProgramsTab extends StatelessWidget {
                         program.programId,
                         codeCtrl.text.trim(),
                         nameCtrl.text.trim(),
+                        major: majorCtrl.text.trim().isEmpty ? null : majorCtrl.text.trim(),
                       ),
                     );
               }

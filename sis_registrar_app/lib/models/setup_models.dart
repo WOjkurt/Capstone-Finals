@@ -5,23 +5,32 @@ class AcademicProgramModel {
   final String programCode;
   final String programName;
 
+  /// Optional, e.g. "Mechanical Technology".
+  final String? major;
+
   const AcademicProgramModel({
     required this.programId,
     required this.programCode,
     required this.programName,
+    this.major,
   });
+
+  /// "Bachelor of …, Major in Mechanical Technology", as printed on records.
+  String get fullName => (major ?? '').trim().isEmpty ? programName : '$programName, Major in ${major!.trim()}';
 
   factory AcademicProgramModel.fromJson(Map<String, dynamic> json) {
     return AcademicProgramModel(
       programId: (json['programID'] as num?)?.toInt() ?? (json['programId'] as num?)?.toInt() ?? 0,
       programCode: json['programCode'] as String? ?? '',
       programName: json['programName'] as String? ?? '',
+      major: json['major'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'programCode': programCode,
         'programName': programName,
+        'major': major,
       };
 }
 

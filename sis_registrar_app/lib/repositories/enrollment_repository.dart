@@ -162,22 +162,22 @@ class AcademicSetupRepository {
   }
 
   Future<AcademicProgramModel> createProgram(
-      {required String code, required String name}) async {
+      {required String code, required String name, String? major}) async {
     final headers = await _auth.getAuthHeaders();
     final res = await http.post(Uri.parse('$baseUrl/api/AcademicPrograms'),
         headers: headers,
-        body: jsonEncode({'programCode': code, 'programName': name}));
+        body: jsonEncode({'programCode': code, 'programName': name, 'major': major}));
     if (res.statusCode != 201) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return AcademicProgramModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   Future<AcademicProgramModel> updateProgram(
-      int id, {required String code, required String name}) async {
+      int id, {required String code, required String name, String? major}) async {
     final headers = await _auth.getAuthHeaders();
     final res = await http.put(Uri.parse('$baseUrl/api/AcademicPrograms/$id'),
         headers: headers,
-        body: jsonEncode({'programCode': code, 'programName': name}));
+        body: jsonEncode({'programCode': code, 'programName': name, 'major': major}));
     if (res.statusCode != 200) throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
     return AcademicProgramModel.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);

@@ -57,9 +57,9 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
   @override
   Future<List<AcademicProgramModel>> getPrograms() async => [];
   @override
-  Future<AcademicProgramModel> createProgram({required String code, required String name}) async => throw UnimplementedError();
+  Future<AcademicProgramModel> createProgram({required String code, required String name, String? major}) async => throw UnimplementedError();
   @override
-  Future<AcademicProgramModel> updateProgram(int id, {required String code, required String name}) async => throw UnimplementedError();
+  Future<AcademicProgramModel> updateProgram(int id, {required String code, required String name, String? major}) async => throw UnimplementedError();
   @override
   Future<void> deleteProgram(int id) async {}
   @override

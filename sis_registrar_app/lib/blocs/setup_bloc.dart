@@ -25,14 +25,16 @@ class SelectTermForClassesEvent extends SetupEvent {
 class CreateProgramEvent extends SetupEvent {
   final String code;
   final String name;
-  CreateProgramEvent(this.code, this.name);
+  final String? major;
+  CreateProgramEvent(this.code, this.name, {this.major});
 }
 
 class UpdateProgramEvent extends SetupEvent {
   final int id;
   final String code;
   final String name;
-  UpdateProgramEvent(this.id, this.code, this.name);
+  final String? major;
+  UpdateProgramEvent(this.id, this.code, this.name, {this.major});
 }
 
 class DeleteProgramEvent extends SetupEvent {
@@ -238,7 +240,7 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
       CreateProgramEvent event, Emitter<SetupState> emit) async {
     emit(state.copyWith(isSubmitting: true, clearMessages: true));
     try {
-      await _setupRepo.createProgram(code: event.code, name: event.name);
+      await _setupRepo.createProgram(code: event.code, name: event.name, major: event.major);
       final updated = await _setupRepo.getPrograms();
       emit(state.copyWith(
         isSubmitting: false,
@@ -258,7 +260,7 @@ class SetupBloc extends Bloc<SetupEvent, SetupState> {
     emit(state.copyWith(isSubmitting: true, clearMessages: true));
     try {
       await _setupRepo.updateProgram(event.id,
-          code: event.code, name: event.name);
+          code: event.code, name: event.name, major: event.major);
       final updated = await _setupRepo.getPrograms();
       emit(state.copyWith(
         isSubmitting: false,
