@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sis_registrar_app/views/widgets/student_details_tab.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sis_registrar_app/blocs/clearance_bloc.dart';
@@ -310,11 +311,16 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('edit_details_button')));
     await tester.pumpAndSettle();
+    // The name can be corrected too.
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('details_firstname'))).controller!.text, isNotEmpty);
+    await tester.enterText(find.byKey(const ValueKey('details_lastname')), ' Dela Cruz ');
     await tester.enterText(find.byKey(const ValueKey('details_address')), 'Talisay City');
     await tester.enterText(find.byKey(const ValueKey('details_entranceData')), 'Abellana NHS');
     await tester.tap(find.byKey(const ValueKey('save_details_button')));
     await tester.pumpAndSettle();
 
+    expect(savedDetails!['lastname'], 'Dela Cruz');
+    expect(savedDetails!['firstname'], isNotEmpty);
     expect(savedDetails!['address'], 'Talisay City');
     expect(savedDetails!['entranceData'], 'Abellana NHS');
     expect(savedDetails!['middleName'], '');
@@ -322,6 +328,12 @@ void main() {
     expect(find.text('Personal details saved.'), findsOneWidget);
     expect(find.text('Talisay City'), findsOneWidget);
     expect(find.textContaining('by Rita Reg'), findsOneWidget);
+  });
+
+  test('age counts whole years from the date of birth', () {
+    expect(ageOn(DateTime(2004, 6, 15), DateTime(2026, 6, 14)), 21);
+    expect(ageOn(DateTime(2004, 6, 15), DateTime(2026, 6, 15)), 22);
+    expect(ageOn(DateTime(2004, 12, 31), DateTime(2026, 1, 1)), 21);
   });
 
   testWidgets('Study load lists adds and drops with reasons and prints the Adding/Dropping form', (tester) async {

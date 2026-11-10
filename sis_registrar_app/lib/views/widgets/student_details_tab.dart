@@ -38,6 +38,8 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
   bool _saving = false;
   DateTime? _dob;
   final Map<String, TextEditingController> _c = {for (final f in _fields) f.$1: TextEditingController()};
+  final _first = TextEditingController();
+  final _last = TextEditingController();
 
   @override
   void initState() {
@@ -50,6 +52,8 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
     for (final c in _c.values) {
       c.dispose();
     }
+    _first.dispose();
+    _last.dispose();
     super.dispose();
   }
 
@@ -82,6 +86,8 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
     for (final f in _fields) {
       _c[f.$1]!.text = _value(d, f.$1) ?? '';
     }
+    _first.text = d.firstname;
+    _last.text = d.lastname;
     setState(() {
       _dob = d.dateOfBirth;
       _editing = true;
@@ -100,9 +106,17 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
   }
 
   Future<void> _save() async {
+    if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('First and last name can\'t be empty.'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       final d = await getIt<StudentRecordRepository>().savePersonalDetails(widget.userId, {
+        'firstname': _first.text.trim(),
+        'lastname': _last.text.trim(),
         for (final f in _fields) f.$1: _c[f.$1]!.text.trim(),
         'dateOfBirth': _dob == null
             ? null
@@ -222,6 +236,8 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
             if (f.$1 == 'address')
               row('Date of birth', d.dateOfBirth == null ? null : formatDate(d.dateOfBirth!),
                   fromForm: d.fromForm.contains('dateOfBirth')),
+            if (f.$1 == 'address')
+              row('Age', d.dateOfBirth == null ? null : '${ageOn(d.dateOfBirth!, DateTime.now())}'),
           ],
       ],
     );
@@ -286,6 +302,30 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
         Expanded(
           child: ListView(
             children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(children: [
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('details_firstname'),
+                      controller: _first,
+                      decoration: InputDecoration(
+                          labelText: 'First name', border: const OutlineInputBorder(), isDense: true,
+                          suffixIcon: EnyeButton(controller: _first)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('details_lastname'),
+                      controller: _last,
+                      decoration: InputDecoration(
+                          labelText: 'Last name', border: const OutlineInputBorder(), isDense: true,
+                          suffixIcon: EnyeButton(controller: _last)),
+                    ),
+                  ),
+                ]),
+              ),
               for (final f in _fields) ...[
                 field(f.$1, f.$2, f.$3),
                 if (f.$1 == 'address')
@@ -311,4 +351,11 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
       ],
     );
   }
+}
+
+/// Whole years from [dob] to [today], e.g. 21.
+int ageOn(DateTime dob, DateTime today) {
+  var age = today.year - dob.year;
+  if (today.month < dob.month || (today.month == dob.month && today.day < dob.day)) age--;
+  return age;
 }

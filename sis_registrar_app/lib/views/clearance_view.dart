@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/clearance_bloc.dart';
 import 'promotion_view.dart';
 import 'widgets/page_header.dart';
+import 'widgets/credits_import_dialog.dart';
+import 'widgets/forms_import_dialog.dart';
 import 'widgets/records_import_dialog.dart';
 import 'widgets/student_profile_panel.dart';
 import 'widgets/status_badge.dart';
@@ -79,17 +81,39 @@ class _ClearanceViewState extends State<ClearanceView> {
                 subtitle: 'Find a student to see their study load, grades, curriculum progress and history.',
                 // Used once a year, so it lives here instead of in the menu.
                 action: Wrap(spacing: 8, runSpacing: 8, children: [
-                  OutlinedButton.icon(
-                    key: const ValueKey('open_records_import_button'),
-                    icon: const Icon(Icons.upload_file_outlined, size: 18),
-                    label: const Text('Import from Excel'),
-                    onPressed: () async {
-                      final bloc = context.read<ClearanceBloc>();
-                      if (await RecordsImportDialog.show(context) == true) {
-                        _searchController.clear();
-                        bloc.add(SearchStudentsEvent(''));
-                      }
-                    },
+                  MenuAnchor(
+                    builder: (context, menu, _) => OutlinedButton.icon(
+                      key: const ValueKey('open_import_menu'),
+                      icon: const Icon(Icons.upload_file_outlined, size: 18),
+                      label: const Text('Import'),
+                      onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+                    ),
+                    menuChildren: [
+                      MenuItemButton(
+                        key: const ValueKey('open_records_import_button'),
+                        leadingIcon: const Icon(Icons.table_view_outlined, size: 18),
+                        onPressed: () async {
+                          final bloc = context.read<ClearanceBloc>();
+                          if (await RecordsImportDialog.show(context) == true) {
+                            _searchController.clear();
+                            bloc.add(SearchStudentsEvent(''));
+                          }
+                        },
+                        child: const Text('Students and grades (Excel)'),
+                      ),
+                      MenuItemButton(
+                        key: const ValueKey('open_credits_import_button'),
+                        leadingIcon: const Icon(Icons.playlist_add_check_rounded, size: 18),
+                        onPressed: () => CreditsImportDialog.show(context),
+                        child: const Text('Credited subjects'),
+                      ),
+                      MenuItemButton(
+                        key: const ValueKey('open_forms_import_button'),
+                        leadingIcon: const Icon(Icons.assignment_ind_outlined, size: 18),
+                        onPressed: () => FormsImportDialog.show(context),
+                        child: const Text('Enrollment forms (Google Form)'),
+                      ),
+                    ],
                   ),
                   OutlinedButton.icon(
                     key: const ValueKey('open_promotion_button'),
