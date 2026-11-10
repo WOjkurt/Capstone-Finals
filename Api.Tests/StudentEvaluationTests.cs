@@ -217,6 +217,23 @@ public class StudentEvaluationTests : IDisposable
     }
 
     [Fact]
+    public async Task PersonalDetails_RegistrarCanCorrectTheName()
+    {
+        var after = await _records.UpdatePersonalDetailsAsync(_student, new Api.DTOs.Records.UpdatePersonalDetailsDto
+        {
+            Firstname = " Anna ", Lastname = "Dela Cruz"
+        }, _teacher);
+        Assert.Equal(("Anna", "Dela Cruz"), (after.Firstname, after.Lastname));
+
+        // Not sent (older app): the name is kept.
+        var kept = await _records.UpdatePersonalDetailsAsync(_student, new Api.DTOs.Records.UpdatePersonalDetailsDto { Address = "Talisay" }, _teacher);
+        Assert.Equal(("Anna", "Dela Cruz"), (kept.Firstname, kept.Lastname));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _records.UpdatePersonalDetailsAsync(_student,
+            new Api.DTOs.Records.UpdatePersonalDetailsDto { Firstname = "  " }, _teacher));
+    }
+
+    [Fact]
     public async Task SetSex_KeepsOtherDetails_AndOnlyAcceptsMaleOrFemale()
     {
         await _records.UpdatePersonalDetailsAsync(_student, new Api.DTOs.Records.UpdatePersonalDetailsDto { Address = "Talisay City" }, _teacher);

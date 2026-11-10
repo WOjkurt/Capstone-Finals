@@ -122,6 +122,10 @@ public class PersonalDetailsDto
 /// <summary>What the Registrar saves. An empty field means "use the enrollment form".</summary>
 public class UpdatePersonalDetailsDto
 {
+    /// <summary>Null keeps the current first name (older apps don't send it).</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))] [Api.Common.PersonName] [System.ComponentModel.DataAnnotations.MaxLength(100)] public string? Firstname { get; set; }
+    /// <summary>Null keeps the current last name.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))] [Api.Common.PersonName] [System.ComponentModel.DataAnnotations.MaxLength(100)] public string? Lastname { get; set; }
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))] [Api.Common.PersonName] [System.ComponentModel.DataAnnotations.MaxLength(100)] public string? MiddleName { get; set; }
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))] [Api.Common.PersonName] [System.ComponentModel.DataAnnotations.MaxLength(20)] public string? Suffix { get; set; }
     [System.ComponentModel.DataAnnotations.MaxLength(300)] public string? Address { get; set; }

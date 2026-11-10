@@ -58,7 +58,15 @@ public class RecordsImportTests : IDisposable
 
     // ── A tiny .xlsx writer (inline strings), enough for these tests ──
 
-    private static MemoryStream Workbook(params (string Name, string[][] Rows)[] sheets)
+    /// <summary>0 → A, 25 → Z, 26 → AA.</summary>
+    private static string ColumnName(int index)
+    {
+        var name = "";
+        for (index++; index > 0; index = (index - 1) / 26) name = (char)('A' + (index - 1) % 26) + name;
+        return name;
+    }
+
+    internal static MemoryStream Workbook(params (string Name, string[][] Rows)[] sheets)
     {
         var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
@@ -83,7 +91,7 @@ public class RecordsImportTests : IDisposable
                     for (int c = 0; c < sheets[i].Rows[row].Length; c++)
                     {
                         var v = System.Security.SecurityElement.Escape(sheets[i].Rows[row][c]);
-                        var cell = $"{(char)('A' + c)}{row + 1}";
+                        var cell = $"{ColumnName(c)}{row + 1}";
                         // Numbers as Excel stores them (e.g. 2.5060208E7), text as inline strings.
                         sb.Append(double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)
                             ? $"<c r=\"{cell}\"><v>{v}</v></c>"

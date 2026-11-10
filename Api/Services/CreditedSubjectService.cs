@@ -10,6 +10,7 @@ public interface ICreditedSubjectService
 {
     Task<List<CreditedSubjectDto>> GetByStudentAsync(Guid userId);
     Task<CreditedSubjectDto> CreateAsync(CreateCreditedSubjectDto dto, Guid recordedByUserId);
+    Task<(CreditedSubject Credit, Subject Subject)> BuildAsync(CreateCreditedSubjectDto dto, Guid recordedByUserId);
     Task DeleteAsync(Guid creditedSubjectId);
     Task<CreditedSubjectDto?> GetByIdAsync(Guid creditedSubjectId);
 }
@@ -41,6 +42,19 @@ public class CreditedSubjectService : ICreditedSubjectService
     }
 
     public async Task<CreditedSubjectDto> CreateAsync(CreateCreditedSubjectDto dto, Guid recordedByUserId)
+    {
+        var (credit, subject) = await BuildAsync(dto, recordedByUserId);
+        _context.CreditedSubjects.Add(credit);
+        await _context.SaveChangesAsync();
+
+        return await MapAsync(credit, subject);
+    }
+
+    /// <summary>
+    /// Checks a credit the same way for the dialog and the Excel import, and returns it without saving.
+    /// Throws <see cref="KeyNotFoundException"/> or <see cref="InvalidOperationException"/> with a message for the Registrar.
+    /// </summary>
+    public async Task<(CreditedSubject Credit, Subject Subject)> BuildAsync(CreateCreditedSubjectDto dto, Guid recordedByUserId)
     {
         string school = AccreditedSchoolService.Normalize(dto.SourceSchool ?? string.Empty);
         if (school.Length == 0)
@@ -142,10 +156,7 @@ public class CreditedSubjectService : ICreditedSubjectService
             RecordedByUserID = recordedByUserId,
             RecordedAt = DateTime.UtcNow
         };
-        _context.CreditedSubjects.Add(credit);
-        await _context.SaveChangesAsync();
-
-        return await MapAsync(credit, subject);
+        return (credit, subject);
     }
 
     public async Task<CreditedSubjectDto?> GetByIdAsync(Guid creditedSubjectId)

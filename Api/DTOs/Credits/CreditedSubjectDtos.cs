@@ -51,3 +51,36 @@ public class CreditedSubjectDto
     public Guid? TermId { get; set; }
     public string? TermLabel { get; set; }
 }
+
+/// <summary>What importing a list of credited subjects would do (dry run) or did.</summary>
+public class CreditsImportResultDto
+{
+    public bool DryRun { get; set; }
+    /// <summary>Subjects that will be (or were) credited.</summary>
+    public int Credits { get; set; }
+    /// <summary>Students who get at least one new credit.</summary>
+    public int Students { get; set; }
+    /// <summary>Rows already credited from an earlier import or by hand; skipped.</summary>
+    public int AlreadyCredited { get; set; }
+    /// <summary>The credits, at most 300 listed.</summary>
+    public List<CreditsImportRowDto> Rows { get; set; } = new();
+    public List<Api.DTOs.Records.RecordsImportProblemDto> Problems { get; set; } = new();
+    public int TotalProblems { get; set; }
+
+    /// <summary>What was saved, for the activity log; not sent to the app.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<(Api.Domain.Enrollment.CreditedSubject Credit, Api.Domain.Enrollment.Subject Subject)> Added { get; set; } = new();
+}
+
+public class CreditsImportRowDto
+{
+    public string StudentId { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectTitle { get; set; } = string.Empty;
+    public decimal CreditedUnits { get; set; }
+    public decimal Units { get; set; }
+    public string SourceSchool { get; set; } = string.Empty;
+    public string? Grade { get; set; }
+    public int Kind { get; set; }
+}

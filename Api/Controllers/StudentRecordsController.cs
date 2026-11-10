@@ -36,11 +36,19 @@ public class StudentRecordsController : ControllerBase
         {
             return Unauthorized(new { message = "Authentication required." });
         }
-        var result = await Run(() => _records.UpdatePersonalDetailsAsync(userId, dto, callerId));
         var log = this.ActivityLog();
-        if (result is OkObjectResult && log != null)
+        Api.DTOs.Records.PersonalDetailsDto? before = null;
+        if (log != null)
         {
-            await log.LogAsync(callerId, ActivityActions.PersonalDetailsUpdated, "Updated personal details for the records", userId);
+            try { before = await _records.GetPersonalDetailsAsync(userId); }
+            catch (KeyNotFoundException) { }
+        }
+        var result = await Run(() => _records.UpdatePersonalDetailsAsync(userId, dto, callerId));
+        if (result is OkObjectResult { Value: Api.DTOs.Records.PersonalDetailsDto after } && log != null)
+        {
+            var renamed = before != null && (before.Firstname != after.Firstname || before.Lastname != after.Lastname)
+                ? $"; name {before.Firstname} {before.Lastname} -> {after.Firstname} {after.Lastname}" : "";
+            await log.LogAsync(callerId, ActivityActions.PersonalDetailsUpdated, "Updated personal details for the records" + renamed, userId);
         }
         return result;
     }

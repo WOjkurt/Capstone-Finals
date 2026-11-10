@@ -407,10 +407,15 @@ public class StudentRecordService : IStudentRecordService
     /// <summary>Saves the Registrar's details. Empty fields are stored empty, so they show the form's value again.</summary>
     public async Task<PersonalDetailsDto> UpdatePersonalDetailsAsync(Guid userId, UpdatePersonalDetailsDto dto, Guid updatedBy)
     {
-        if (!await _context.UserDetails.AnyAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student))
+        var student = await _context.UserDetails
+            .FirstOrDefaultAsync(ud => ud.UserID == userId && ud.User != null && ud.User.Role == RoleUtils.Student)
+            ?? throw new KeyNotFoundException("Student not found.");
+        if (dto.Firstname != null && Clean(dto.Firstname) == null || dto.Lastname != null && Clean(dto.Lastname) == null)
         {
-            throw new KeyNotFoundException("Student not found.");
+            throw new InvalidOperationException("First and last name can't be empty.");
         }
+        if (Clean(dto.Firstname) is { } first) student.Firstname = first;
+        if (Clean(dto.Lastname) is { } last) student.Lastname = last;
         if (dto.DateOfBirth is { } dob && (dob.Year < 1900 || dob > DateOnly.FromDateTime(DateTime.UtcNow)))
         {
             throw new InvalidOperationException("Date of birth is not valid.");
