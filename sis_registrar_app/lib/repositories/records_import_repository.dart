@@ -22,6 +22,7 @@ class RecordsImportRepository {
     List<String> schoolYears = const [],
     required bool dryRun,
     bool releaseGrades = true,
+    bool onlyExistingStudents = false,
   }) async {
     final headers = await _auth.getAuthHeaders()
       ..remove('Content-Type');
@@ -30,6 +31,7 @@ class RecordsImportRepository {
       ..fields['schoolYears'] = schoolYears.join(',')
       ..fields['dryRun'] = '$dryRun'
       ..fields['releaseGrades'] = '$releaseGrades'
+      ..fields['onlyExistingStudents'] = '$onlyExistingStudents'
       ..files.add(http.MultipartFile.fromBytes('gradesFile', gradesBytes, filename: gradesName));
     if (studentsBytes != null) {
       request.files.add(http.MultipartFile.fromBytes('studentsFile', studentsBytes, filename: studentsName ?? 'students.xlsx'));

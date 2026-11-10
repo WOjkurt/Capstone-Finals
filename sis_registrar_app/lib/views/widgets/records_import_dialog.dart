@@ -29,6 +29,9 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
   List<String> _yearsFound = const [];
   final Set<String> _years = {};
   bool _release = true;
+
+  /// On by default when only older school years are ticked: their students who left or graduated aren't created.
+  bool _onlyExisting = false;
   RecordsImportResult? _preview;
   bool _busy = false;
   String? _error;
@@ -51,6 +54,7 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
         schoolYears: years ?? _years.toList(),
         dryRun: dryRun,
         releaseGrades: _release,
+        onlyExistingStudents: _onlyExisting,
       );
     } catch (e) {
       if (mounted) setState(() => _error = _message(e));
@@ -159,7 +163,10 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
                       onSelected: _busy
                           ? null
                           : (on) {
-                              setState(() => on ? _years.add(y) : _years.remove(y));
+                              setState(() {
+                                on ? _years.add(y) : _years.remove(y);
+                                _onlyExisting = _years.isNotEmpty && !_years.contains(_yearsFound.first);
+                              });
                               if (_years.isNotEmpty) {
                                 _check();
                               } else {
@@ -177,6 +184,22 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
                   subtitle: const Text('Released terms count as cleared, so old students can enroll online.',
                       style: TextStyle(fontSize: 12)),
                   onChanged: _busy ? null : (v) => setState(() => _release = v ?? true),
+                ),
+                CheckboxListTile(
+                  key: const ValueKey('only_existing_checkbox'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _onlyExisting,
+                  title: const Text('Only add grades for students already in the system'),
+                  subtitle: const Text(
+                      'Use this for older school years, so students who have graduated or left are not added.',
+                      style: TextStyle(fontSize: 12)),
+                  onChanged: _busy
+                      ? null
+                      : (v) {
+                          setState(() => _onlyExisting = v ?? false);
+                          if (_years.isNotEmpty) _check();
+                        },
                 ),
               ],
               if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
@@ -250,6 +273,9 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
         children: [
           Text(p.hasWork ? 'Ready to import:' : 'Nothing new to import.', style: const TextStyle(fontWeight: FontWeight.w700)),
           line('${p.newStudents} new student(s)${p.existingStudents > 0 ? ', ${p.existingStudents} already in the system' : ''}'),
+          if (p.onlyExistingStudents && p.studentsNotInSystem > 0)
+            line('${p.studentsNotInSystem} student(s) in the file are not in the system and are left out',
+                color: AppColors.textSecondary),
           if (p.studentsPerProgram.isNotEmpty) line(perGroup(p.studentsPerProgram), color: AppColors.textSecondary),
           if (p.studentsPerCurriculum.isNotEmpty) line('Curricula: ${perGroup(p.studentsPerCurriculum)}', color: AppColors.textSecondary),
           line('${p.gradesPassed} passed, ${p.gradesFailed} failed, ${p.dropped} dropped, ${p.noGradeYet} without a final grade'),

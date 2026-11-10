@@ -141,6 +141,42 @@ void main() {
     expect(tester.widget<FilledButton>(find.byKey(const ValueKey('run_records_import'))).onPressed, isNull);
   });
 
+  testWidgets('ticking only an older school year turns on "only students already in the system"', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1300);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+    final api = FakeImportApi();
+    pickFile = ({String accept = ''}) async => PickedFile('GRADES.xlsx', Uint8List(1));
+    addTearDown(() => pickFile = ({String accept = ''}) async => null);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: RecordsImportDialog(repository: api.repo))));
+    await tester.tap(find.byKey(const ValueKey('choose_grades_file')));
+    await tester.pumpAndSettle();
+
+    // Newest year ticked: the option is off.
+    expect(tester.widget<CheckboxListTile>(find.byKey(const ValueKey('only_existing_checkbox'))).value, isFalse);
+    expect(api.calls.last['onlyExistingStudents'], 'false');
+
+    // Switch to the older year only: the option turns on and the check runs with it.
+    await tester.tap(find.byKey(const ValueKey('year_2024-2025')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('year_2025-2026')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(find.byKey(const ValueKey('only_existing_checkbox'))).value, isTrue);
+    expect(api.calls.last, containsPair('schoolYears', '2024-2025'));
+    expect(api.calls.last, containsPair('onlyExistingStudents', 'true'));
+
+    // It can still be turned off by hand.
+    await tester.tap(find.byKey(const ValueKey('only_existing_checkbox')));
+    await tester.pumpAndSettle();
+    expect(api.calls.last, containsPair('onlyExistingStudents', 'false'));
+  });
+
+  test('RecordsImportResult reads the left-out count', () {
+    final r = RecordsImportResult.fromJson({'onlyExistingStudents': true, 'studentsNotInSystem': 41});
+    expect(r.onlyExistingStudents, isTrue);
+    expect(r.studentsNotInSystem, 41);
+  });
+
   group('school email of an imported student', () {
     Future<List<String?>> open(WidgetTester tester, Future<String> Function(String, String) save) async {
       final results = <String?>[];

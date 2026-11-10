@@ -28,6 +28,10 @@ class RecordsImportResult {
   final List<String> schoolYearsImported;
   final int newStudents;
   final int existingStudents;
+
+  /// Only students already in the system got grades (older school years); [studentsNotInSystem] were left out.
+  final bool onlyExistingStudents;
+  final int studentsNotInSystem;
   final Map<String, int> studentsPerProgram;
   final Map<String, int> studentsPerCurriculum;
   final int gradesPassed;
@@ -47,6 +51,8 @@ class RecordsImportResult {
     this.schoolYearsImported = const [],
     this.newStudents = 0,
     this.existingStudents = 0,
+    this.onlyExistingStudents = false,
+    this.studentsNotInSystem = 0,
     this.studentsPerProgram = const {},
     this.studentsPerCurriculum = const {},
     this.gradesPassed = 0,
@@ -75,6 +81,8 @@ class RecordsImportResult {
       schoolYearsImported: strings('schoolYearsImported'),
       newStudents: n('newStudents'),
       existingStudents: n('existingStudents'),
+      onlyExistingStudents: j['onlyExistingStudents'] as bool? ?? false,
+      studentsNotInSystem: n('studentsNotInSystem'),
       studentsPerProgram: counts('studentsPerProgram'),
       studentsPerCurriculum: counts('studentsPerCurriculum'),
       gradesPassed: n('gradesPassed'),
