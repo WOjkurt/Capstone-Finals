@@ -1773,7 +1773,7 @@ public class StudyLoadService : IStudyLoadService
                 FullName = fullName,
                 Lrn = ud?.LRN,
                 ProgramCode = ud?.Program?.ProgramCode,
-                ProgramName = ud?.Program?.ProgramName,
+                ProgramName = ud?.Program?.FullName,
                 YearLevel = ud?.YearLevel,
                 PendingCount = g.Count(),
                 PendingUnits = totalUnits

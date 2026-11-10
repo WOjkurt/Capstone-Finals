@@ -21,7 +21,8 @@ public class AcademicProgramService : IAcademicProgramService
         var program = new AcademicProgram
         {
             ProgramCode = dto.ProgramCode,
-            ProgramName = dto.ProgramName
+            ProgramName = dto.ProgramName,
+            Major = CleanMajor(dto.Major)
         };
 
         await _programRepository.AddAsync(program);
@@ -30,7 +31,8 @@ public class AcademicProgramService : IAcademicProgramService
         {
             ProgramID = program.ProgramID,
             ProgramCode = program.ProgramCode,
-            ProgramName = program.ProgramName
+            ProgramName = program.ProgramName,
+            Major = program.Major
         };
     }
 
@@ -41,7 +43,8 @@ public class AcademicProgramService : IAcademicProgramService
         {
             ProgramID = p.ProgramID,
             ProgramCode = p.ProgramCode,
-            ProgramName = p.ProgramName
+            ProgramName = p.ProgramName,
+            Major = p.Major
         }).ToList();
     }
 
@@ -57,7 +60,8 @@ public class AcademicProgramService : IAcademicProgramService
         {
             ProgramID = program.ProgramID,
             ProgramCode = program.ProgramCode,
-            ProgramName = program.ProgramName
+            ProgramName = program.ProgramName,
+            Major = program.Major
         };
     }
 
@@ -71,6 +75,7 @@ public class AcademicProgramService : IAcademicProgramService
 
         program.ProgramCode = dto.ProgramCode;
         program.ProgramName = dto.ProgramName;
+        program.Major = CleanMajor(dto.Major);
 
         await _programRepository.UpdateAsync(program);
 
@@ -78,8 +83,17 @@ public class AcademicProgramService : IAcademicProgramService
         {
             ProgramID = program.ProgramID,
             ProgramCode = program.ProgramCode,
-            ProgramName = program.ProgramName
+            ProgramName = program.ProgramName,
+            Major = program.Major
         };
+    }
+
+    /// <summary>"Major in Mechanical Technology" → "Mechanical Technology"; blank → none.</summary>
+    public static string? CleanMajor(string? major)
+    {
+        var m = (major ?? "").Trim();
+        if (m.StartsWith("major in ", StringComparison.OrdinalIgnoreCase)) m = m[9..].Trim();
+        return m.Length == 0 ? null : m;
     }
 
     public async Task DeleteAsync(int programId)

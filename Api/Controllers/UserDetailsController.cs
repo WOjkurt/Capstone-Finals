@@ -117,7 +117,7 @@ public class UserDetailsController : ControllerBase
             StudentID = userDetails.StudentID,
             ProgramID = userDetails.ProgramID,
             ProgramCode = userDetails.Program?.ProgramCode,
-            ProgramName = userDetails.Program?.ProgramName,
+            ProgramName = userDetails.Program?.FullName,
             StudentType = userDetails.StudentType,
             StudentStatus = userDetails.StudentStatus,
             YearLevel = userDetails.YearLevel,

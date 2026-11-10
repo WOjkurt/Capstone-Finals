@@ -84,6 +84,10 @@ namespace Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ProgramID"));
 
+                    b.Property<string>("Major")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("ProgramCode")
                         .IsRequired()
                         .HasColumnType("text");

@@ -271,7 +271,7 @@ public class ReportService : IReportService
         var sexes = await SexesAsync(enrolledIds);
 
         var programs = await _context.AcademicPrograms.AsNoTracking().OrderBy(p => p.ProgramCode).ToListAsync();
-        var rows = programs.ToDictionary(p => p.ProgramID, p => new EnrollmentStatisticsRowDto { ProgramCode = p.ProgramCode, ProgramName = p.ProgramName });
+        var rows = programs.ToDictionary(p => p.ProgramID, p => new EnrollmentStatisticsRowDto { ProgramCode = p.ProgramCode, ProgramName = p.FullName });
         foreach (var st in students)
         {
             if (st.ProgramID is not int pid || !rows.TryGetValue(pid, out var row)) continue;

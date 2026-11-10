@@ -90,7 +90,7 @@ public partial class ReenrollmentService : IReenrollmentService
             return NotEligible("We could not find your student record. Please see the Registrar.");
         }
         status.ProgramCode = details.Program?.ProgramCode;
-        status.ProgramName = details.Program?.ProgramName;
+        status.ProgramName = details.Program?.FullName;
         status.CurrentYearLevel = details.YearLevel;
 
         Situation NotEligible(string reason)

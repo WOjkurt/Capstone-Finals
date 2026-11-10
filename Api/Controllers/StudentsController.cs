@@ -123,7 +123,7 @@ public class StudentsController : ControllerBase
             HasLrn = !string.IsNullOrWhiteSpace(ud.LRN),
             ProgramId = ud.ProgramID,
             ProgramCode = ud.Program?.ProgramCode,
-            ProgramName = ud.Program?.ProgramName,
+            ProgramName = ud.Program?.FullName,
             YearLevel = ud.YearLevel,
             CurriculumId = ud.CurriculumID,
             CurriculumName = ud.Curriculum?.Name,

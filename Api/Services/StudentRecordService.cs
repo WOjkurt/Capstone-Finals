@@ -101,7 +101,7 @@ public class StudentRecordService : IStudentRecordService
             Lrn = student.LRN,
             StudentID = student.StudentID,
             ProgramCode = student.Program.ProgramCode,
-            ProgramName = student.Program.ProgramName,
+            ProgramName = student.Program.FullName,
             YearLevel = student.YearLevel,
             CurriculumId = student.CurriculumID,
             CurriculumName = student.Curriculum == null
@@ -239,7 +239,7 @@ public class StudentRecordService : IStudentRecordService
             FullName = $"{details.Lastname.Trim().ToUpperInvariant()}, {string.Join(" ", new[] { details.Firstname, details.MiddleName, details.Suffix }.Select(p => p?.Trim()).Where(p => !string.IsNullOrEmpty(p)))}",
             Lrn = student.LRN,
             ProgramCode = student.Program?.ProgramCode ?? string.Empty,
-            ProgramName = student.Program?.ProgramName ?? string.Empty,
+            ProgramName = student.Program?.FullName ?? string.Empty,
             Address = details.Address,
             DateOfBirth = details.DateOfBirth,
             PlaceOfBirth = details.PlaceOfBirth,
