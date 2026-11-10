@@ -117,7 +117,13 @@ public class RecordsImportTests : IDisposable
             G("", "NOID", "BSIT", "IT 101A", "", "2.0"),                                  // no Student ID
             G("2.1015251E7", "OLD", "BSIE /Digital Industrial Transformation", "IE 1", "", "2.0"), // program not offered
         }),
-        ("2ND SEM_2024-2025", new[] { GradesHeader, G("2.4060001E7", "EARLIER", "BSIT", "IT 101A", "", "2.0") }));
+        ("2ND SEM_2024-2025", new[]
+        {
+            GradesHeader,
+            G("2.4060001E7", "EARLIER", "BSIT", "IT 101A", "", "2.0"),          // only in 2024-2025 (e.g. graduated)
+            G("2.5060209E7", "REYES", "BSIT", "IT 101A", "", "1.5"),            // a current student's older grade
+            G("2.1015251E7", "OLD", "BSIE", "IE 1", "", "2.0"),                 // program no longer offered
+        }));
 
     private MemoryStream StudentsFile() => Workbook(
         ("1st Sem_2026-2027", new[]
@@ -281,6 +287,40 @@ public class RecordsImportTests : IDisposable
         Assert.Equal("Cruz", ana.Lastname);
         Assert.Equal(1, ana.YearLevel);
         Assert.Equal(4, await _context.StudyLoads.CountAsync(l => l.UserID == id));
+    }
+
+    [Fact]
+    public async Task OlderYears_OnlyExistingStudents_AddsTheirGrades_AndCreatesNobody()
+    {
+        await Run(dryRun: false);   // 2025-2026 first: Dela Cruz, Reyes and Abapo are now in the system
+        var students = await _context.UserDetails.CountAsync();
+
+        var r = await new RecordsImportService(_context).ImportAsync(GradesFile(), null, ["2024-2025"],
+            dryRun: false, releaseGrades: true, _registrar, onlyExistingStudents: true);
+
+        Assert.True(r.OnlyExistingStudents);
+        Assert.Equal(0, r.NewStudents);
+        Assert.Equal(2, r.StudentsNotInSystem);                 // the 2024-2025-only student and the BSIE one
+        Assert.Equal(1, r.GradesPassed);
+        Assert.DoesNotContain(r.Problems, p => p.Message.Contains("BSIE"));   // not in the system, so not a problem
+        Assert.Equal(students, await _context.UserDetails.CountAsync());
+        Assert.False(await _context.UserDetails.AnyAsync(u => u.StudentID == "24060001"));
+
+        var reyes = await _context.UserDetails.SingleAsync(u => u.StudentID == "25060209");
+        var load = await _context.StudyLoads.Include(l => l.Class).ThenInclude(c => c!.Term)
+            .SingleAsync(l => l.UserID == reyes.UserID);
+        Assert.Equal("2024-2025", load.Class!.Term!.SchoolYear);
+        Assert.Equal(2, load.Class.Term.Semester);
+        Assert.Equal(1.5m, (await _context.Grades.SingleAsync(g => g.StudyLoadID == load.StudyLoadID)).FinalGrade);
+    }
+
+    [Fact]
+    public async Task OlderYears_WithoutTheOption_WouldCreateThoseStudents()
+    {
+        var r = await new RecordsImportService(_context).ImportAsync(GradesFile(), null, ["2024-2025"],
+            dryRun: true, releaseGrades: true, _registrar);
+        Assert.Equal(2, r.NewStudents);   // Earlier and Reyes; BSIE is reported as not in Setup
+        Assert.Contains(r.Problems, p => p.Message.Contains("BSIE"));
     }
 
     [Fact]

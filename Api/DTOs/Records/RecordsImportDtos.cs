@@ -10,6 +10,10 @@ public class RecordsImportResultDto
     public List<string> SchoolYearsImported { get; set; } = new();
 
     public int NewStudents { get; set; }
+    /// <summary>True when only students already in the system were given grades (older school years).</summary>
+    public bool OnlyExistingStudents { get; set; }
+    /// <summary>Students in the file who are not in the system and were left out because of <see cref="OnlyExistingStudents"/>.</summary>
+    public int StudentsNotInSystem { get; set; }
     public int ExistingStudents { get; set; }
     /// <summary>New students per program code.</summary>
     public Dictionary<string, int> StudentsPerProgram { get; set; } = new();

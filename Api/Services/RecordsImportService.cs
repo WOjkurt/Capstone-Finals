@@ -17,8 +17,10 @@ public interface IRecordsImportService
     /// new ones get a pending account that becomes theirs when they first sign in with their school email.
     /// Only the chosen school years of the grades file are imported. Re-running skips what is already there.
     /// </summary>
+    /// <param name="onlyExistingStudents">For older school years: add grades only to students already in the system, so
+    /// people who graduated or left are not created as new students.</param>
     Task<RecordsImportResultDto> ImportAsync(Stream gradesFile, Stream? studentsFile, IReadOnlyCollection<string> schoolYears,
-        bool dryRun, bool releaseGrades, Guid callerUserId);
+        bool dryRun, bool releaseGrades, Guid callerUserId, bool onlyExistingStudents = false);
 }
 
 public partial class RecordsImportService : IRecordsImportService
@@ -133,7 +135,7 @@ public partial class RecordsImportService : IRecordsImportService
     // ── Import ─────────────────────────────────────────────────────────
 
     public async Task<RecordsImportResultDto> ImportAsync(Stream gradesFile, Stream? studentsFile, IReadOnlyCollection<string> schoolYears,
-        bool dryRun, bool releaseGrades, Guid callerUserId)
+        bool dryRun, bool releaseGrades, Guid callerUserId, bool onlyExistingStudents = false)
     {
         var result = new RecordsImportResultDto { DryRun = dryRun, GradesReleased = releaseGrades };
         void Problem(string file, string sheet, int row, string message)
@@ -263,7 +265,22 @@ public partial class RecordsImportService : IRecordsImportService
             }
         }
 
-        // 3. Programs, curricula and subjects.
+        // 3. Students already in the system (by Student ID).
+        var allIds = students.Keys.ToList();
+        var existing = await _context.UserDetails
+            .Where(u => u.StudentID != null && allIds.Contains(u.StudentID))
+            .ToDictionaryAsync(u => u.StudentID!);
+        result.OnlyExistingStudents = onlyExistingStudents;
+        if (onlyExistingStudents)
+        {
+            foreach (var id in allIds.Where(id => !existing.ContainsKey(id)))
+            {
+                students.Remove(id);
+                result.StudentsNotInSystem++;
+            }
+        }
+
+        // 4. Programs, curricula and subjects.
         var programs = await _context.AcademicPrograms.AsNoTracking().ToListAsync();
         var programByCode = programs.ToDictionary(p => p.ProgramCode.ToUpperInvariant());
         var curricula = await _context.Curricula.AsNoTracking().ToListAsync();
@@ -287,11 +304,7 @@ public partial class RecordsImportService : IRecordsImportService
                 : $"Program {code} is not in Setup → Academic Programs: {rows} row(s) skipped. Add it first if these students should be imported.");
         }
 
-        // 4. Existing students (by Student ID).
-        var ids = students.Keys.ToList();
-        var existing = await _context.UserDetails
-            .Where(u => u.StudentID != null && ids.Contains(u.StudentID))
-            .ToDictionaryAsync(u => u.StudentID!);
+        // 5. What the existing students already have, so re-running skips it.
         var studentUserIds = existing.Values.Select(u => u.UserID).ToList();
         var existingLoads = (await _context.StudyLoads.AsNoTracking()
                 .Where(sl => studentUserIds.Contains(sl.UserID) && sl.Class != null)
@@ -300,7 +313,7 @@ public partial class RecordsImportService : IRecordsImportService
             .Select(x => (x.UserID, x.SubjectID, x.TermID))
             .ToHashSet();
 
-        // 5. Terms (created when missing) and the classes that hold imported grades.
+        // 6. Terms (created when missing) and the classes that hold imported grades.
         var terms = await _context.AcademicTerms.ToListAsync();
         AcademicTerm TermFor(string schoolYear, int semester)
         {
@@ -502,7 +515,7 @@ public partial class RecordsImportService : IRecordsImportService
             result.Notes.Add("New students can't sign in until their school email is added on their profile.");
         }
 
-        // 6. Release the imported grades (needed for online enrollment, which requires the last term to be cleared).
+        // 7. Release the imported grades (needed for online enrollment, which requires the last term to be cleared).
         if (releaseGrades && clearances.Count > 0 && !dryRun)
         {
             var termIds = clearances.Select(c => c.TermId).Distinct().ToList();

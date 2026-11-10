@@ -38,6 +38,7 @@ public class RecordsImportController : ControllerBase
         var schoolYears = form["schoolYears"].ToString();
         bool dryRun = !bool.TryParse(form["dryRun"], out var d) || d;
         bool releaseGrades = !bool.TryParse(form["releaseGrades"], out var r) || r;
+        bool onlyExisting = bool.TryParse(form["onlyExistingStudents"], out var o) && o;
         if (gradesFile == null || gradesFile.Length == 0)
         {
             return BadRequest(new { message = "Choose the grades Excel file." });
@@ -48,7 +49,7 @@ public class RecordsImportController : ControllerBase
         {
             await using var grades = gradesFile.OpenReadStream();
             await using var students = studentsFile is { Length: > 0 } ? studentsFile.OpenReadStream() : null;
-            var result = await _service.ImportAsync(grades, students, years, dryRun, releaseGrades, callerId);
+            var result = await _service.ImportAsync(grades, students, years, dryRun, releaseGrades, callerId, onlyExisting);
             if (!dryRun && this.ActivityLog() is { } log && (result.NewStudents > 0 || result.GradesPassed + result.GradesFailed + result.Dropped + result.NoGradeYet > 0))
             {
                 await log.LogAsync(callerId, ActivityActions.RecordsImported,
