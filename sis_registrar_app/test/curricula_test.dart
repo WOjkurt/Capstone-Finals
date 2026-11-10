@@ -270,6 +270,35 @@ void main() {
     expect(changed, 1);
   });
 
+  testWidgets('Programs table shows each program\'s curriculum years, newest first', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+    final api = FakeCurriculaApi();
+    getIt.registerSingleton<CurriculumRepository>(api.repo);
+    addTearDown(() => getIt.unregister<CurriculumRepository>());
+    final bloc = RecordingSetupBloc(SetupState(activeTab: 0, programs: [
+      ..._programs,
+      const AcademicProgramModel(programId: 3, programCode: 'AB-REED', programName: 'AB'),
+    ]));
+    addTearDown(bloc.close);
+    await tester.pumpWidget(MaterialApp(home: BlocProvider<SetupBloc>.value(value: bloc, child: const SetupView())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Curriculum years'), findsOneWidget);
+    final mt = find.byKey(const ValueKey('program_curricula_1'));
+    expect(find.descendant(of: mt, matching: find.text('SY 2026-2027 • newest')), findsOneWidget);
+    expect(find.descendant(of: mt, matching: find.text('SY 2021-2022')), findsOneWidget);
+    // Newest is listed first.
+    expect(tester.getTopLeft(find.text('SY 2026-2027 • newest')).dx,
+        lessThan(tester.getTopLeft(find.text('SY 2021-2022')).dx));
+    expect(find.text('No curriculum yet'), findsOneWidget); // AB-REED
+
+    await tester.tap(find.text('SY 2021-2022'));
+    await tester.pumpAndSettle();
+    expect(bloc.events.whereType<SwitchSetupTab>().single.activeTab, 6);
+  });
+
   group('Subjects tab', () {
     SubjectModel subject(String id, String code, String curriculumId, String curriculumName, {int program = 1}) => SubjectModel(
           subjectId: id,

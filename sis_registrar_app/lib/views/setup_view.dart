@@ -200,9 +200,74 @@ class _SetupViewState extends State<SetupView> {
 // ==========================================
 // 1. PROGRAMS TAB
 // ==========================================
-class _ProgramsTab extends StatelessWidget {
+class _ProgramsTab extends StatefulWidget {
   final SetupState state;
   const _ProgramsTab({required this.state});
+
+  @override
+  State<_ProgramsTab> createState() => _ProgramsTabState();
+}
+
+class _ProgramsTabState extends State<_ProgramsTab> {
+  SetupState get state => widget.state;
+
+  /// Curricula per program, newest first (empty when the API isn't available, e.g. in some tests).
+  Map<int, List<CurriculumModel>> _curricula = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurricula();
+  }
+
+  @override
+  void didUpdateWidget(_ProgramsTab old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.state.programs, widget.state.programs)) _loadCurricula();
+  }
+
+  Future<void> _loadCurricula() async {
+    if (!getIt.isRegistered<CurriculumRepository>()) return;
+    try {
+      final list = await getIt<CurriculumRepository>().list();
+      final byProgram = <int, List<CurriculumModel>>{};
+      for (final c in list) {
+        (byProgram[c.programId] ??= []).add(c);
+      }
+      for (final l in byProgram.values) {
+        l.sort((a, b) => b.effectiveFromYear.compareTo(a.effectiveFromYear));
+      }
+      if (mounted) setState(() => _curricula = byProgram);
+    } catch (_) {
+      // The table still works without the curriculum years.
+    }
+  }
+
+  /// "SY 2026-2027 (newest) · SY 2021-2022"; tapping opens the Curricula tab.
+  Widget _curriculaCell(AcademicProgramModel p) {
+    final list = _curricula[p.programId] ?? const <CurriculumModel>[];
+    if (list.isEmpty) {
+      return const Text('No curriculum yet', style: TextStyle(color: AppColors.textMuted, fontSize: 13));
+    }
+    return InkWell(
+      key: ValueKey('program_curricula_${p.programId}'),
+      onTap: () => context.read<SetupBloc>().add(SwitchSetupTab(6)),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (final c in list)
+            Tooltip(
+              message: '${c.name}: ${c.subjectCount} subjects, ${c.studentCount} students'
+                  '${c.isNewest ? '. New students get this one.' : ''}',
+              child: c.isNewest
+                  ? StatusBadge.success(label: 'SY ${c.effectiveSchoolYear} • newest')
+                  : StatusBadge.neutral(label: 'SY ${c.effectiveSchoolYear}'),
+            ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,6 +334,10 @@ class _ProgramsTab extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           DataColumn(
+                            label: Text('Curriculum years',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          DataColumn(
                             label: Text('Actions',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
@@ -287,6 +356,7 @@ class _ProgramsTab extends StatelessWidget {
                               DataCell(Text(p.programName)),
                               DataCell(Text(p.major ?? '—',
                                   style: TextStyle(color: p.major == null ? AppColors.textMuted : null))),
+                              DataCell(_curriculaCell(p)),
                               DataCell(
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
