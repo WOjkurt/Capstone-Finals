@@ -13,6 +13,8 @@ public interface IStudentRecordService
     Task<StudentEvaluationDto> GetEvaluationAsync(Guid userId);
     Task<TranscriptDto> GetTranscriptAsync(Guid userId);
     Task<PersonalDetailsDto> GetPersonalDetailsAsync(Guid userId);
+    /// <summary>Every active student with something still missing on their record (optionally one program).</summary>
+    Task<RecordsCheckDto> GetRecordsCheckAsync(int? programId);
     Task<PersonalDetailsDto> UpdatePersonalDetailsAsync(Guid userId, UpdatePersonalDetailsDto dto, Guid updatedBy);
     Task SetSexAsync(Guid userId, string sex, Guid updatedBy);
     Task<StandingDto> GetStandingAsync(Guid userId);
@@ -329,6 +331,74 @@ public class StudentRecordService : IStudentRecordService
     };
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>The transcript fields still empty: the Registrar's value, else the enrollment form's (same rule as the Details tab).</summary>
+    internal static List<string> MissingForTranscript(StudentPersonalDetails? saved, EnrollmentForm? form)
+    {
+        bool Has(string? mine, string? fromForm) => Clean(mine) != null || Clean(fromForm) != null;
+        var formAddress = form == null ? null : string.Join(", ", new[] { form.HouseStreet, form.Barangay, form.CityMunicipality, form.Province }
+            .Select(Clean).Where(p => p != null));
+        var missing = new List<string>();
+        if (!Has(saved?.Address, formAddress)) missing.Add("Address");
+        if (saved?.DateOfBirth == null && (form == null || form.DateOfBirth == default)) missing.Add("Date of birth");
+        if (!Has(saved?.PlaceOfBirth, form?.PlaceOfBirth)) missing.Add("Place of birth");
+        if (!Has(saved?.Sex, form?.Sex)) missing.Add("Sex");
+        if (!Has(saved?.Nationality, form?.Nationality)) missing.Add("Nationality");
+        if (!Has(saved?.EntranceData, form?.LastSchoolAttended)) missing.Add("Entrance data");
+        return missing;
+    }
+
+    public async Task<RecordsCheckDto> GetRecordsCheckAsync(int? programId)
+    {
+        var students = await _context.UserDetails
+            .AsNoTracking()
+            .Where(d => d.User != null && d.User.Role == RoleUtils.Student && d.User.IsActive &&
+                        (programId == null || d.ProgramID == programId))
+            .Select(d => new
+            {
+                d.UserID, d.Firstname, d.Lastname, d.StudentID, d.LRN, d.ProgramID, ProgramCode = d.Program != null ? d.Program.ProgramCode : null,
+                d.YearLevel, d.CurriculumID, Email = d.User!.Email, d.User.FirebaseUID,
+            })
+            .ToListAsync();
+        var ids = students.Select(s => s.UserID).ToList();
+        var saved = await _context.StudentPersonalDetails.AsNoTracking().Where(p => ids.Contains(p.UserID)).ToDictionaryAsync(p => p.UserID);
+        // Same choice of form as the Details tab: the newest that isn't rejected or an unreviewed re-enrollment.
+        var forms = (await _context.EnrollmentForms
+                .AsNoTracking()
+                .Where(f => f.Application != null && f.Application.StudentUserID != null && ids.Contains(f.Application.StudentUserID.Value) &&
+                            f.Application.Status != EnrollmentApplicationStatus.Rejected &&
+                            !(f.Application.IsReturning && f.Application.Status == EnrollmentApplicationStatus.Pending))
+                .Select(f => new { UserID = f.Application!.StudentUserID!.Value, f.Application.CreatedAt, Form = f })
+                .ToListAsync())
+            .GroupBy(f => f.UserID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(f => f.CreatedAt).First().Form);
+
+        var result = new RecordsCheckDto { ActiveStudents = students.Count };
+        var counts = RecordsCheckIssues.All.ToDictionary(i => i.Key, _ => 0);
+        foreach (var s in students)
+        {
+            bool pending = s.FirebaseUID.StartsWith(RecordsImportService.PendingUidPrefix);
+            var row = new RecordsCheckRowDto
+            {
+                UserId = s.UserID, Firstname = s.Firstname, Lastname = s.Lastname, Email = s.Email, StudentId = s.StudentID, Lrn = s.LRN,
+                ProgramId = s.ProgramID, ProgramCode = s.ProgramCode, YearLevel = s.YearLevel, HasSignedIn = !pending,
+            };
+            if (string.IsNullOrWhiteSpace(s.Email)) row.Issues.Add(RecordsCheckIssues.NoEmail);
+            else if (pending) row.Issues.Add(RecordsCheckIssues.NotSignedIn);
+            if (string.IsNullOrWhiteSpace(s.StudentID)) row.Issues.Add(RecordsCheckIssues.NoStudentId);
+            if (s.ProgramID == null) row.Issues.Add(RecordsCheckIssues.NoProgram);
+            if (s.YearLevel == null) row.Issues.Add(RecordsCheckIssues.NoYearLevel);
+            if (s.ProgramID != null && s.CurriculumID == null) row.Issues.Add(RecordsCheckIssues.NoCurriculum);
+            row.Missing = MissingForTranscript(saved.GetValueOrDefault(s.UserID), forms.GetValueOrDefault(s.UserID));
+            if (row.Missing.Count > 0) row.Issues.Add(RecordsCheckIssues.Transcript);
+
+            foreach (var i in row.Issues) counts[i]++;
+            if (row.Issues.Count > 0) result.Rows.Add(row);
+        }
+        result.Counts = RecordsCheckIssues.All.Select(i => new RecordsCheckCountDto { Key = i.Key, Label = i.Label, Count = counts[i.Key] }).ToList();
+        result.Rows = result.Rows.OrderBy(r => r.Lastname, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Firstname, StringComparer.OrdinalIgnoreCase).ToList();
+        return result;
+    }
 
     /// <summary>The Registrar's saved details, with each empty field filled from the latest enrollment form.</summary>
     public async Task<PersonalDetailsDto> GetPersonalDetailsAsync(Guid userId)

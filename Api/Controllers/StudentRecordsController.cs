@@ -19,6 +19,10 @@ public class StudentRecordsController : ControllerBase
         _records = records;
     }
 
+    /// <summary>Students → Records check: active students with something still missing (optionally one program).</summary>
+    [HttpGet("check")]
+    public Task<IActionResult> Check([FromQuery] int? programId) => Run(() => _records.GetRecordsCheckAsync(programId));
+
     [HttpGet("{userId:guid}/evaluation")]
     public Task<IActionResult> Evaluation(Guid userId) => Run(() => _records.GetEvaluationAsync(userId));
 
