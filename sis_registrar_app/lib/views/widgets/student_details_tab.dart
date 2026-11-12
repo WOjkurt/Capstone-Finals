@@ -5,6 +5,7 @@ import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/formatters.dart';
+import 'enrollment_form_section.dart';
 import 'enye_button.dart';
 import 'holds_card.dart';
 
@@ -239,6 +240,7 @@ class _StudentDetailsTabState extends State<StudentDetailsTab> {
             if (f.$1 == 'address')
               row('Age', d.dateOfBirth == null ? null : '${ageOn(d.dateOfBirth!, DateTime.now())}'),
           ],
+        if (d.hasEnrollmentForm) EnrollmentFormSection(key: ValueKey('form_${widget.userId}'), userId: widget.userId),
       ],
     );
   }

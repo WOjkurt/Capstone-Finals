@@ -1305,12 +1305,14 @@ void main() {
   });
 
   group('Unit limit warning', () {
-    MockClient clientWith({required Map<String, dynamic> limit, void Function(Map<String, dynamic>)? onEnroll}) {
+    MockClient clientWith({required Map<String, dynamic> limit, void Function(Map<String, dynamic>)? onEnroll,
+        List<Map<String, dynamic>> extraItems = const []}) {
       return MockClient((req) async {
         if (req.url.path == '/api/studyloads/proposed-block') {
           return http.Response(jsonEncode([
             _regularItem(subjectId: 's1', subjectCode: 'IT211', classId: 'cls-1', units: 3.0),
             _regularItem(subjectId: 's2', subjectCode: 'IT212', classId: 'cls-2', units: 3.0),
+            ...extraItems,
           ]), 200);
         }
         if (req.url.path == '/api/studyloads/unit-limit') {
@@ -1361,6 +1363,33 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
       await tester.pumpAndSettle();
       expect(enrolled, isTrue);
+    });
+
+    testWidgets('summer: a ticked retake is extra and does not count toward the limit', (tester) async {
+      await pumpBuilder(tester, clientWith(
+        limit: {'maxUnits': 6, 'currentUnits': 0, 'isSummer': true, 'retakesOutsideLimit': true, 'rule': 'Summer limit: 6 units.'},
+        extraItems: [_retakeItem(subjectCode: 'IT111')],
+      ));
+
+      await tester.tap(find.byKey(const ValueKey('checkbox_IT111')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Total: 9.0 units'), findsOneWidget);
+      expect(find.text('Limit 6.0 · 3.0 retake units extra'), findsOneWidget);
+      expect(find.byKey(const ValueKey('unit_limit_warning')), findsNothing);
+    });
+
+    testWidgets('regular semester: a ticked retake still counts', (tester) async {
+      await pumpBuilder(tester, clientWith(
+        limit: {'maxUnits': 6, 'currentUnits': 0, 'rule': 'Regular limit.'},
+        extraItems: [_retakeItem(subjectCode: 'IT111')],
+      ));
+
+      await tester.tap(find.byKey(const ValueKey('checkbox_IT111')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Limit 6.0'), findsOneWidget);
+      expect(find.byKey(const ValueKey('unit_limit_warning')), findsOneWidget);
     });
 
     testWidgets('over the limit: warns, asks for a reason, and Go back does not save', (tester) async {

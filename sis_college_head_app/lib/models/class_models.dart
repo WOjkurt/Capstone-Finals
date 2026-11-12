@@ -512,6 +512,10 @@ class UnitLimitModel {
   final double currentUnits;
   final bool isGraduating;
   final bool isSummer;
+
+  /// Summer: retakes of failed subjects are extra and don't count toward [maxUnits] (or [currentUnits]).
+  final bool retakesOutsideLimit;
+  final double retakeUnits;
   final String rule;
   final String? overloadReason;
   final String? overloadApprovedBy;
@@ -521,6 +525,8 @@ class UnitLimitModel {
     required this.currentUnits,
     this.isGraduating = false,
     this.isSummer = false,
+    this.retakesOutsideLimit = false,
+    this.retakeUnits = 0,
     this.rule = '',
     this.overloadReason,
     this.overloadApprovedBy,
@@ -534,6 +540,8 @@ class UnitLimitModel {
       currentUnits: (json['currentUnits'] as num?)?.toDouble() ?? 0,
       isGraduating: json['isGraduating'] as bool? ?? false,
       isSummer: json['isSummer'] as bool? ?? false,
+      retakesOutsideLimit: json['retakesOutsideLimit'] as bool? ?? false,
+      retakeUnits: (json['retakeUnits'] as num?)?.toDouble() ?? 0,
       rule: json['rule'] as String? ?? '',
       overloadReason: json['overloadReason'] as String?,
       overloadApprovedBy: json['overloadApprovedBy'] as String?,

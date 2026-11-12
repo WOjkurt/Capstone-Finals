@@ -12,6 +12,7 @@ const Map<String, String> kActivityActionLabels = {
   'CREDIT_REMOVED': 'Credit removed',
   'CREDITS_IMPORTED': 'Credits imported',
   'FORMS_IMPORTED': 'Enrollment forms imported',
+  'EMAILS_IMPORTED': 'School emails imported',
   'CURRICULUM_CHANGED': 'Curriculum changed',
   'STUDENT_ID_CHANGED': 'Student ID changed',
   'RECORDS_IMPORTED': 'Records imported',

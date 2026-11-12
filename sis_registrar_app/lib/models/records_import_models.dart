@@ -229,3 +229,63 @@ class FormsImportResult {
         totalProblems: (j['totalProblems'] as num?)?.toInt() ?? 0,
       );
 }
+
+class EmailsImportRow {
+  final int row;
+  final String studentId;
+  final String studentName;
+  final String email;
+
+  /// The email it replaces, when one was set by hand before.
+  final String? oldEmail;
+
+  /// "Student ID" or "name".
+  final String matchedBy;
+
+  const EmailsImportRow({this.row = 0, this.studentId = '', required this.studentName, required this.email, this.oldEmail, this.matchedBy = ''});
+
+  factory EmailsImportRow.fromJson(Map<String, dynamic> j) => EmailsImportRow(
+        row: (j['row'] as num?)?.toInt() ?? 0,
+        studentId: j['studentId'] as String? ?? '',
+        studentName: j['studentName'] as String? ?? '',
+        email: j['email'] as String? ?? '',
+        oldEmail: j['oldEmail'] as String?,
+        matchedBy: j['matchedBy'] as String? ?? '',
+      );
+}
+
+/// What importing the IT department's list of school emails would do (dry run) or did.
+class EmailsImportResult {
+  final bool dryRun;
+  final int emails;
+  final int changed;
+  final int alreadySet;
+  final int notInSystem;
+  final List<EmailsImportRow> rows;
+  final List<RecordsImportProblem> problems;
+  final int totalProblems;
+
+  const EmailsImportResult({
+    this.dryRun = true,
+    this.emails = 0,
+    this.changed = 0,
+    this.alreadySet = 0,
+    this.notInSystem = 0,
+    this.rows = const [],
+    this.problems = const [],
+    this.totalProblems = 0,
+  });
+
+  factory EmailsImportResult.fromJson(Map<String, dynamic> j) => EmailsImportResult(
+        dryRun: j['dryRun'] as bool? ?? true,
+        emails: (j['emails'] as num?)?.toInt() ?? 0,
+        changed: (j['changed'] as num?)?.toInt() ?? 0,
+        alreadySet: (j['alreadySet'] as num?)?.toInt() ?? 0,
+        notInSystem: (j['notInSystem'] as num?)?.toInt() ?? 0,
+        rows: [for (final r in (j['rows'] as List? ?? const [])) EmailsImportRow.fromJson(r as Map<String, dynamic>)],
+        problems: [
+          for (final p in (j['problems'] as List? ?? const [])) RecordsImportProblem.fromJson(p as Map<String, dynamic>)
+        ],
+        totalProblems: (j['totalProblems'] as num?)?.toInt() ?? 0,
+      );
+}

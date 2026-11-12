@@ -4,6 +4,7 @@ import '../blocs/clearance_bloc.dart';
 import 'promotion_view.dart';
 import 'widgets/page_header.dart';
 import 'widgets/credits_import_dialog.dart';
+import 'widgets/emails_import_dialog.dart';
 import 'widgets/forms_import_dialog.dart';
 import 'widgets/records_import_dialog.dart';
 import 'widgets/student_profile_panel.dart';
@@ -112,6 +113,12 @@ class _ClearanceViewState extends State<ClearanceView> {
                         leadingIcon: const Icon(Icons.assignment_ind_outlined, size: 18),
                         onPressed: () => FormsImportDialog.show(context),
                         child: const Text('Enrollment forms (Google Form)'),
+                      ),
+                      MenuItemButton(
+                        key: const ValueKey('open_emails_import_button'),
+                        leadingIcon: const Icon(Icons.alternate_email_rounded, size: 18),
+                        onPressed: () => EmailsImportDialog.show(context),
+                        child: const Text('School emails (from IT)'),
                       ),
                     ],
                   ),

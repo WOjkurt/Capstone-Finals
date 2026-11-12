@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../models/enrollment_models.dart';
 import '../models/record_models.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
@@ -17,6 +18,12 @@ class StudentRecordRepository {
 
   Future<PersonalDetails> personalDetails(String userId) async =>
       PersonalDetails.fromJson(await _get('$userId/personal-details'));
+
+  /// The student's latest enrollment form with parents/guardian, or null when there is none (read-only).
+  Future<EnrollmentApplicationModel?> enrollmentForm(String userId) async {
+    final app = (await _get('$userId/enrollment-form'))['application'];
+    return app is Map<String, dynamic> ? EnrollmentApplicationModel.fromJson(app) : null;
+  }
 
   /// Saves the Registrar's values. Send null or empty for "use the enrollment form".
   Future<PersonalDetails> savePersonalDetails(String userId, Map<String, String?> values) async =>

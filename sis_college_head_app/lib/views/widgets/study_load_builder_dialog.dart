@@ -294,8 +294,19 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
     return total;
   }
 
-  /// Units after saving: what is already in the term plus the ticked subjects.
-  double get _projectedUnits => (_unitLimit?.currentUnits ?? 0) + _selectedUnitsTotal;
+  /// Ticked retakes that don't count toward the limit (summer only).
+  double get _selectedRetakeUnits {
+    if (_items == null || !(_unitLimit?.retakesOutsideLimit ?? false)) return 0.0;
+    double total = 0.0;
+    for (final it in _items!) {
+      if (it.isRetake && _checkedSubjectIds.contains(it.subjectId)) total += it.units;
+    }
+    return total;
+  }
+
+  /// Units after saving that count toward the limit: what is already in the term plus the ticked subjects
+  /// (in summer, retakes of failed subjects are extra).
+  double get _projectedUnits => (_unitLimit?.currentUnits ?? 0) + _selectedUnitsTotal - _selectedRetakeUnits;
 
   bool get _isOverUnitLimit =>
       _unitLimit != null && _projectedUnits > _unitLimit!.maxUnits + 0.001;
@@ -1439,7 +1450,8 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                         const SizedBox(width: 12),
                         Text(
                           '${_unitLimit!.currentUnits > 0 ? '${_unitLimit!.currentUnits.toStringAsFixed(1)} already in term · ' : ''}'
-                          'Limit ${_unitLimit!.maxUnits.toStringAsFixed(1)}',
+                          'Limit ${_unitLimit!.maxUnits.toStringAsFixed(1)}'
+                          '${_unitLimit!.retakeUnits + _selectedRetakeUnits > 0 ? ' · ${(_unitLimit!.retakeUnits + _selectedRetakeUnits).toStringAsFixed(1)} retake units extra' : ''}',
                           key: const ValueKey('unit_limit_label'),
                           style: TextStyle(
                             fontSize: 12,

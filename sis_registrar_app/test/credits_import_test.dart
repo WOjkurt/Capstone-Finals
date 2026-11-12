@@ -10,6 +10,7 @@ import 'package:sis_registrar_app/repositories/records_import_repository.dart';
 import 'package:sis_registrar_app/services/auth_service.dart';
 import 'package:sis_registrar_app/utils/file_pick.dart';
 import 'package:sis_registrar_app/views/widgets/credits_import_dialog.dart';
+import 'package:sis_registrar_app/views/widgets/emails_import_dialog.dart';
 import 'package:sis_registrar_app/views/widgets/forms_import_dialog.dart';
 
 class _FakeAuth implements AuthService {
@@ -137,6 +138,52 @@ void main() {
     expect(find.textContaining('row 3: Carlo Lim is not in the system.'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('run_forms_import')));
+    await tester.pumpAndSettle();
+    expect(dry, ['true', 'false']);
+  });
+
+  testWidgets('school emails: preview shows who gets which email and what is skipped, then import', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1100);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+    final dry = <String>[];
+    final repo = RecordsImportRepository(_FakeAuth(), client: MockClient.streaming((request, body) async {
+      final raw = utf8.decode(await body.toBytes(), allowMalformed: true);
+      dry.add(RegExp(r'name="dryRun"\r\n\r\n([^\r]*)').firstMatch(raw)!.group(1)!);
+      expect(request.url.path, '/api/import/school-emails');
+      final result = {
+        'emails': 2,
+        'changed': 1,
+        'alreadySet': 3,
+        'rows': [
+          {'row': 2, 'studentId': '25060208', 'studentName': 'Cruz, Ana', 'email': 'ana.cruz@dbtc-cebu.edu.ph', 'matchedBy': 'Student ID'},
+          {'row': 3, 'studentId': '25060209', 'studentName': 'Reyes, Ben', 'email': 'ben.reyes@dbtc-cebu.edu.ph',
+           'oldEmail': 'ben.old@dbtc-cebu.edu.ph', 'matchedBy': 'name'},
+        ],
+        'problems': [
+          {'file': 'School emails', 'sheet': 'CSV', 'row': 4, 'message': 'Lim, Cara has already signed in with cara@dbtc-cebu.edu.ph; their email was not changed.'}
+        ],
+        'totalProblems': 1,
+      };
+      return http.StreamedResponse(Stream.value(utf8.encode(jsonEncode(result))), 200);
+    }));
+    pickFile = ({String accept = ''}) async => PickedFile('emails.csv', Uint8List.fromList([1]));
+    addTearDown(() => pickFile = ({String accept = ''}) async => null);
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: EmailsImportDialog(repository: repo))));
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('run_emails_import'))).onPressed, isNull);
+    await tester.tap(find.byKey(const ValueKey('choose_emails_file')));
+    await tester.pumpAndSettle();
+    expect(dry, ['true']);
+    expect(find.text('2 student(s) get their school email'), findsOneWidget);
+    expect(find.textContaining('1 of them had a different email set by hand'), findsOneWidget);
+    expect(find.text('3 student(s) already have this email and are skipped'), findsOneWidget);
+    expect(find.text('• Cruz, Ana (25060208) → ana.cruz@dbtc-cebu.edu.ph'), findsOneWidget);
+    expect(find.text('• Reyes, Ben (25060209) → ben.reyes@dbtc-cebu.edu.ph (was ben.old@dbtc-cebu.edu.ph) — matched by name'),
+        findsOneWidget);
+    expect(find.textContaining('row 4: Lim, Cara has already signed in'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('run_emails_import')));
     await tester.pumpAndSettle();
     expect(dry, ['true', 'false']);
   });

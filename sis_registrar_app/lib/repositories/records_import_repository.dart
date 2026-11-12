@@ -82,6 +82,23 @@ class RecordsImportRepository {
     return FormsImportResult.fromJson(body as Map<String, dynamic>);
   }
 
+  Future<EmailsImportResult> importSchoolEmails({required String fileName, required Uint8List bytes, required bool dryRun}) async {
+    final headers = await _auth.getAuthHeaders()
+      ..remove('Content-Type');
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/import/school-emails'))
+      ..headers.addAll(headers)
+      ..fields['dryRun'] = '$dryRun'
+      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+    final res = await http.Response.fromStream(await _client.send(request));
+    final body = res.body.isEmpty ? null : jsonDecode(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode,
+          message: body is Map ? '${body['message'] ?? 'Import failed (${res.statusCode}).'}' : 'Import failed (${res.statusCode}).');
+    }
+    return EmailsImportResult.fromJson(body as Map<String, dynamic>);
+  }
+
   /// For an imported student who hasn't signed in yet. Empty clears it. Returns the saved email.
   Future<String> setSchoolEmail(String userId, String email) async {
     final headers = await _auth.getAuthHeaders();
