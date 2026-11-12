@@ -19,6 +19,10 @@ class StudentRecordRepository {
   Future<PersonalDetails> personalDetails(String userId) async =>
       PersonalDetails.fromJson(await _get('$userId/personal-details'));
 
+  /// Students → Records check: active students with something still missing.
+  Future<RecordsCheck> recordsCheck({int? programId}) async =>
+      RecordsCheck.fromJson(await _get(programId == null ? 'check' : 'check?programId=$programId'));
+
   /// The student's latest enrollment form with parents/guardian, or null when there is none (read-only).
   Future<EnrollmentApplicationModel?> enrollmentForm(String userId) async {
     final app = (await _get('$userId/enrollment-form'))['application'];

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../injection.dart';
 import '../../models/grading_models.dart';
+import '../../models/setup_models.dart';
+import '../../repositories/enrollment_repository.dart';
 import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/certificate_pdf.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/student_record_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
@@ -251,6 +254,220 @@ class _TranscriptPrintDialogState extends State<TranscriptPrintDialog> {
               : const Icon(Icons.print_outlined, size: 18),
           label: const Text('Print'),
           onPressed: _printing ? null : _print,
+        ),
+      ],
+    );
+  }
+}
+
+/// Print a Certificate of Enrollment or a Certificate of Grades for one term.
+class CertificateDialog extends StatefulWidget {
+  final CertificateKind kind;
+  final List<StudentGradeModel> grades;
+  final String studentName;
+  final String? studentId;
+  final String? programCode;
+
+  /// The student's current year level; printed only for their newest term.
+  final int? yearLevel;
+
+  /// For tests; the app reads the programs from Setup.
+  final Future<List<AcademicProgramModel>> Function()? loadPrograms;
+
+  const CertificateDialog({
+    super.key,
+    required this.kind,
+    required this.grades,
+    required this.studentName,
+    this.studentId,
+    this.programCode,
+    this.yearLevel,
+    this.loadPrograms,
+  });
+
+  static Future<void> show(BuildContext context,
+          {required CertificateKind kind,
+          required List<StudentGradeModel> grades,
+          required String studentName,
+          String? studentId,
+          String? programCode,
+          int? yearLevel}) =>
+      showDialog<void>(
+        context: context,
+        builder: (_) => CertificateDialog(
+            kind: kind, grades: grades, studentName: studentName, studentId: studentId, programCode: programCode, yearLevel: yearLevel),
+      );
+
+  @override
+  State<CertificateDialog> createState() => _CertificateDialogState();
+}
+
+class _CertificateDialogState extends State<CertificateDialog> {
+  late CertificateKind _kind = widget.kind;
+  final _purpose = TextEditingController();
+  final _registrar = TextEditingController();
+  bool _listSubjects = true;
+  bool _printing = false;
+  String? _error;
+  String? _programName;
+
+  /// Terms the student has subjects in, newest first, as (school year, semester).
+  late final List<(String, int)> _terms = () {
+    final set = <(String, int)>{
+      for (final g in widget.grades)
+        if (g.schoolYear != null && g.semester != null && g.loadStatus != 5) (g.schoolYear!, g.semester!)
+    }.toList()
+      ..sort((a, b) {
+        final y = b.$1.compareTo(a.$1);
+        return y != 0 ? y : b.$2.compareTo(a.$2);
+      });
+    return set;
+  }();
+  late (String, int)? _term = _terms.firstOrNull;
+
+  @override
+  void initState() {
+    super.initState();
+    (widget.loadPrograms ?? getIt<AcademicSetupRepository>().getPrograms)().then((programs) {
+      final p = programs.where((p) => p.programCode == widget.programCode).firstOrNull;
+      if (p != null && mounted) setState(() => _programName = p.fullName);
+    }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    _purpose.dispose();
+    _registrar.dispose();
+    super.dispose();
+  }
+
+  CertificateData? get _data {
+    final t = _term;
+    if (t == null) return null;
+    return CertificateData(
+      kind: _kind,
+      studentName: widget.studentName,
+      studentId: widget.studentId,
+      program: _programName ?? widget.programCode ?? 'the college',
+      yearLevel: t == _terms.first ? widget.yearLevel : null,
+      schoolYear: t.$1,
+      semester: t.$2,
+      subjects: widget.grades.where((g) => g.schoolYear == t.$1 && g.semester == t.$2).toList(),
+      listSubjects: _listSubjects,
+      purpose: _purpose.text,
+      registrar: _registrar.text,
+    );
+  }
+
+  Future<void> _print() async {
+    final d = _data;
+    if (d == null) return;
+    setState(() {
+      _printing = true;
+      _error = null;
+    });
+    try {
+      final bytes = await buildCertificatePdf(d, logo: await loadSchoolLogo());
+      await printPdf(bytes, _fileName(_kind == CertificateKind.enrollment ? 'COE' : 'Certificate_of_Grades', widget.studentName));
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _printing = false;
+          _error = e is ApiException ? e.message : e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = _data;
+    final enrolledCount = d == null ? 0 : certificateSubjects(d).length;
+    return AlertDialog(
+      title: Text('Certificate — ${widget.studentName}'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SegmentedButton<CertificateKind>(
+                key: const ValueKey('certificate_kind'),
+                segments: const [
+                  ButtonSegment(value: CertificateKind.enrollment, label: Text('Enrollment'), icon: Icon(Icons.how_to_reg_outlined)),
+                  ButtonSegment(value: CertificateKind.grades, label: Text('Grades'), icon: Icon(Icons.grading_outlined)),
+                ],
+                selected: {_kind},
+                onSelectionChanged: (v) => setState(() => _kind = v.first),
+              ),
+              const SizedBox(height: 14),
+              if (_terms.isEmpty)
+                const Text('This student has no subjects on record yet.', style: TextStyle(color: AppColors.textSecondary))
+              else
+                DropdownButtonFormField<(String, int)>(
+                  key: const ValueKey('certificate_term'),
+                  initialValue: _term,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Term', border: OutlineInputBorder(), isDense: true),
+                  items: [
+                    for (final t in _terms) DropdownMenuItem(value: t, child: Text('${t.$1} (${semesterName(t.$2)})')),
+                  ],
+                  onChanged: (v) => setState(() => _term = v),
+                ),
+              if (_kind == CertificateKind.enrollment)
+                CheckboxListTile(
+                  key: const ValueKey('certificate_list_subjects'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: _listSubjects,
+                  onChanged: (v) => setState(() => _listSubjects = v ?? true),
+                  title: const Text('List the subjects'),
+                ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const ValueKey('certificate_purpose'),
+                controller: _purpose,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                    labelText: 'Purpose (optional)', hintText: 'e.g. scholarship application', border: OutlineInputBorder(), isDense: true),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('certificate_registrar'),
+                controller: _registrar,
+                decoration: const InputDecoration(
+                    labelText: 'Registrar\'s name', hintText: 'Leave empty to write it by hand', border: OutlineInputBorder(), isDense: true),
+              ),
+              if (d != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  key: const ValueKey('certificate_preview'),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
+                  child: Text(certificateBody(d), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ),
+                if (_kind == CertificateKind.enrollment && enrolledCount == 0)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text('The student has no enrolled subjects in this term.', style: TextStyle(fontSize: 12, color: AppColors.warning)),
+                  ),
+              ],
+              if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 12))),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        FilledButton.icon(
+          key: const ValueKey('certificate_print'),
+          icon: _printing
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.print_outlined, size: 18),
+          label: const Text('Print'),
+          onPressed: _printing || d == null || (_kind == CertificateKind.enrollment && enrolledCount == 0) ? null : _print,
         ),
       ],
     );

@@ -4,6 +4,7 @@ import '../blocs/clearance_bloc.dart';
 import 'promotion_view.dart';
 import 'widgets/page_header.dart';
 import 'widgets/credits_import_dialog.dart';
+import 'records_check_view.dart';
 import 'widgets/emails_import_dialog.dart';
 import 'widgets/forms_import_dialog.dart';
 import 'widgets/records_import_dialog.dart';
@@ -121,6 +122,23 @@ class _ClearanceViewState extends State<ClearanceView> {
                         child: const Text('School emails (from IT)'),
                       ),
                     ],
+                  ),
+                  OutlinedButton.icon(
+                    key: const ValueKey('open_records_check_button'),
+                    icon: const Icon(Icons.fact_check_outlined, size: 18),
+                    label: const Text('Records check'),
+                    onPressed: () {
+                      final bloc = context.read<ClearanceBloc>();
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (routeContext) => RecordsCheckView(
+                          onBack: () => Navigator.of(routeContext).pop(),
+                          onOpen: (student) {
+                            Navigator.of(routeContext).pop();
+                            bloc.add(SelectStudentEvent(student));
+                          },
+                        ),
+                      ));
+                    },
                   ),
                   OutlinedButton.icon(
                     key: const ValueKey('open_promotion_button'),

@@ -420,3 +420,45 @@ class PreviousProgramSubject {
         alreadyCredited: j['alreadyCredited'] as bool? ?? false,
       );
 }
+
+/// One count on the Records check page, e.g. "No school email (can't sign in)": 12.
+class RecordsCheckCount {
+  final String key;
+  final String label;
+  final int count;
+  const RecordsCheckCount({required this.key, required this.label, required this.count});
+  factory RecordsCheckCount.fromJson(Map<String, dynamic> j) =>
+      RecordsCheckCount(key: j['key'] as String? ?? '', label: j['label'] as String? ?? '', count: (j['count'] as num?)?.toInt() ?? 0);
+}
+
+/// A student with something still missing. [json] has the keys of a student search result, to open them.
+class RecordsCheckRow {
+  final Map<String, dynamic> json;
+  final List<String> issues;
+  final List<String> missing;
+  const RecordsCheckRow({required this.json, this.issues = const [], this.missing = const []});
+
+  String get userId => json['userId'] as String? ?? '';
+  String get name => '${json['lastname'] ?? ''}, ${json['firstname'] ?? ''}';
+  String? get studentId => json['studentId'] as String?;
+  String? get programCode => json['programCode'] as String?;
+  int? get yearLevel => (json['yearLevel'] as num?)?.toInt();
+
+  factory RecordsCheckRow.fromJson(Map<String, dynamic> j) => RecordsCheckRow(
+        json: j,
+        issues: [for (final i in j['issues'] as List? ?? const []) i as String],
+        missing: [for (final m in j['missing'] as List? ?? const []) m as String],
+      );
+}
+
+class RecordsCheck {
+  final int activeStudents;
+  final List<RecordsCheckCount> counts;
+  final List<RecordsCheckRow> rows;
+  const RecordsCheck({this.activeStudents = 0, this.counts = const [], this.rows = const []});
+  factory RecordsCheck.fromJson(Map<String, dynamic> j) => RecordsCheck(
+        activeStudents: (j['activeStudents'] as num?)?.toInt() ?? 0,
+        counts: [for (final c in j['counts'] as List? ?? const []) RecordsCheckCount.fromJson(c as Map<String, dynamic>)],
+        rows: [for (final r in j['rows'] as List? ?? const []) RecordsCheckRow.fromJson(r as Map<String, dynamic>)],
+      );
+}

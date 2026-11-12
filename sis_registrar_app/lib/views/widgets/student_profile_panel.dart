@@ -171,6 +171,7 @@ class _StudentProfilePanelState extends State<StudentProfilePanel>
                   lrn: _student.lrn,
                   programCode: _student.programCode,
                   yearLevel: _yearLevel,
+                  studentId: _studentId,
                   embedded: true,
                 )),
                 _padded(StudentEvaluationTab(key: ValueKey('evaluation_${_student.userId}_${_student.programId}'), userId: _student.userId, studentName: _student.fullName)),

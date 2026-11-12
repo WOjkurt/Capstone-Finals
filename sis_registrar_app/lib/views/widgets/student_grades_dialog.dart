@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/student_record_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
+import '../../utils/certificate_pdf.dart' show CertificateKind;
 import 'record_print_dialogs.dart';
 import 'record_table.dart';
 
@@ -21,6 +22,9 @@ class StudentGradesDialog extends StatefulWidget {
   final String? programCode;
   final int? yearLevel;
 
+  /// Printed on certificates.
+  final String? studentId;
+
   /// Shown inside the Students page's "Grades" tab instead of as a window.
   final bool embedded;
 
@@ -31,6 +35,7 @@ class StudentGradesDialog extends StatefulWidget {
     this.lrn,
     this.programCode,
     this.yearLevel,
+    this.studentId,
     this.embedded = false,
   });
 
@@ -150,6 +155,14 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
               GradeSheetDialog.show(context, grades: _grades ?? const [], student: _info);
             case 'tor':
               TranscriptPrintDialog.show(context, userId: widget.userId, studentName: widget.studentName);
+            case 'coe' || 'cog':
+              CertificateDialog.show(context,
+                  kind: choice == 'coe' ? CertificateKind.enrollment : CertificateKind.grades,
+                  grades: _grades ?? const [],
+                  studentName: widget.studentName,
+                  studentId: widget.studentId,
+                  programCode: widget.programCode,
+                  yearLevel: widget.yearLevel);
           }
         },
         itemBuilder: (_) => [
@@ -167,6 +180,16 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
             key: ValueKey('print_tor_button'),
             value: 'tor',
             child: ListTile(leading: Icon(Icons.workspace_premium_outlined), title: Text('Transcript of Records…'), subtitle: Text('Official TOR')),
+          ),
+          const PopupMenuItem(
+            key: ValueKey('print_coe_button'),
+            value: 'coe',
+            child: ListTile(leading: Icon(Icons.how_to_reg_outlined), title: Text('Certificate of Enrollment…'), subtitle: Text('One term')),
+          ),
+          const PopupMenuItem(
+            key: ValueKey('print_cog_button'),
+            value: 'cog',
+            child: ListTile(leading: Icon(Icons.grading_outlined), title: Text('Certificate of Grades…'), subtitle: Text('One term, with GWA')),
           ),
         ],
         child: AbsorbPointer(
