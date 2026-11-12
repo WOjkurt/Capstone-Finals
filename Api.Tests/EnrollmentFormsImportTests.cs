@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Api.Repositories;
 using Api.Auth;
 using Api.Domain.Enrollment;
 using Api.Domain.IdentityAccess;
@@ -163,6 +165,17 @@ public class EnrollmentFormsImportTests : IDisposable
         Assert.Equal("Santos", details.MiddleName);
         Assert.Equal("12 Rizal St., Lahug, Cebu City, Cebu", details.Address);
         Assert.Equal("Cebu NHS", details.EntranceData);
+
+        // The Details tab's read-only "Enrollment form" section shows the same answers.
+        var enrollment = new EnrollmentService(_context, new EnrollmentResponseRepository(_context),
+            new EnrollmentApplicationRepository(_context), new EnrollmentFormRepository(_context),
+            new ContactRepository(_context), new UserDetailsRepository(_context), new UserRepository(_context),
+            NullLogger<EnrollmentService>.Instance);
+        var latest = await enrollment.GetLatestFormForStudentAsync(_ana);
+        Assert.NotNull(latest);
+        Assert.Equal("Cebu NHS", latest!.Form!.LastSchoolAttended);
+        Assert.Equal(2, latest.Contacts.Count);
+        Assert.Null(await enrollment.GetLatestFormForStudentAsync(_ben));
     }
 
     [Fact]

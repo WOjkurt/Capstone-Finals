@@ -1,5 +1,6 @@
 using Api.Auth;
 using Api.Domain.Enrollment;
+using Api.Domain.Grading;
 using Api.Domain.IdentityAccess;
 using Api.DTOs.StudyLoad;
 using Api.Repositories;
@@ -122,7 +123,8 @@ public class UnitLimitTests : IDisposable
         await settings.SaveUnitLimitsAsync(new Api.DTOs.Setup.SaveUnitLimitSettingsDto { SummerMaxUnits = 6, GraduatingSummerMaxUnits = 10.5m }, _studentId);
 
         var r = await _service.GetUnitLimitAsync(_studentId, _summer);
-        Assert.Equal((6m, "Summer limit: 6 units."), (r.MaxUnits, r.Rule));
+        Assert.Equal(6m, r.MaxUnits);
+        Assert.StartsWith("Summer limit: 6 units.", r.Rule);
         var saved = await settings.GetUnitLimitsAsync();
         Assert.Equal((6m, 10.5m), (saved.SummerMaxUnits, saved.GraduatingSummerMaxUnits));
         Assert.NotNull(saved.UpdatedAt);
@@ -158,6 +160,93 @@ public class UnitLimitTests : IDisposable
         var r = await _service.GetUnitLimitAsync(_studentId, _sem1);
 
         Assert.Equal(6m, r.CurrentUnits);
+    }
+
+    private async Task FailedIn(string code, Guid termId)
+    {
+        await Load(code, termId, StudyLoadStatus.Enrolled);
+        var load = await _context.StudyLoads.OrderByDescending(l => l.CreatedAt).FirstAsync(l => l.Class!.SubjectID == _subjects[code].SubjectID);
+        _context.Grades.Add(new Grade { GradeID = Guid.NewGuid(), StudyLoadID = load.StudyLoadID, FinalGrade = 5.0m, Remarks = 2, DateSubmitted = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Summer_RetakesOfFailedSubjects_DoNotCountTowardTheLimit()
+    {
+        await FailedIn("IT 101", _sem1);                           // failed in 1st sem
+        await Load("IT 101", _summer, StudyLoadStatus.Pending);    // 3, retake
+        await Load("IT 102", _summer, StudyLoadStatus.Pending);    // 3
+        await Load("IT 103", _summer, StudyLoadStatus.Pending);    // 3
+        await Load("PE 101", _summer, StudyLoadStatus.Pending);    // 2
+
+        var r = await _service.GetUnitLimitAsync(_studentId, _summer);
+
+        Assert.True(r.RetakesOutsideLimit);
+        Assert.Equal(3m, r.RetakeUnits);
+        Assert.Equal(8m, r.CurrentUnits);   // 11 minus the retake
+        Assert.False(r.IsOverloaded);       // limit 9
+        Assert.Contains("Retakes of failed subjects are extra", r.Rule);
+    }
+
+    [Fact]
+    public async Task RegularSemester_RetakesStillCount()
+    {
+        var other = Guid.NewGuid();
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = other, SchoolYear = "2025-2026", Semester = 1 });
+        await _context.SaveChangesAsync();
+        await FailedIn("IT 101", other);
+        await Load("IT 101", _sem1, StudyLoadStatus.Pending);
+
+        var r = await _service.GetUnitLimitAsync(_studentId, _sem1);
+
+        Assert.False(r.RetakesOutsideLimit);
+        Assert.Equal(3m, r.CurrentUnits);
+        Assert.Equal(0m, r.RetakeUnits);
+    }
+
+    [Fact]
+    public async Task Summer_FailedThenPassed_IsNoLongerARetake()
+    {
+        var other = Guid.NewGuid();
+        _context.AcademicTerms.Add(new AcademicTerm { TermID = other, SchoolYear = "2025-2026", Semester = 2 });
+        await _context.SaveChangesAsync();
+        await FailedIn("IT 102", _sem1);
+        await Load("IT 102", other, StudyLoadStatus.Enrolled);
+        var passedLoad = await _context.StudyLoads.FirstAsync(l => l.Class!.TermID == other);
+        _context.Grades.Add(new Grade { GradeID = Guid.NewGuid(), StudyLoadID = passedLoad.StudyLoadID, FinalGrade = 2.0m, Remarks = 1, DateSubmitted = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
+        await Load("IT 102", _summer, StudyLoadStatus.Pending);
+
+        var r = await _service.GetUnitLimitAsync(_studentId, _summer);
+
+        Assert.Equal(3m, r.CurrentUnits);
+        Assert.Equal(0m, r.RetakeUnits);
+    }
+
+    [Fact]
+    public async Task SummerSave_NormalLoadPlusRetake_NeedsNoOverloadReason()
+    {
+        await FailedIn("IT 401", _sem1);   // 3 units failed
+        var classes = new List<Guid>();
+        foreach (var code in new[] { "IT 101", "IT 102", "IT 103", "IT 401" })   // 9 normal + 3 retake
+        {
+            var cls = new Class { ClassID = Guid.NewGuid(), SubjectID = _subjects[code].SubjectID, TermID = _summer, ClassName = "BSIT S", CreatedAt = DateTime.UtcNow };
+            _context.Classes.Add(cls);
+            classes.Add(cls.ClassID);
+        }
+        await _context.SaveChangesAsync();
+        await OpenClasses();   // adds the College Head
+
+        var clearance = new Mock<IGradeClearanceService>();
+        clearance.Setup(c => c.IsClearedAsync(_studentId, _sem1)).ReturnsAsync(true);   // 1st sem is cleared
+        var service = new StudyLoadService(_context, new StudyLoadRepository(_context), clearance.Object, NullLogger<StudyLoadService>.Instance);
+        var result = await service.EnrollBatchAsync(new EnrollBatchRequestDto
+        {
+            UserId = _studentId, TermId = _summer, ClassIds = classes, AsPending = true, OverloadReason = null
+        }, _collegeHeadId, RoleUtils.CollegeHead);
+
+        Assert.All(result, r => Assert.True(r.Enrolled, string.Join("; ", r.Reasons)));
+        Assert.Empty(await _context.OverloadApprovals.ToListAsync());
     }
 
     [Fact]

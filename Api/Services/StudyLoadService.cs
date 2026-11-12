@@ -322,7 +322,7 @@ public class StudyLoadService : IStudyLoadService
             var resultList = new List<EnrollBatchResponseDto>();
             var newlyEnrolledCount = 0;
             var enrolledSubjectIdsInBatch = new HashSet<Guid>();
-            var accepted = new List<(Guid ClassId, EnrollBatchResponseDto Result, decimal Units)>();
+            var accepted = new List<(Guid ClassId, EnrollBatchResponseDto Result, decimal Units, Guid SubjectId)>();
 
             // Pass 1: check every class without saving, so the unit limit can be checked on the whole batch.
             foreach (var classId in dto.ClassIds)
@@ -365,7 +365,7 @@ public class StudyLoadService : IStudyLoadService
                 enrolledSubjectIdsInBatch.Add(targetClass.SubjectID);
                 var result = new EnrollBatchResponseDto { ClassId = classId, Enrolled = true, Reasons = new List<string>() };
                 resultList.Add(result);
-                accepted.Add((classId, result, (targetClass.Subject?.LecUnits ?? 0m) + (targetClass.Subject?.LabUnits ?? 0m)));
+                accepted.Add((classId, result, (targetClass.Subject?.LecUnits ?? 0m) + (targetClass.Subject?.LabUnits ?? 0m), targetClass.SubjectID));
             }
 
             // Going over the CHED unit limit needs a written reason, which is recorded as the overload approval.
@@ -373,7 +373,8 @@ public class StudyLoadService : IStudyLoadService
             if (accepted.Count > 0 && await _context.UserDetails.AnyAsync(u => u.UserID == dto.UserId))
             {
                 var limit = await GetUnitLimitAsync(dto.UserId, dto.TermId);
-                decimal projected = limit.CurrentUnits + accepted.Sum(a => a.Units);
+                var retakes = limit.RetakesOutsideLimit ? await FailedBeforeSubjectIdsAsync(dto.UserId, dto.TermId) : new HashSet<Guid>();
+                decimal projected = limit.CurrentUnits + accepted.Where(a => !retakes.Contains(a.SubjectId)).Sum(a => a.Units);
                 if (projected > limit.MaxUnits)
                 {
                     string? reason = dto.OverloadReason?.Trim();
@@ -406,7 +407,7 @@ public class StudyLoadService : IStudyLoadService
             }
 
             // Pass 2: save the accepted classes.
-            foreach (var (classId, result, _) in accepted)
+            foreach (var (classId, result, _, _) in accepted)
             {
                 var studyLoad = new StudyLoad
                 {
@@ -882,12 +883,18 @@ public class StudyLoadService : IStudyLoadService
                              .Sum(s => s.LecUnits + s.LabUnits)
             : 0m;
 
-        decimal currentUnits = await _context.StudyLoads
+        var termLoads = await _context.StudyLoads
             .AsNoTracking()
             .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.TermID == termId &&
                          (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Pending))
-            .Select(sl => sl.Class!.Subject!.LecUnits + sl.Class!.Subject!.LabUnits)
-            .SumAsync();
+            .Select(sl => new { sl.Class!.SubjectID, Units = sl.Class!.Subject!.LecUnits + sl.Class!.Subject!.LabUnits })
+            .ToListAsync();
+
+        // DBTC: in summer a student may retake failed subjects on top of the normal summer load,
+        // so retakes don't count toward the summer limit.
+        var retakes = isSummer ? await FailedBeforeSubjectIdsAsync(userId, termId) : new HashSet<Guid>();
+        decimal retakeUnits = termLoads.Where(l => retakes.Contains(l.SubjectID)).Sum(l => l.Units);
+        decimal currentUnits = termLoads.Sum(l => l.Units) - retakeUnits;
 
         decimal max;
         string rule;
@@ -898,7 +905,8 @@ public class StudyLoadService : IStudyLoadService
             max = isGraduating
                 ? settings?.GraduatingSummerMaxUnits ?? GraduatingSummerMaxUnits
                 : settings?.SummerMaxUnits ?? SummerMaxUnits;
-            rule = isGraduating ? $"Summer limit for graduating students: {max:0.#} units." : $"Summer limit: {max:0.#} units.";
+            rule = (isGraduating ? $"Summer limit for graduating students: {max:0.#} units." : $"Summer limit: {max:0.#} units.") +
+                   " Retakes of failed subjects are extra and don't count toward it.";
         }
         else
         {
@@ -924,6 +932,8 @@ public class StudyLoadService : IStudyLoadService
         {
             MaxUnits = max,
             CurrentUnits = currentUnits,
+            RetakeUnits = retakeUnits,
+            RetakesOutsideLimit = isSummer,
             CurriculumUnits = curriculumUnits,
             IsGraduating = isGraduating,
             IsSummer = isSummer,
@@ -932,6 +942,26 @@ public class StudyLoadService : IStudyLoadService
             OverloadApprovedBy = approval != null ? (approvedBy ?? "Unknown staff") : null,
             OverloadApprovedAt = approval?.ApprovedAt
         };
+    }
+
+    /// <summary>Subjects the student failed in another term and hasn't passed or been credited since: a load of one is a retake.</summary>
+    private async Task<HashSet<Guid>> FailedBeforeSubjectIdsAsync(Guid userId, Guid termId)
+    {
+        var attempts = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.TermID != termId && sl.LoadStatus == StudyLoadStatus.Enrolled)
+            .Select(sl => new
+            {
+                sl.Class!.SubjectID,
+                Remarks = _context.Grades.Where(g => g.StudyLoadID == sl.StudyLoadID).Select(g => (int?)g.Remarks).FirstOrDefault()
+            })
+            .ToListAsync();
+        var passed = attempts.Where(a => a.Remarks == 1).Select(a => a.SubjectID).ToHashSet();
+        var credited = await _context.CreditedSubjects.AsNoTracking()
+            .Where(c => c.UserID == userId && c.CreditedUnits >= c.Subject!.LecUnits + c.Subject.LabUnits)
+            .Select(c => c.SubjectID).ToListAsync();
+        passed.UnionWith(credited);
+        return attempts.Where(a => a.Remarks == 2 && !passed.Contains(a.SubjectID)).Select(a => a.SubjectID).ToHashSet();
     }
 
     internal enum SubjectCompletionStatus

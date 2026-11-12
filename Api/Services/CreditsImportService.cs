@@ -57,7 +57,7 @@ public partial class CreditsImportService : ICreditsImportService
         return -1;
     }
 
-    private static List<(string Sheet, List<(int Number, IReadOnlyList<string> Cells)> Rows)> ReadFile(Stream file, string fileName)
+    internal static List<(string Sheet, List<(int Number, IReadOnlyList<string> Cells)> Rows)> ReadFile(Stream file, string fileName)
     {
         if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
         {

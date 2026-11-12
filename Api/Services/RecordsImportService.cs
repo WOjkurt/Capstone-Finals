@@ -112,6 +112,21 @@ public partial class RecordsImportService : IRecordsImportService
         _ => null,
     };
 
+    /// <summary>A grade with a typing slip, e.g. ".2.8" → 2.8, "1..6" → 1.6, "2,5" → 2.5, "2.5." → 2.5.
+    /// Only a result that is a valid grade is used; anything else stays a problem row.</summary>
+    public static decimal? FixGradeTypo(string raw)
+    {
+        var t = raw.Trim().Replace(',', '.').Replace(" ", "");
+        t = Regex.Replace(t, @"\.{2,}", ".").Trim('.');
+        if (t.Count(c => c == '.') > 1)
+        {
+            // ".2.8" → "2.8" is handled by Trim; "2.8.0" or "2.5.5" stays ambiguous.
+            return null;
+        }
+        if (!Regex.IsMatch(t, @"^\d(\.\d{1,2})?$")) return null;
+        return decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) && GradeScale.IsValid(v) ? v : null;
+    }
+
     private static int? YearOf(string raw) =>
         double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var y) && y is >= 1 and <= 5 ? (int)y : null;
 
@@ -343,6 +358,7 @@ public partial class RecordsImportService : IRecordsImportService
         var activeStartYear = CurriculumService.StartYear(terms.FirstOrDefault(t => t.IsActive)?.SchoolYear)
                               ?? gradeSheets.Max(x => x.Term!.StartYear);
         var unknownSubjects = new Dictionary<(string Program, string Code), int>();
+        var typoFixes = new List<string>();
         var namesToCheck = 0;
         var clearances = new HashSet<(Guid UserId, Guid TermId)>();
 
@@ -451,8 +467,14 @@ public partial class RecordsImportService : IRecordsImportService
                 {
                     if (!decimal.TryParse(final, NumberStyles.Number, CultureInfo.InvariantCulture, out var fg) || !GradeScale.IsValid(fg))
                     {
-                        Problem("Grades", g.Sheet, g.Row, $"Final grade \"{g.Final}\" of {g.Code} (Student ID {g.StudentId}) is not a valid grade; row skipped.");
-                        continue;
+                        var fixedGrade = FixGradeTypo(final);
+                        if (fixedGrade == null)
+                        {
+                            Problem("Grades", g.Sheet, g.Row, $"Final grade \"{g.Final}\" of {g.Code} (Student ID {g.StudentId}) is not a valid grade; row skipped.");
+                            continue;
+                        }
+                        fg = fixedGrade.Value;
+                        typoFixes.Add($"{g.Sheet}, row {g.Row}: \"{g.Final.Trim()}\" read as {fg:0.0#}");
                     }
                     finalGrade = fg;
                 }
@@ -485,7 +507,7 @@ public partial class RecordsImportService : IRecordsImportService
                 if (finalGrade != null)
                 {
                     decimal? midterm = decimal.TryParse(g.Midterm, NumberStyles.Number, CultureInfo.InvariantCulture, out var mg) && GradeScale.IsValid(mg)
-                        ? mg : null;
+                        ? mg : FixGradeTypo(g.Midterm);
                     _context.Grades.Add(new Grade
                     {
                         GradeID = Guid.NewGuid(),
@@ -500,6 +522,9 @@ public partial class RecordsImportService : IRecordsImportService
             }
         }
 
+        if (typoFixes.Count > 0)
+            result.Notes.Add($"{typoFixes.Count} final grade(s) had a typing slip and were corrected; please check them: " +
+                string.Join("; ", typoFixes.Take(10)) + (typoFixes.Count > 10 ? $"; and {typoFixes.Count - 10} more." : "."));
         // Listed once per code; every skipped row still counts as a problem.
         foreach (var ((program, code), count) in unknownSubjects.OrderBy(x => x.Key.Program).ThenBy(x => x.Key.Code))
         {

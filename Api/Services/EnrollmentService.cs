@@ -486,6 +486,16 @@ public class EnrollmentService : IEnrollmentService
         return await MapToDtoAsync(application);
     }
 
+    public async Task<EnrollmentApplicationResponseDto?> GetLatestFormForStudentAsync(Guid studentUserId)
+    {
+        var applicationId = await _context.EnrollmentForms.AsNoTracking()
+            .Where(f => f.Application != null && f.Application.StudentUserID == studentUserId)
+            .OrderByDescending(f => f.Application!.CreatedAt)
+            .Select(f => (Guid?)f.ApplicationID)
+            .FirstOrDefaultAsync();
+        return applicationId == null ? null : await GetApplicationByIdAsync(applicationId.Value);
+    }
+
     public async Task<List<EnrollmentApplicationResponseDto>> GetApprovedApplicationsAsync()
     {
         return await GetApplicationsAsync(EnrollmentApplicationStatus.Approved);

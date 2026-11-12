@@ -13,11 +13,60 @@ public class CreditsImportController : ControllerBase
 {
     private readonly ICreditsImportService _service;
     private readonly IEnrollmentFormsImportService? _forms;
+    private readonly ISchoolEmailsImportService? _emails;
 
-    public CreditsImportController(ICreditsImportService service, IEnrollmentFormsImportService? forms = null)
+    public CreditsImportController(ICreditsImportService service, IEnrollmentFormsImportService? forms = null,
+        ISchoolEmailsImportService? emails = null)
     {
         _service = service;
         _forms = forms;
+        _emails = emails;
+    }
+
+    /// <summary>
+    /// Multipart form: file (.xlsx or .csv from the IT department: Email plus Student ID or name) and dryRun (default true).
+    /// Sets the school email of students who haven't signed in yet, so they can sign in.
+    /// </summary>
+    [HttpPost("school-emails")]
+    [RequireRegistrarOrAdmin]
+    [RequestSizeLimit(10_000_000)]
+    public async Task<IActionResult> ImportSchoolEmails()
+    {
+        if (this.CallerId() is not { } callerId) return Unauthorized(new { message = "Authentication required." });
+        if (_emails == null) return StatusCode(500);
+        if (!Request.HasFormContentType)
+        {
+            return BadRequest(new { message = "Send the file as a form upload." });
+        }
+        var form = await Request.ReadFormAsync();
+        var file = form.Files.GetFile("file");
+        bool dryRun = !bool.TryParse(form["dryRun"], out var d) || d;
+        if (file == null || file.Length == 0 ||
+            !(file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new { message = "Choose the list of school emails as an Excel (.xlsx) or CSV (.csv) file." });
+        }
+        try
+        {
+            var domain = SchoolEmailValidator.GetAllowedDomain(HttpContext.RequestServices.GetService<IConfiguration>());
+            await using var stream = file.OpenReadStream();
+            var result = await _emails.ImportAsync(stream, file.FileName, dryRun, domain);
+            if (!dryRun && result.Saved.Count > 0 && this.ActivityLog() is { } log)
+            {
+                foreach (var (userId, old, email) in result.Saved)
+                {
+                    await log.LogAsync(callerId, ActivityActions.SchoolEmailSet,
+                        $"School email {(old.Length == 0 ? "not set" : old)} -> {email} (imported from file)", userId);
+                }
+                await log.LogAsync(callerId, ActivityActions.EmailsImported,
+                    $"Imported {result.Saved.Count} school email(s) from {file.FileName}");
+            }
+            return Ok(result);
+        }
+        catch (InvalidDataException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>

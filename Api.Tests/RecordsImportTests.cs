@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
@@ -121,7 +122,7 @@ public class RecordsImportTests : IDisposable
             G("2.5060208E7", "DELA CRUZ", "BTVTEd /MT", "NSTP 01", "", "DR"),           // alias of NSTP 01A, dropped
             G("2.5060208E7", "DELA CRUZ", "BTVTEd /MT", "GEC 112B ELEC3", "", "NA"),    // spacing differs; no grade yet
             G("2.5060208E7", "DELA CRUZ", "BTVTEd /MT", "MT 999", "", "2.0"),           // unknown subject
-            G("2.5060209E7", "REYES", "BSIT", "IT 101A", "", "1..6"),                     // typo
+            G("2.5060209E7", "REYES", "BSIT", "IT 101A", "", "1.6.5"),                    // typo that can't be guessed
             G("", "NOID", "BSIT", "IT 101A", "", "2.0"),                                  // no Student ID
             G("2.1015251E7", "OLD", "BSIE /Digital Industrial Transformation", "IE 1", "", "2.0"), // program not offered
         }),
@@ -146,6 +147,35 @@ public class RecordsImportTests : IDisposable
         new RecordsImportService(_context).ImportAsync(GradesFile(), withStudents ? StudentsFile() : null, ["2025-2026"], dryRun, release, _registrar);
 
     // ── Small rules ────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(".2.8", "2.8")]
+    [InlineData("1..6", "1.6")]
+    [InlineData("2,5", "2.5")]
+    [InlineData("2.5.", "2.5")]
+    [InlineData(" 1.75 ", "1.75")]
+    [InlineData("1.6.5", null)]   // two possible readings: left as a problem
+    [InlineData("2.8.0", null)]
+    [InlineData("28", null)]      // 2.8 or 28%? not guessed
+    [InlineData("5.5", null)]     // out of the scale
+    [InlineData("abc", null)]
+    public void FixGradeTypo_OnlyFixesObviousSlips(string raw, string? expected) =>
+        Assert.Equal(expected == null ? null : decimal.Parse(expected, CultureInfo.InvariantCulture), RecordsImportService.FixGradeTypo(raw));
+
+    [Fact]
+    public async Task GradeWithTypingSlip_IsImported_AndListedInNotes()
+    {
+        var file = Workbook(("1ST SEM_2025-2026", new[]
+        {
+            GradesHeader,
+            G("2.5060209E7", "REYES", "BSIT", "IT 101A", "", ".2.8"),
+        }));
+        var r = await new RecordsImportService(_context).ImportAsync(file, null, ["2025-2026"], true, true, _registrar);
+
+        Assert.Equal(1, r.GradesPassed);
+        Assert.Equal(0, r.TotalProblems);
+        Assert.Contains(r.Notes, n => n.Contains("\".2.8\" read as 2.8"));
+    }
 
     [Theory]
     [InlineData("1ST SEM_2025-2026", "2025-2026", 1)]
@@ -205,7 +235,7 @@ public class RecordsImportTests : IDisposable
         Assert.Equal(1, r.Dropped);
         Assert.Equal(1, r.NoGradeYet);
         Assert.Contains("2025-2026 (1st Sem)", r.TermsCreated);
-        Assert.Contains(r.Problems, p => p.Message.Contains("\"1..6\""));
+        Assert.Contains(r.Problems, p => p.Message.Contains("\"1.6.5\""));
         Assert.Contains(r.Problems, p => p.Message.Contains("No Student ID"));
         Assert.Contains(r.Problems, p => p.Message.Contains("Program BSIE is not in Setup"));
         Assert.Contains(r.Problems, p => p.Message.Contains("MT 999"));

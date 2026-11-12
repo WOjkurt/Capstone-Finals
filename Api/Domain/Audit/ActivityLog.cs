@@ -49,6 +49,7 @@ public static class ActivityActions
     public const string CreditRemoved = "CREDIT_REMOVED";
     public const string CreditsImported = "CREDITS_IMPORTED";
     public const string FormsImported = "FORMS_IMPORTED";
+    public const string EmailsImported = "EMAILS_IMPORTED";
     public const string GradeCorrectionApproved = "GRADE_CORRECTION_APPROVED";
     public const string GradeCorrectionRejected = "GRADE_CORRECTION_REJECTED";
     public const string TeacherAssigned = "TEACHER_ASSIGNED";
@@ -68,7 +69,7 @@ public static class ActivityActions
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
-        CreditAdded, CreditRemoved, CreditsImported, FormsImported, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
+        CreditAdded, CreditRemoved, CreditsImported, FormsImported, EmailsImported, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
         PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged, RecordsImported, SchoolEmailSet,
         SignInBlocked, AccessDenied
     };

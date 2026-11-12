@@ -28,6 +28,11 @@ public class StudentRecordsController : ControllerBase
     [HttpGet("{userId:guid}/personal-details")]
     public Task<IActionResult> PersonalDetails(Guid userId) => Run(() => _records.GetPersonalDetailsAsync(userId));
 
+    /// <summary>The student's latest enrollment form, read-only: { application: … } or { application: null }.</summary>
+    [HttpGet("{userId:guid}/enrollment-form")]
+    public async Task<IActionResult> EnrollmentForm(Guid userId, [FromServices] IEnrollmentService enrollment) =>
+        Ok(new { application = await enrollment.GetLatestFormForStudentAsync(userId) });
+
     [HttpPut("{userId:guid}/personal-details")]
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> UpdatePersonalDetails(Guid userId, [FromBody] UpdatePersonalDetailsDto dto)

@@ -47,6 +47,7 @@ builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ICreditedSubjectService, CreditedSubjectService>();
 builder.Services.AddScoped<ICreditsImportService, CreditsImportService>();
 builder.Services.AddScoped<IEnrollmentFormsImportService, EnrollmentFormsImportService>();
+builder.Services.AddScoped<ISchoolEmailsImportService, SchoolEmailsImportService>();
 builder.Services.AddScoped<IEnrollmentHoldService, EnrollmentHoldService>();
 builder.Services.AddScoped<ICurriculumService, CurriculumService>();
 builder.Services.AddScoped<IRecordsImportService, RecordsImportService>();

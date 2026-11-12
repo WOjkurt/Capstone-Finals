@@ -12,6 +12,8 @@ public interface IEnrollmentService
     Task RejectApplicationAsync(Guid applicationId, Guid reviewedByUserId, string? reason);
     Task<EnrollmentApplicationResponseDto> LinkAccountAsync(Guid applicationId, string email, Guid reviewedByUserId);
     Task<EnrollmentApplicationResponseDto?> GetApplicationByIdAsync(Guid applicationId);
+    /// <summary>The student's newest application that has an enrollment form (null when none).</summary>
+    Task<EnrollmentApplicationResponseDto?> GetLatestFormForStudentAsync(Guid studentUserId);
     Task<List<EnrollmentApplicationResponseDto>> GetApprovedApplicationsAsync();
     Task<List<EnrollmentApplicationResponseDto>> GetApplicationsAsync(int? status = null);
     Task<EnrollmentApplicationResponseDto> UpdateApplicationLrnAsync(Guid applicationId, string? rawLrn);

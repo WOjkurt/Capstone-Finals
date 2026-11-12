@@ -10,6 +10,10 @@ public class UnitLimitDto
     public decimal MaxUnits { get; set; }
     /// <summary>Units already Enrolled or Pending for the student in this term.</summary>
     public decimal CurrentUnits { get; set; }
+    /// <summary>Summer only: units of retaken failed subjects in this term, left out of <see cref="CurrentUnits"/>.</summary>
+    public decimal RetakeUnits { get; set; }
+    /// <summary>True in summer: retakes of failed subjects are extra and don't count toward <see cref="MaxUnits"/>.</summary>
+    public bool RetakesOutsideLimit { get; set; }
     public decimal CurriculumUnits { get; set; }
     public bool IsGraduating { get; set; }
     public bool IsSummer { get; set; }
