@@ -15,6 +15,8 @@ public interface IStudentRecordService
     Task<PersonalDetailsDto> GetPersonalDetailsAsync(Guid userId);
     /// <summary>Every active student with something still missing on their record (optionally one program).</summary>
     Task<RecordsCheckDto> GetRecordsCheckAsync(int? programId);
+    /// <summary>Active students in the final year of their curriculum, with what each still needs (optionally one program).</summary>
+    Task<GraduationCandidatesDto> GetGraduationCandidatesAsync(int? programId);
     Task<PersonalDetailsDto> UpdatePersonalDetailsAsync(Guid userId, UpdatePersonalDetailsDto dto, Guid updatedBy);
     Task SetSexAsync(Guid userId, string sex, Guid updatedBy);
     Task<StandingDto> GetStandingAsync(Guid userId);
@@ -331,6 +333,68 @@ public class StudentRecordService : IStudentRecordService
     };
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public async Task<GraduationCandidatesDto> GetGraduationCandidatesAsync(int? programId)
+    {
+        // The final year of each curriculum (or program, for students without one): its highest subject year.
+        var lastYearByCurriculum = await _context.Subjects.AsNoTracking()
+            .GroupBy(s => s.CurriculumID)
+            .Select(g => new { g.Key, Year = g.Max(s => s.YearLevel) })
+            .ToDictionaryAsync(x => x.Key, x => x.Year);
+        var lastYearByProgram = await _context.Subjects.AsNoTracking()
+            .GroupBy(s => s.ProgramID)
+            .Select(g => new { g.Key, Year = g.Max(s => s.YearLevel) })
+            .ToDictionaryAsync(x => x.Key, x => x.Year);
+
+        var students = await _context.UserDetails
+            .AsNoTracking()
+            .Where(d => d.User != null && d.User.Role == RoleUtils.Student && d.User.IsActive &&
+                        d.ProgramID != null && d.YearLevel != null && (programId == null || d.ProgramID == programId))
+            .Select(d => new { d.UserID, d.ProgramID, d.CurriculumID, d.YearLevel, d.LRN, Email = d.User!.Email, d.User.FirebaseUID })
+            .ToListAsync();
+        var finalYear = students.Where(s =>
+                (s.CurriculumID is { } c && lastYearByCurriculum.TryGetValue(c, out var cy) ? cy
+                    : lastYearByProgram.GetValueOrDefault(s.ProgramID!.Value)) is var last and > 0 && s.YearLevel >= last)
+            .ToList();
+
+        var result = new GraduationCandidatesDto();
+        foreach (var s in finalYear)
+        {
+            // The same checklist as the Evaluation tab, so the two always agree.
+            var e = await GetEvaluationAsync(s.UserID);
+            var names = e.FullName.Split(',', 2);
+            GraduationSubjectDto Line(EvaluationSubjectDto x) => new()
+            {
+                SubjectCode = x.SubjectCode, SubjectTitle = x.SubjectTitle, Units = x.Units, YearLevel = x.YearLevel, Semester = x.Semester, Status = x.Status,
+            };
+            var row = new GraduationCandidateDto
+            {
+                UserId = s.UserID, Email = s.Email, StudentId = e.StudentID, Lrn = s.LRN, ProgramId = s.ProgramID, ProgramCode = e.ProgramCode,
+                ProgramName = e.ProgramName, YearLevel = e.YearLevel, CurriculumName = e.CurriculumName,
+                HasSignedIn = !s.FirebaseUID.StartsWith(RecordsImportService.PendingUidPrefix),
+                TotalUnits = e.TotalUnits, EarnedUnits = e.EarnedUnits, InProgressUnits = e.InProgressUnits,
+                InProgress = e.Subjects.Where(x => x.Status == "InProgress").Select(Line).ToList(),
+                LackingSubjects = e.Subjects.Where(x => x.Status is not ("Passed" or "Credited" or "CrossEnrolled" or "InProgress")).Select(Line).ToList(),
+            };
+            var details = await _context.UserDetails.AsNoTracking().Where(d => d.UserID == s.UserID)
+                .Select(d => new { d.Firstname, d.Lastname }).FirstAsync();
+            row.Firstname = details.Firstname;
+            row.Lastname = details.Lastname;
+            row.Status = row.LackingSubjects.Count > 0 ? "Lacking" : row.InProgress.Count > 0 ? "FinishingThisTerm" : "Complete";
+            switch (row.Status)
+            {
+                case "Complete": result.Complete++; break;
+                case "FinishingThisTerm": result.FinishingThisTerm++; break;
+                default: result.Lacking++; break;
+            }
+            result.Rows.Add(row);
+        }
+        result.Rows = result.Rows
+            .OrderBy(r => r.ProgramCode, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.Lastname, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Firstname, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return result;
+    }
 
     /// <summary>The transcript fields still empty: the Registrar's value, else the enrollment form's (same rule as the Details tab).</summary>
     internal static List<string> MissingForTranscript(StudentPersonalDetails? saved, EnrollmentForm? form)

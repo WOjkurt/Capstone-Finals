@@ -112,3 +112,30 @@ public class MissingSexRowDto
     public string? ProgramCode { get; set; }
     public int? YearLevel { get; set; }
 }
+
+/// <summary>The Dean's list of a term, with the rules it was made with.</summary>
+public class DeansListDto
+{
+    public decimal MaxGwa { get; set; }
+    public decimal MinUnits { get; set; }
+    public decimal WorstGrade { get; set; }
+    /// <summary>Students with every subject of the term graded that were checked.</summary>
+    public int StudentsChecked { get; set; }
+    /// <summary>Students left out because a subject of theirs has no final grade yet (the list isn't final).</summary>
+    public int StudentsWithMissingGrades { get; set; }
+    public List<DeansListRowDto> Rows { get; set; } = new();
+}
+
+public class DeansListRowDto
+{
+    public int Rank { get; set; }
+    public Guid UserId { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string? StudentId { get; set; }
+    public string? ProgramCode { get; set; }
+    public int? YearLevel { get; set; }
+    public decimal Units { get; set; }
+    public decimal Gwa { get; set; }
+    /// <summary>The student's lowest (numerically highest) grade in the term.</summary>
+    public decimal LowestGrade { get; set; }
+}

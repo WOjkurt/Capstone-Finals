@@ -1,3 +1,4 @@
+using Api.Common;
 using Api.Domain.Enrollment;
 using Api.DTOs.Reports;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ public interface IReportService
     Task<List<EnrollmentSummaryRowDto>> GetEnrollmentSummaryAsync(Guid termId);
     Task<List<ClassSizeRowDto>> GetClassSizesAsync(Guid termId);
     Task<List<FailedStudentRowDto>> GetFailedStudentsAsync(Guid termId);
+    Task<DeansListDto> GetDeansListAsync(Guid termId, decimal maxGwa, decimal minUnits, decimal worstGrade);
     Task<List<TeacherLoadRowDto>> GetTeacherLoadsAsync(Guid termId);
     Task<List<TransfereeRowDto>> GetTransfereesAsync();
     Task<List<EnrollmentStatisticsRowDto>> GetEnrollmentStatisticsAsync(Guid termId);
@@ -159,6 +161,72 @@ public class ReportService : IReportService
             })
             .OrderBy(r => r.ProgramCode).ThenBy(r => r.YearLevel).ThenBy(r => r.StudentName).ThenBy(r => r.SubjectCode)
             .ToList();
+    }
+
+    /// <summary>
+    /// Students whose term GWA is at most <paramref name="maxGwa"/>, who carried at least <paramref name="minUnits"/> units,
+    /// and whose every grade is <paramref name="worstGrade"/> or better. A failed, dropped or withdrawn subject leaves a
+    /// student out; so does a subject without a final grade yet (counted separately, since the list isn't final then).
+    /// </summary>
+    public async Task<DeansListDto> GetDeansListAsync(Guid termId, decimal maxGwa, decimal minUnits, decimal worstGrade)
+    {
+        await EnsureTermAsync(termId);
+        var loads = await _context.StudyLoads
+            .AsNoTracking()
+            .Where(sl => sl.Class != null && sl.Class.TermID == termId &&
+                         (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Dropped || sl.LoadStatus == StudyLoadStatus.Withdrawn))
+            .Select(sl => new
+            {
+                sl.UserID, sl.LoadStatus, sl.Class!.Subject!.SubjectCode, Units = sl.Class.Subject.LecUnits + sl.Class.Subject.LabUnits,
+                Final = _context.Grades.Where(g => g.StudyLoadID == sl.StudyLoadID).Select(g => g.FinalGrade).FirstOrDefault(),
+            })
+            .ToListAsync();
+
+        var result = new DeansListDto { MaxGwa = maxGwa, MinUnits = minUnits, WorstGrade = worstGrade };
+        var qualified = new List<DeansListRowDto>();
+        foreach (var student in loads.GroupBy(l => l.UserID))
+        {
+            var enrolled = student.Where(l => l.LoadStatus == StudyLoadStatus.Enrolled).ToList();
+            if (enrolled.Any(l => l.Final == null))
+            {
+                result.StudentsWithMissingGrades++;
+                continue;
+            }
+            result.StudentsChecked++;
+            if (student.Any(l => l.LoadStatus != StudyLoadStatus.Enrolled)) continue;   // dropped or withdrawn
+            decimal units = enrolled.Sum(l => l.Units);
+            // DBTC counts every subject in the Dean's list GWA, NSTP and PE included.
+            var counted = enrolled.Where(l => l.Units > 0).ToList();
+            decimal countedUnits = counted.Sum(l => l.Units);
+            if (units < minUnits || countedUnits == 0) continue;
+            decimal lowest = enrolled.Max(l => l.Final!.Value);
+            if (lowest > worstGrade || lowest > GradeScale.PassingMax) continue;
+            decimal gwa = Math.Round(counted.Sum(l => l.Units * l.Final!.Value) / countedUnits, 4);
+            if (gwa > maxGwa) continue;
+            qualified.Add(new DeansListRowDto { UserId = student.Key, Units = units, Gwa = gwa, LowestGrade = lowest });
+        }
+
+        var ids = qualified.Select(q => q.UserId).ToList();
+        var details = await _context.UserDetails.AsNoTracking().Include(u => u.Program)
+            .Where(u => ids.Contains(u.UserID)).ToDictionaryAsync(u => u.UserID);
+        foreach (var q in qualified)
+        {
+            if (!details.TryGetValue(q.UserId, out var ud)) continue;
+            q.StudentName = $"{ud.Lastname}, {ud.Firstname}";
+            q.StudentId = ud.StudentID;
+            q.ProgramCode = ud.Program?.ProgramCode;
+            q.YearLevel = ud.YearLevel;
+        }
+        result.Rows = qualified
+            .OrderBy(q => Math.Round(q.Gwa, 2)).ThenBy(q => q.StudentName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        // Equal GWAs (to two decimals) share a rank: 1, 2, 2, 4.
+        for (int i = 0; i < result.Rows.Count; i++)
+        {
+            result.Rows[i].Rank = i > 0 && Math.Round(result.Rows[i].Gwa, 2) == Math.Round(result.Rows[i - 1].Gwa, 2)
+                ? result.Rows[i - 1].Rank : i + 1;
+        }
+        return result;
     }
 
     public async Task<List<TeacherLoadRowDto>> GetTeacherLoadsAsync(Guid termId)

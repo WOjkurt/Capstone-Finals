@@ -23,6 +23,10 @@ public class StudentRecordsController : ControllerBase
     [HttpGet("check")]
     public Task<IActionResult> Check([FromQuery] int? programId) => Run(() => _records.GetRecordsCheckAsync(programId));
 
+    /// <summary>Records → Candidates for graduation: final-year students and what each still needs (optionally one program).</summary>
+    [HttpGet("graduation-candidates")]
+    public Task<IActionResult> GraduationCandidates([FromQuery] int? programId) => Run(() => _records.GetGraduationCandidatesAsync(programId));
+
     [HttpGet("{userId:guid}/evaluation")]
     public Task<IActionResult> Evaluation(Guid userId) => Run(() => _records.GetEvaluationAsync(userId));
 
