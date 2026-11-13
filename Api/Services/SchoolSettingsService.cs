@@ -8,12 +8,19 @@ public interface ISchoolSettingsService
 {
     Task<UnitLimitSettingsDto> GetUnitLimitsAsync();
     Task<UnitLimitSettingsDto> SaveUnitLimitsAsync(SaveUnitLimitSettingsDto dto, Guid updatedBy);
+    Task<DeansListRulesDto> GetDeansListRulesAsync();
+    Task<DeansListRulesDto> SaveDeansListRulesAsync(SaveDeansListRulesDto dto, Guid updatedBy);
 }
 
 /// <summary>School-wide settings the Registrar can change, such as the summer unit limits.</summary>
 public class SchoolSettingsService : ISchoolSettingsService
 {
     private const decimal HighestLimit = 30m;
+
+    /// <summary>DBTC's Dean's list rules (Registrar, 2026-11-13): past dean's listers never went over 1.7,
+    /// and no subject grade went below 2.3.</summary>
+    public const decimal DefaultDeansListMaxGwa = 1.7m;
+    public const decimal DefaultDeansListWorstGrade = 2.3m;
 
     private readonly AppDbContext _context;
 
@@ -44,6 +51,53 @@ public class SchoolSettingsService : ISchoolSettingsService
             UpdatedBy = who,
             UpdatedAt = saved.UpdatedAt
         };
+    }
+
+    public async Task<DeansListRulesDto> GetDeansListRulesAsync()
+    {
+        var saved = await _context.SchoolSettings.AsNoTracking().FirstOrDefaultAsync();
+        var dto = new DeansListRulesDto
+        {
+            MaxGwa = saved?.DeansListMaxGwa ?? DefaultDeansListMaxGwa,
+            WorstGrade = saved?.DeansListWorstGrade ?? DefaultDeansListWorstGrade,
+        };
+        if (saved?.DeansListMaxGwa != null)
+        {
+            dto.UpdatedAt = saved.UpdatedAt;
+            dto.UpdatedBy = saved.UpdatedByUserID == null ? null : await _context.UserDetails.AsNoTracking()
+                .Where(u => u.UserID == saved.UpdatedByUserID)
+                .Select(u => u.Firstname + " " + u.Lastname)
+                .FirstOrDefaultAsync();
+        }
+        return dto;
+    }
+
+    public async Task<DeansListRulesDto> SaveDeansListRulesAsync(SaveDeansListRulesDto dto, Guid updatedBy)
+    {
+        if (dto.MaxGwa is < 1m or > 3m || dto.WorstGrade is < 1m or > 3m)
+        {
+            throw new InvalidOperationException("Enter grades between 1.0 and 3.0.");
+        }
+        if (dto.WorstGrade < dto.MaxGwa)
+        {
+            throw new InvalidOperationException("The lowest allowed grade can't be better than the GWA cutoff.");
+        }
+        var saved = await _context.SchoolSettings.FirstOrDefaultAsync();
+        if (saved == null)
+        {
+            saved = new SchoolSettings
+            {
+                SummerMaxUnits = StudyLoadService.SummerMaxUnits,
+                GraduatingSummerMaxUnits = StudyLoadService.GraduatingSummerMaxUnits,
+            };
+            _context.SchoolSettings.Add(saved);
+        }
+        saved.DeansListMaxGwa = dto.MaxGwa;
+        saved.DeansListWorstGrade = dto.WorstGrade;
+        saved.UpdatedByUserID = updatedBy;
+        saved.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return await GetDeansListRulesAsync();
     }
 
     public async Task<UnitLimitSettingsDto> SaveUnitLimitsAsync(SaveUnitLimitSettingsDto dto, Guid updatedBy)

@@ -42,11 +42,11 @@ public class DeansListTests : IDisposable
     }
 
     /// <summary>A student taking IT 1-5 (15 units) and PATHFIT 1, with the given grades (null = no grade yet).</summary>
-    private Guid Student(string last, decimal?[] grades, decimal? pathfit = 1.0m, int dropIndex = -1)
+    private Guid Student(string last, decimal?[] grades, decimal? pathfit = 1.0m, int dropIndex = -1, int year = 2)
     {
         var id = Guid.NewGuid();
         _context.Users.Add(new User { UserID = id, FirebaseUID = "fb-" + id, Email = last + "@dbtc-cebu.edu.ph", Role = RoleUtils.Student, IsActive = true });
-        _context.UserDetails.Add(new UserDetails { UserDetailID = Guid.NewGuid(), UserID = id, Firstname = "A", Lastname = last, ProgramID = 1, YearLevel = 2, StudentID = "2506" + last.Length.ToString("0000") });
+        _context.UserDetails.Add(new UserDetails { UserDetailID = Guid.NewGuid(), UserID = id, Firstname = "A", Lastname = last, ProgramID = 1, YearLevel = year, StudentID = "2506" + last.Length.ToString("0000") });
         // IT 1.. for each grade given, then PATHFIT 1 unless it is null (not taken).
         var taken = grades.Select((g, i) => ($"IT {i + 1}", g)).ToList();
         if (pathfit != null) taken.Add(("PATHFIT 1", pathfit));
@@ -84,7 +84,7 @@ public class DeansListTests : IDisposable
         Student("Dropped", new decimal?[] { 1.0m, 1.0m, 1.0m, 1.0m, 1.0m }, 1.0m, dropIndex: 4);
         Student("Waiting", new decimal?[] { 1.0m, 1.0m, 1.0m, 1.0m, null });          // a grade is missing
 
-        var r = await _reports.GetDeansListAsync(_term, 1.7m, 15m, 2.3m);
+        var r = await _reports.GetDeansListAsync(_term, 1.7m, 2.3m);   // year 2 has no curriculum load here: 15 units
 
         Assert.Equal(new[] { "Tied, A", "Top, A", "Good, A" }, r.Rows.Select(x => x.StudentName));   // tie broken by name
         Assert.Equal(new[] { 1, 1, 3 }, r.Rows.Select(x => x.Rank));
@@ -99,8 +99,45 @@ public class DeansListTests : IDisposable
     public async Task TheRulesCanBeChanged()
     {
         Student("Ok", new decimal?[] { 1.75m, 1.75m, 1.75m, 2.0m, 2.0m });   // GWA 1.85
-        var r = await _reports.GetDeansListAsync(_term, 2.0m, 15m, 2.5m);
+        var r = await _reports.GetDeansListAsync(_term, 2.0m, 2.5m);
         Assert.Single(r.Rows);
         Assert.Equal(2.0m, r.MaxGwa);
+    }
+
+    [Fact]
+    public async Task UnitsRequired_AreTheStudentsRegularStudyLoad()
+    {
+        // Year 1, 1st semester in the curriculum: IT 1-5 and PATHFIT 1 = 17 units.
+        Student("Full", new decimal?[] { 1.0m, 1.0m, 1.0m, 1.0m, 1.0m }, 1.0m, year: 1);   // 17 units
+        Student("Light", new decimal?[] { 1.0m, 1.0m, 1.0m, 1.0m, 1.0m }, null, year: 1);  // 15 units: under their load
+
+        var r = await _reports.GetDeansListAsync(_term);
+
+        var row = Assert.Single(r.Rows);
+        Assert.Equal("Full, A", row.StudentName);
+        Assert.Equal(17m, row.RequiredUnits);
+    }
+
+    [Fact]
+    public async Task WithoutNumbers_TheRulesSavedInSetupApply_ElseDbtcs()
+    {
+        Student("Good", new decimal?[] { 1.5m, 1.5m, 1.75m, 1.75m, 2.0m });   // GWA 1.62, lowest 2.0
+
+        var r = await _reports.GetDeansListAsync(_term);
+        Assert.Equal((1.7m, 2.3m), (r.MaxGwa, r.WorstGrade));
+        Assert.Single(r.Rows);
+
+        var settings = new SchoolSettingsService(_context);
+        await settings.SaveDeansListRulesAsync(new Api.DTOs.Setup.SaveDeansListRulesDto { MaxGwa = 1.5m, WorstGrade = 2.0m }, Guid.NewGuid());
+        r = await _reports.GetDeansListAsync(_term);
+        Assert.Equal((1.5m, 2.0m), (r.MaxGwa, r.WorstGrade));
+        Assert.Empty(r.Rows);
+
+        // Saving Dean's list rules keeps the summer limits at their values.
+        Assert.Equal(9m, (await settings.GetUnitLimitsAsync()).SummerMaxUnits);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            settings.SaveDeansListRulesAsync(new Api.DTOs.Setup.SaveDeansListRulesDto { MaxGwa = 2.0m, WorstGrade = 1.5m }, Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            settings.SaveDeansListRulesAsync(new Api.DTOs.Setup.SaveDeansListRulesDto { MaxGwa = 0.5m, WorstGrade = 2.0m }, Guid.NewGuid()));
     }
 }

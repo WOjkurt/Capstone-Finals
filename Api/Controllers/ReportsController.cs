@@ -38,16 +38,16 @@ public class ReportsController : ControllerBase
     [HttpGet("failed-students")]
     public Task<IActionResult> FailedStudents([FromQuery] Guid termId) => Run(() => _reports.GetFailedStudentsAsync(termId));
 
-    /// <summary>Dean's list of a term. DBTC's rules are the defaults: GWA 1.7 or better, no grade below 2.3, at least 15 units.</summary>
+    /// <summary>Dean's list of a term. Without numbers, the rules saved in Setup apply (DBTC's: GWA 1.7, no grade below 2.3);
+    /// units are always the student's regular study load.</summary>
     [HttpGet("deans-list")]
-    public async Task<IActionResult> DeansList([FromQuery] Guid termId, [FromQuery] decimal maxGwa = 1.7m,
-        [FromQuery] decimal minUnits = 15m, [FromQuery] decimal worstGrade = 2.3m)
+    public async Task<IActionResult> DeansList([FromQuery] Guid termId, [FromQuery] decimal? maxGwa = null, [FromQuery] decimal? worstGrade = null)
     {
-        if (maxGwa is < 1m or > 3m || worstGrade is < 1m or > 3m || minUnits is < 0m or > 40m)
+        if (maxGwa is < 1m or > 3m || worstGrade is < 1m or > 3m)
         {
-            return BadRequest(new { message = "GWA and lowest grade must be between 1.0 and 3.0, and units between 0 and 40." });
+            return BadRequest(new { message = "The GWA and the lowest grade must be between 1.0 and 3.0." });
         }
-        return await Run(() => _reports.GetDeansListAsync(termId, maxGwa, minUnits, worstGrade));
+        return await Run(() => _reports.GetDeansListAsync(termId, maxGwa, worstGrade));
     }
 
     [HttpGet("enrollment-statistics")]

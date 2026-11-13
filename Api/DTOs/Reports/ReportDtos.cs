@@ -117,8 +117,9 @@ public class MissingSexRowDto
 public class DeansListDto
 {
     public decimal MaxGwa { get; set; }
-    public decimal MinUnits { get; set; }
     public decimal WorstGrade { get; set; }
+    /// <summary>Required units when a student has no curriculum load for the term (e.g. no year level).</summary>
+    public decimal FallbackUnits { get; set; }
     /// <summary>Students with every subject of the term graded that were checked.</summary>
     public int StudentsChecked { get; set; }
     /// <summary>Students left out because a subject of theirs has no final grade yet (the list isn't final).</summary>
@@ -135,6 +136,8 @@ public class DeansListRowDto
     public string? ProgramCode { get; set; }
     public int? YearLevel { get; set; }
     public decimal Units { get; set; }
+    /// <summary>The student's regular study load for the term: their curriculum's units for their year and semester.</summary>
+    public decimal RequiredUnits { get; set; }
     public decimal Gwa { get; set; }
     /// <summary>The student's lowest (numerically highest) grade in the term.</summary>
     public decimal LowestGrade { get; set; }

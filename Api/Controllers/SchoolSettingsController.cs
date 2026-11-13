@@ -47,4 +47,30 @@ public class SchoolSettingsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpGet("deans-list")]
+    [RequireRegistrarCollegeHeadOrAdmin]
+    public async Task<IActionResult> GetDeansListRules() => Ok(await _settings.GetDeansListRulesAsync());
+
+    [HttpPut("deans-list")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> SaveDeansListRules([FromBody] SaveDeansListRulesDto dto)
+    {
+        if (this.CallerId() is not { } callerId) return Unauthorized(new { message = "Authentication required." });
+        try
+        {
+            var before = await _settings.GetDeansListRulesAsync();
+            var saved = await _settings.SaveDeansListRulesAsync(dto, callerId);
+            if (this.ActivityLog() is { } log)
+            {
+                await log.LogAsync(callerId, ActivityActions.SettingsChanged,
+                    $"Dean's list rules: GWA {before.MaxGwa:0.0#} -> {saved.MaxGwa:0.0#}, lowest grade {before.WorstGrade:0.0#} -> {saved.WorstGrade:0.0#}");
+            }
+            return Ok(saved);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

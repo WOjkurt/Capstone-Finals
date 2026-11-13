@@ -1,3 +1,4 @@
+using Api.Domain.IdentityAccess;
 using Api.Common;
 using Api.Domain.Enrollment;
 using Api.DTOs.Reports;
@@ -10,7 +11,7 @@ public interface IReportService
     Task<List<EnrollmentSummaryRowDto>> GetEnrollmentSummaryAsync(Guid termId);
     Task<List<ClassSizeRowDto>> GetClassSizesAsync(Guid termId);
     Task<List<FailedStudentRowDto>> GetFailedStudentsAsync(Guid termId);
-    Task<DeansListDto> GetDeansListAsync(Guid termId, decimal maxGwa, decimal minUnits, decimal worstGrade);
+    Task<DeansListDto> GetDeansListAsync(Guid termId, decimal? maxGwa = null, decimal? worstGrade = null);
     Task<List<TeacherLoadRowDto>> GetTeacherLoadsAsync(Guid termId);
     Task<List<TransfereeRowDto>> GetTransfereesAsync();
     Task<List<EnrollmentStatisticsRowDto>> GetEnrollmentStatisticsAsync(Guid termId);
@@ -163,26 +164,54 @@ public class ReportService : IReportService
             .ToList();
     }
 
+    /// <summary>Units required when a student has no curriculum load for the term.</summary>
+    public const decimal DeansListFallbackUnits = 15m;
+
     /// <summary>
-    /// Students whose term GWA is at most <paramref name="maxGwa"/>, who carried at least <paramref name="minUnits"/> units,
-    /// and whose every grade is <paramref name="worstGrade"/> or better. A failed, dropped or withdrawn subject leaves a
+    /// DBTC's Dean's list: students who carried at least their regular study load (their curriculum's units for their
+    /// year level and the term's semester), whose term GWA over every subject is at most <paramref name="maxGwa"/>, and
+    /// whose every grade is <paramref name="worstGrade"/> or better. A failed, dropped or withdrawn subject leaves a
     /// student out; so does a subject without a final grade yet (counted separately, since the list isn't final then).
+    /// The rules not given come from Setup.
     /// </summary>
-    public async Task<DeansListDto> GetDeansListAsync(Guid termId, decimal maxGwa, decimal minUnits, decimal worstGrade)
+    public async Task<DeansListDto> GetDeansListAsync(Guid termId, decimal? maxGwa = null, decimal? worstGrade = null)
     {
-        await EnsureTermAsync(termId);
+        var term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == termId)
+            ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+        var settings = await _context.SchoolSettings.AsNoTracking().FirstOrDefaultAsync();
+        decimal gwaCutoff = maxGwa ?? settings?.DeansListMaxGwa ?? SchoolSettingsService.DefaultDeansListMaxGwa;
+        decimal gradeCutoff = worstGrade ?? settings?.DeansListWorstGrade ?? SchoolSettingsService.DefaultDeansListWorstGrade;
+
         var loads = await _context.StudyLoads
             .AsNoTracking()
             .Where(sl => sl.Class != null && sl.Class.TermID == termId &&
                          (sl.LoadStatus == StudyLoadStatus.Enrolled || sl.LoadStatus == StudyLoadStatus.Dropped || sl.LoadStatus == StudyLoadStatus.Withdrawn))
             .Select(sl => new
             {
-                sl.UserID, sl.LoadStatus, sl.Class!.Subject!.SubjectCode, Units = sl.Class.Subject.LecUnits + sl.Class.Subject.LabUnits,
+                sl.UserID, sl.LoadStatus, Units = sl.Class!.Subject!.LecUnits + sl.Class.Subject.LabUnits,
                 Final = _context.Grades.Where(g => g.StudyLoadID == sl.StudyLoadID).Select(g => g.FinalGrade).FirstOrDefault(),
             })
             .ToListAsync();
 
-        var result = new DeansListDto { MaxGwa = maxGwa, MinUnits = minUnits, WorstGrade = worstGrade };
+        var ids = loads.Select(l => l.UserID).Distinct().ToList();
+        var details = await _context.UserDetails.AsNoTracking().Include(u => u.Program)
+            .Where(u => ids.Contains(u.UserID)).ToDictionaryAsync(u => u.UserID);
+        // Curriculum units per (program, curriculum, year) for this semester, the same "curriculum load" as the unit limit.
+        var programIds = details.Values.Where(d => d.ProgramID != null).Select(d => d.ProgramID!.Value).Distinct().ToList();
+        var semesterSubjects = await _context.Subjects.AsNoTracking()
+            .Where(s => programIds.Contains(s.ProgramID) && s.DefaultSemester == term.Semester)
+            .Select(s => new { s.ProgramID, s.CurriculumID, s.YearLevel, Units = s.LecUnits + s.LabUnits })
+            .ToListAsync();
+        decimal RegularLoad(UserDetails? d)
+        {
+            if (d?.ProgramID == null || d.YearLevel == null) return DeansListFallbackUnits;
+            var units = semesterSubjects
+                .Where(s => s.ProgramID == d.ProgramID && s.YearLevel == d.YearLevel && (d.CurriculumID == null || s.CurriculumID == d.CurriculumID))
+                .Sum(s => s.Units);
+            return units > 0 ? units : DeansListFallbackUnits;
+        }
+
+        var result = new DeansListDto { MaxGwa = gwaCutoff, WorstGrade = gradeCutoff, FallbackUnits = DeansListFallbackUnits };
         var qualified = new List<DeansListRowDto>();
         foreach (var student in loads.GroupBy(l => l.UserID))
         {
@@ -194,29 +223,25 @@ public class ReportService : IReportService
             }
             result.StudentsChecked++;
             if (student.Any(l => l.LoadStatus != StudyLoadStatus.Enrolled)) continue;   // dropped or withdrawn
+            details.TryGetValue(student.Key, out var ud);
             decimal units = enrolled.Sum(l => l.Units);
+            decimal required = RegularLoad(ud);
             // DBTC counts every subject in the Dean's list GWA, NSTP and PE included.
             var counted = enrolled.Where(l => l.Units > 0).ToList();
             decimal countedUnits = counted.Sum(l => l.Units);
-            if (units < minUnits || countedUnits == 0) continue;
+            if (units < required || countedUnits == 0) continue;
             decimal lowest = enrolled.Max(l => l.Final!.Value);
-            if (lowest > worstGrade || lowest > GradeScale.PassingMax) continue;
+            if (lowest > gradeCutoff || lowest > GradeScale.PassingMax) continue;
             decimal gwa = Math.Round(counted.Sum(l => l.Units * l.Final!.Value) / countedUnits, 4);
-            if (gwa > maxGwa) continue;
-            qualified.Add(new DeansListRowDto { UserId = student.Key, Units = units, Gwa = gwa, LowestGrade = lowest });
+            if (gwa > gwaCutoff) continue;
+            qualified.Add(new DeansListRowDto
+            {
+                UserId = student.Key, Units = units, RequiredUnits = required, Gwa = gwa, LowestGrade = lowest,
+                StudentName = ud != null ? $"{ud.Lastname}, {ud.Firstname}" : "Unknown", StudentId = ud?.StudentID,
+                ProgramCode = ud?.Program?.ProgramCode, YearLevel = ud?.YearLevel,
+            });
         }
 
-        var ids = qualified.Select(q => q.UserId).ToList();
-        var details = await _context.UserDetails.AsNoTracking().Include(u => u.Program)
-            .Where(u => ids.Contains(u.UserID)).ToDictionaryAsync(u => u.UserID);
-        foreach (var q in qualified)
-        {
-            if (!details.TryGetValue(q.UserId, out var ud)) continue;
-            q.StudentName = $"{ud.Lastname}, {ud.Firstname}";
-            q.StudentId = ud.StudentID;
-            q.ProgramCode = ud.Program?.ProgramCode;
-            q.YearLevel = ud.YearLevel;
-        }
         result.Rows = qualified
             .OrderBy(q => Math.Round(q.Gwa, 2)).ThenBy(q => q.StudentName, StringComparer.OrdinalIgnoreCase)
             .ToList();

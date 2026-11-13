@@ -736,6 +736,12 @@ namespace Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SettingsID"));
 
+                    b.Property<decimal?>("DeansListMaxGwa")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("DeansListWorstGrade")
+                        .HasColumnType("numeric");
+
                     b.Property<decimal>("GraduatingSummerMaxUnits")
                         .HasColumnType("numeric");
 
