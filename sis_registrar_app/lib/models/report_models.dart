@@ -268,3 +268,73 @@ class MissingSexRow {
         yearLevel: (j['yearLevel'] as num?)?.toInt(),
       );
 }
+
+class DeansListRow {
+  final int rank;
+  final String userId;
+  final String studentName;
+  final String? studentId;
+  final String? programCode;
+  final int? yearLevel;
+  final double units;
+  final double gwa;
+  final double lowestGrade;
+
+  const DeansListRow({
+    required this.rank,
+    required this.userId,
+    required this.studentName,
+    this.studentId,
+    this.programCode,
+    this.yearLevel,
+    required this.units,
+    required this.gwa,
+    required this.lowestGrade,
+  });
+
+  factory DeansListRow.fromJson(Map<String, dynamic> j) => DeansListRow(
+        rank: (j['rank'] as num?)?.toInt() ?? 0,
+        userId: j['userId'] as String? ?? '',
+        studentName: j['studentName'] as String? ?? '',
+        studentId: j['studentId'] as String?,
+        programCode: j['programCode'] as String?,
+        yearLevel: (j['yearLevel'] as num?)?.toInt(),
+        units: (j['units'] as num?)?.toDouble() ?? 0,
+        gwa: (j['gwa'] as num?)?.toDouble() ?? 0,
+        lowestGrade: (j['lowestGrade'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+/// The Dean's list of a term with the rules it was made with.
+class DeansList {
+  final double maxGwa;
+  final double minUnits;
+  final double worstGrade;
+  final int studentsChecked;
+  final int studentsWithMissingGrades;
+  final List<DeansListRow> rows;
+
+  const DeansList({
+    this.maxGwa = 1.7,
+    this.minUnits = 15,
+    this.worstGrade = 2.3,
+    this.studentsChecked = 0,
+    this.studentsWithMissingGrades = 0,
+    this.rows = const [],
+  });
+
+  factory DeansList.fromJson(Map<String, dynamic> j) => DeansList(
+        maxGwa: (j['maxGwa'] as num?)?.toDouble() ?? 1.7,
+        minUnits: (j['minUnits'] as num?)?.toDouble() ?? 15,
+        worstGrade: (j['worstGrade'] as num?)?.toDouble() ?? 2.3,
+        studentsChecked: (j['studentsChecked'] as num?)?.toInt() ?? 0,
+        studentsWithMissingGrades: (j['studentsWithMissingGrades'] as num?)?.toInt() ?? 0,
+        rows: [for (final r in j['rows'] as List? ?? const []) DeansListRow.fromJson(r as Map<String, dynamic>)],
+      );
+
+  String get rules {
+    String n(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 2).replaceFirst(RegExp(r'0$'), '');
+    return 'GWA ${n(maxGwa)} or better, at least ${n(minUnits)} units, no grade below ${n(worstGrade)}, '
+        'no failed, dropped or withdrawn subject';
+  }
+}

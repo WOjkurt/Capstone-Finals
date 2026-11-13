@@ -462,3 +462,91 @@ class RecordsCheck {
         rows: [for (final r in j['rows'] as List? ?? const []) RecordsCheckRow.fromJson(r as Map<String, dynamic>)],
       );
 }
+
+class GraduationSubject {
+  final String subjectCode;
+  final String subjectTitle;
+  final double units;
+  final int yearLevel;
+  final int semester;
+
+  /// InProgress, NotTaken, Failed, Dropped, Withdrawn or PartiallyCredited.
+  final String status;
+
+  const GraduationSubject({required this.subjectCode, this.subjectTitle = '', this.units = 0, this.yearLevel = 0, this.semester = 0, this.status = ''});
+
+  factory GraduationSubject.fromJson(Map<String, dynamic> j) => GraduationSubject(
+        subjectCode: j['subjectCode'] as String? ?? '',
+        subjectTitle: j['subjectTitle'] as String? ?? '',
+        units: (j['units'] as num?)?.toDouble() ?? 0,
+        yearLevel: (j['yearLevel'] as num?)?.toInt() ?? 0,
+        semester: (j['semester'] as num?)?.toInt() ?? 0,
+        status: j['status'] as String? ?? '',
+      );
+
+  String get statusLabel => switch (status) {
+        'InProgress' => 'taking now',
+        'NotTaken' => 'not taken',
+        'Failed' => 'failed',
+        'Dropped' => 'dropped',
+        'Withdrawn' => 'withdrawn',
+        'PartiallyCredited' => 'partly credited',
+        _ => status,
+      };
+}
+
+class GraduationCandidate {
+  final Map<String, dynamic> json;
+  final String status; // Complete, FinishingThisTerm, Lacking
+  final double totalUnits;
+  final double earnedUnits;
+  final List<GraduationSubject> inProgress;
+  final List<GraduationSubject> lacking;
+
+  const GraduationCandidate({
+    required this.json,
+    required this.status,
+    this.totalUnits = 0,
+    this.earnedUnits = 0,
+    this.inProgress = const [],
+    this.lacking = const [],
+  });
+
+  String get userId => json['userId'] as String? ?? '';
+  String get name => '${json['lastname'] ?? ''}, ${json['firstname'] ?? ''}';
+  String? get studentId => json['studentId'] as String?;
+  String? get programCode => json['programCode'] as String?;
+  int? get yearLevel => (json['yearLevel'] as num?)?.toInt();
+  String? get curriculumName => json['curriculumName'] as String?;
+
+  String get statusLabel => switch (status) {
+        'Complete' => 'Complete',
+        'FinishingThisTerm' => 'Finishing this term',
+        _ => 'Lacking subjects',
+      };
+
+  factory GraduationCandidate.fromJson(Map<String, dynamic> j) => GraduationCandidate(
+        json: j,
+        status: j['status'] as String? ?? '',
+        totalUnits: (j['totalUnits'] as num?)?.toDouble() ?? 0,
+        earnedUnits: (j['earnedUnits'] as num?)?.toDouble() ?? 0,
+        inProgress: [for (final x in j['inProgress'] as List? ?? const []) GraduationSubject.fromJson(x as Map<String, dynamic>)],
+        lacking: [for (final x in j['lackingSubjects'] as List? ?? const []) GraduationSubject.fromJson(x as Map<String, dynamic>)],
+      );
+}
+
+class GraduationCandidates {
+  final int complete;
+  final int finishingThisTerm;
+  final int lacking;
+  final List<GraduationCandidate> rows;
+
+  const GraduationCandidates({this.complete = 0, this.finishingThisTerm = 0, this.lacking = 0, this.rows = const []});
+
+  factory GraduationCandidates.fromJson(Map<String, dynamic> j) => GraduationCandidates(
+        complete: (j['complete'] as num?)?.toInt() ?? 0,
+        finishingThisTerm: (j['finishingThisTerm'] as num?)?.toInt() ?? 0,
+        lacking: (j['lacking'] as num?)?.toInt() ?? 0,
+        rows: [for (final r in j['rows'] as List? ?? const []) GraduationCandidate.fromJson(r as Map<String, dynamic>)],
+      );
+}

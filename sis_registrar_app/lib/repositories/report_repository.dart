@@ -27,6 +27,26 @@ class ReportRepository {
     return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
   }
 
+  /// Dean's list of a term; the rules default to DBTC's (GWA 1.7, 15 units, lowest grade 2.3).
+  Future<DeansList> deansList(String termId, {double? maxGwa, double? minUnits, double? worstGrade}) async {
+    final headers = await _auth.getAuthHeaders();
+    final query = {
+      'termId': termId,
+      if (maxGwa != null) 'maxGwa': '$maxGwa',
+      if (minUnits != null) 'minUnits': '$minUnits',
+      if (worstGrade != null) 'worstGrade': '$worstGrade',
+    };
+    final res = await _client.get(Uri.parse('$baseUrl/api/reports/deans-list').replace(queryParameters: query), headers: headers);
+    if (res.statusCode != 200) {
+      String message = 'Request failed (${res.statusCode}).';
+      try {
+        message = (jsonDecode(res.body) as Map<String, dynamic>)['message'] as String? ?? message;
+      } catch (_) {}
+      throw ApiException(statusCode: res.statusCode, message: message);
+    }
+    return DeansList.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<List<EnrollmentSummaryRow>> enrollmentSummary(String termId) async =>
       (await _get('enrollment-summary', termId)).map(EnrollmentSummaryRow.fromJson).toList();
 

@@ -14,11 +14,12 @@ import '../utils/file_download.dart';
 import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import 'widgets/activity_log_browser.dart';
+import 'widgets/graduation_candidates_report.dart';
 import 'widgets/missing_sex_dialog.dart';
 import 'widgets/page_header.dart';
 
 /// The four term reports. Each tab shows a table and can be downloaded as CSV (opens in Excel).
-enum ReportKind { enrollment, statistics, classSizes, failed, teacherLoads }
+enum ReportKind { enrollment, statistics, classSizes, failed, deansList, teacherLoads }
 
 extension on ReportKind {
   String get title => switch (this) {
@@ -26,6 +27,7 @@ extension on ReportKind {
     ReportKind.statistics => 'Statistics',
     ReportKind.classSizes => 'Class sizes',
     ReportKind.failed => 'Failed students',
+    ReportKind.deansList => 'Dean\'s list',
     ReportKind.teacherLoads => 'Teacher loads',
   };
 
@@ -34,6 +36,7 @@ extension on ReportKind {
     ReportKind.statistics => 'Enrollment_Statistics',
     ReportKind.classSizes => 'Class_Sizes',
     ReportKind.failed => 'Failed_Students',
+    ReportKind.deansList => 'Deans_List',
     ReportKind.teacherLoads => 'Teacher_Loads',
   };
 }
@@ -56,6 +59,7 @@ class ReportsView extends StatefulWidget {
   static const transfereesTab = 1;
   static const irregularTab = 2;
   static const activityLogTab = 3;
+  static const graduationTab = 4;
 
   /// Which tab is showing (see the constants above); links elsewhere in the app can change it.
   final ValueNotifier<int>? tab;
@@ -69,11 +73,17 @@ class ReportsView extends StatefulWidget {
 class _ReportsViewState extends State<ReportsView>
     with CurrentTermUser, SingleTickerProviderStateMixin {
   late final TabController _tabs = TabController(
-    length: 4,
+    length: 5,
     vsync: this,
     initialIndex: widget.tab?.value ?? 0,
   );
   ReportKind _kind = ReportKind.enrollment;
+
+  // Dean's list rules, DBTC's by default; the Registrar can change them here.
+  final _maxGwa = TextEditingController(text: '1.7');
+  final _minUnits = TextEditingController(text: '15');
+  final _worstGrade = TextEditingController(text: '2.3');
+  String? _deansRules;
 
   @override
   void initState() {
@@ -87,6 +97,9 @@ class _ReportsViewState extends State<ReportsView>
   void dispose() {
     widget.tab?.removeListener(_followLink);
     _tabs.dispose();
+    for (final c in [_maxGwa, _minUnits, _worstGrade]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -250,6 +263,28 @@ class _ReportsViewState extends State<ReportsView>
               ],
           ],
         );
+      case ReportKind.deansList:
+        double? read(TextEditingController c) => double.tryParse(c.text.trim());
+        final list = await repo.deansList(termId, maxGwa: read(_maxGwa), minUnits: read(_minUnits), worstGrade: read(_worstGrade));
+        _deansRules = list.rules;
+        return ReportTable(
+          ['Rank', 'Student', 'Student ID', 'Program', 'Year', 'Units', 'GWA', 'Lowest grade'],
+          [
+            for (final r in list.rows)
+              [
+                r.rank,
+                r.studentName,
+                r.studentId ?? '',
+                r.programCode ?? '',
+                r.yearLevel ?? '',
+                _num(r.units),
+                r.gwa.toStringAsFixed(2),
+                r.lowestGrade.toStringAsFixed(2),
+              ],
+          ],
+          note: 'Rules: ${list.rules}. Every subject counts in the GWA, NSTP and PE included.'
+              '${list.studentsWithMissingGrades > 0 ? ' ${list.studentsWithMissingGrades} student(s) still have a subject without a final grade and are not checked yet, so this list is not final.' : ''}',
+        );
       case ReportKind.teacherLoads:
         final rows = await repo.teacherLoads(termId);
         return ReportTable(
@@ -283,7 +318,7 @@ class _ReportsViewState extends State<ReportsView>
             )
           : await buildReportPdf(
               title: _kind.title,
-              subtitle: term.label,
+              subtitle: _kind == ReportKind.deansList && _deansRules != null ? '${term.label} - ${_deansRules!}' : term.label,
               headers: table.headers,
               rows: table.rows,
               landscape: table.headers.length > 6,
@@ -358,6 +393,7 @@ class _ReportsViewState extends State<ReportsView>
                 Tab(text: 'Transferees'),
                 Tab(text: 'Irregular students'),
                 Tab(text: 'Activity log'),
+                Tab(text: 'Graduation'),
               ],
             ),
           ),
@@ -391,6 +427,16 @@ class _ReportsViewState extends State<ReportsView>
                               _loadReport();
                             },
                           ),
+                          if (_kind == ReportKind.deansList) ...[
+                            _ruleField('deans_max_gwa', _maxGwa, 'GWA at most'),
+                            _ruleField('deans_min_units', _minUnits, 'Units at least'),
+                            _ruleField('deans_worst_grade', _worstGrade, 'No grade below'),
+                            TextButton(
+                              key: const ValueKey('deans_apply'),
+                              onPressed: _loading ? null : _loadReport,
+                              child: const Text('Apply'),
+                            ),
+                          ],
                           OutlinedButton.icon(
                             key: const ValueKey('download_csv_button'),
                             icon: const Icon(Icons.download_rounded, size: 18),
@@ -425,6 +471,7 @@ class _ReportsViewState extends State<ReportsView>
                   padding: EdgeInsets.fromLTRB(24, 16, 24, 16),
                   child: ActivityLogBrowser(),
                 ),
+                const GraduationCandidatesReport(),
               ],
             ),
           ),
@@ -432,6 +479,17 @@ class _ReportsViewState extends State<ReportsView>
       ),
     );
   }
+
+  Widget _ruleField(String key, TextEditingController c, String label) => SizedBox(
+        width: 120,
+        child: TextField(
+          key: ValueKey(key),
+          controller: c,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onSubmitted: (_) => _loadReport(),
+          decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder()),
+        ),
+      );
 
   Widget _buildBody() {
     if (_error != null) {
@@ -453,9 +511,14 @@ class _ReportsViewState extends State<ReportsView>
     }
     if (table.rows.isEmpty) {
       return Center(
-        child: Text(
-          'Nothing to show for ${_kind.title.toLowerCase()} in this term.',
-          style: const TextStyle(color: AppColors.textSecondary),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'Nothing to show for ${_kind.title.toLowerCase()} in this term.'
+            '${_kind == ReportKind.deansList && table.note != null ? '\n\n${table.note}' : ''}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
         ),
       );
     }
