@@ -111,7 +111,7 @@ class _SetupViewState extends State<SetupView> {
       {'title': 'Subjects & Prerequisites', 'index': 2, 'icon': Icons.menu_book_outlined},
       {'title': 'Classes & Rosters', 'index': 3, 'icon': Icons.groups_outlined},
       {'title': 'Accredited Schools', 'index': 4, 'icon': Icons.account_balance_outlined},
-      {'title': 'Unit Limits', 'index': 5, 'icon': Icons.tune_rounded},
+      {'title': 'Limits & Rules', 'index': 5, 'icon': Icons.tune_rounded},
     ];
 
     return Container(

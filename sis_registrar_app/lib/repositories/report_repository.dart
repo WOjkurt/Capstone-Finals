@@ -27,13 +27,12 @@ class ReportRepository {
     return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
   }
 
-  /// Dean's list of a term; the rules default to DBTC's (GWA 1.7, 15 units, lowest grade 2.3).
-  Future<DeansList> deansList(String termId, {double? maxGwa, double? minUnits, double? worstGrade}) async {
+  /// Dean's list of a term. Without numbers the rules saved in Setup apply.
+  Future<DeansList> deansList(String termId, {double? maxGwa, double? worstGrade}) async {
     final headers = await _auth.getAuthHeaders();
     final query = {
       'termId': termId,
       if (maxGwa != null) 'maxGwa': '$maxGwa',
-      if (minUnits != null) 'minUnits': '$minUnits',
       if (worstGrade != null) 'worstGrade': '$worstGrade',
     };
     final res = await _client.get(Uri.parse('$baseUrl/api/reports/deans-list').replace(queryParameters: query), headers: headers);

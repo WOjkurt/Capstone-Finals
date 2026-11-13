@@ -113,14 +113,15 @@ void main() {
           requested.add('${req.url.pathSegments.last}:${req.url.queryParameters['termId']}');
           if (req.url.pathSegments.last == 'deans-list') {
             final q = req.url.queryParameters;
-            deansQueries.add('${q['maxGwa']}/${q['minUnits']}/${q['worstGrade']}');
+            deansQueries.add('${q['maxGwa']}/${q['worstGrade']}');
             return http.Response(
                 jsonEncode({
-                  'maxGwa': double.parse(q['maxGwa']!), 'minUnits': double.parse(q['minUnits']!), 'worstGrade': double.parse(q['worstGrade']!),
-                  'studentsChecked': 40, 'studentsWithMissingGrades': 3,
+                  // With no numbers sent, the saved rules come back.
+                  'maxGwa': double.tryParse(q['maxGwa'] ?? '') ?? 1.7, 'worstGrade': double.tryParse(q['worstGrade'] ?? '') ?? 2.3,
+                  'fallbackUnits': 15, 'studentsChecked': 40, 'studentsWithMissingGrades': 3,
                   'rows': [
                     {'rank': 1, 'userId': 'u1', 'studentName': 'Cruz, Ana', 'studentId': '25060208', 'programCode': 'BSIT', 'yearLevel': 2,
-                     'units': 21, 'gwa': 1.2143, 'lowestGrade': 1.5},
+                     'units': 21, 'requiredUnits': 21, 'gwa': 1.2143, 'lowestGrade': 1.5},
                   ],
                 }),
                 200);
@@ -210,17 +211,18 @@ void main() {
 
       await tester.tap(find.text('Dean\'s list'));
       await tester.pumpAndSettle();
-      expect(deansQueries, ['1.7/15.0/2.3']);
+      expect(deansQueries, ['null/null']);   // the saved rules are used
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('deans_max_gwa'))).controller!.text, '1.7');
       expect(find.text('Cruz, Ana'), findsOneWidget);
       expect(find.text('1.21'), findsOneWidget);
-      expect(find.textContaining('GWA 1.7 or better, at least 15 units, no grade below 2.3'), findsOneWidget);
+      expect(find.textContaining('GWA 1.7 or better, no grade below 2.3, at least their regular study load'), findsOneWidget);
       expect(find.textContaining('NSTP and PE included'), findsOneWidget);
       expect(find.textContaining('3 student(s) still have a subject without a final grade'), findsOneWidget);
 
       await tester.enterText(find.byKey(const ValueKey('deans_max_gwa')), '2');
       await tester.tap(find.byKey(const ValueKey('deans_apply')));
       await tester.pumpAndSettle();
-      expect(deansQueries.last, '2.0/15.0/2.3');
+      expect(deansQueries.last, '2.0/2.3');
     });
 
     testWidgets('switching report loads it; empty reports say so and cannot be downloaded', (tester) async {

@@ -26,6 +26,23 @@ class UnitLimitSettings {
       );
 }
 
+/// Setup → Dean's list rules. Units are always the student's regular study load.
+class DeansListRules {
+  final double maxGwa;
+  final double worstGrade;
+  final String? updatedBy;
+  final DateTime? updatedAt;
+
+  const DeansListRules({required this.maxGwa, required this.worstGrade, this.updatedBy, this.updatedAt});
+
+  factory DeansListRules.fromJson(Map<String, dynamic> j) => DeansListRules(
+        maxGwa: (j['maxGwa'] as num?)?.toDouble() ?? 1.7,
+        worstGrade: (j['worstGrade'] as num?)?.toDouble() ?? 2.3,
+        updatedBy: j['updatedBy'] as String?,
+        updatedAt: DateTime.tryParse(j['updatedAt'] as String? ?? '')?.toLocal(),
+      );
+}
+
 class SchoolSettingsRepository {
   final AuthService _auth;
   final http.Client _client;
@@ -36,9 +53,16 @@ class SchoolSettingsRepository {
   Future<UnitLimitSettings> saveUnitLimits({required double summer, required double graduating}) =>
       _send({'summerMaxUnits': summer, 'graduatingSummerMaxUnits': graduating});
 
-  Future<UnitLimitSettings> _send(Object? body) async {
+  Future<DeansListRules> getDeansListRules() async => DeansListRules.fromJson(await _raw('deans-list', null));
+
+  Future<DeansListRules> saveDeansListRules({required double maxGwa, required double worstGrade}) async =>
+      DeansListRules.fromJson(await _raw('deans-list', {'maxGwa': maxGwa, 'worstGrade': worstGrade}));
+
+  Future<UnitLimitSettings> _send(Object? body) async => UnitLimitSettings.fromJson(await _raw('unit-limits', body));
+
+  Future<Map<String, dynamic>> _raw(String path, Object? body) async {
     final headers = await _auth.getAuthHeaders();
-    final uri = Uri.parse('$baseUrl/api/school-settings/unit-limits');
+    final uri = Uri.parse('$baseUrl/api/school-settings/$path');
     final res = body == null
         ? await _client.get(uri, headers: headers)
         : await _client.put(uri, headers: {...headers, 'Content-Type': 'application/json'}, body: jsonEncode(body));
@@ -49,6 +73,6 @@ class SchoolSettingsRepository {
       } catch (_) {}
       throw ApiException(statusCode: res.statusCode, message: message);
     }
-    return UnitLimitSettings.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 }

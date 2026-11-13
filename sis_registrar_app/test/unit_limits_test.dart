@@ -18,11 +18,20 @@ class FakeAuthService implements AuthService {
 
 void main() {
   late Map<String, dynamic>? sent;
+  Map<String, dynamic>? deansSent;
 
   setUp(() async {
     await getIt.reset();
     sent = null;
+    deansSent = null;
     getIt.registerSingleton<SchoolSettingsRepository>(SchoolSettingsRepository(FakeAuthService(), client: MockClient((req) async {
+      if (req.url.path.endsWith('/deans-list')) {
+        if (req.method == 'PUT') {
+          deansSent = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response(jsonEncode({...deansSent!, 'updatedBy': 'Rita Reg', 'updatedAt': '2026-11-13T01:00:00Z'}), 200);
+        }
+        return http.Response(jsonEncode({'maxGwa': 1.7, 'worstGrade': 2.3}), 200);
+      }
       if (req.method == 'PUT') {
         sent = jsonDecode(req.body) as Map<String, dynamic>;
         if (sent!['summerMaxUnits'] == 13) {
@@ -61,5 +70,26 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('save_unit_limits_button')));
     await tester.pumpAndSettle();
     expect(find.text('Enter both limits as numbers.'), findsOneWidget);
+  });
+
+  testWidgets('Dean\'s list rules: DBTC\'s by default, and the Registrar can save new ones', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: UnitLimitsTab())));
+    await tester.pumpAndSettle();
+
+    String field(String key) => tester.widget<TextField>(find.byKey(ValueKey(key))).controller!.text;
+    expect((field('deans_rule_gwa'), field('deans_rule_worst')), ('1.7', '2.3'));
+    expect(find.textContaining('Using DBTC\'s rules'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const ValueKey('deans_rule_gwa')), '1.75');
+    await tester.enterText(find.byKey(const ValueKey('deans_rule_worst')), '2.5');
+    await tester.tap(find.byKey(const ValueKey('save_deans_rules_button')));
+    await tester.pumpAndSettle();
+    expect(deansSent, {'maxGwa': 1.75, 'worstGrade': 2.5});
+    expect(find.textContaining('Dean\'s list rules saved'), findsOneWidget);
+    expect(find.byKey(const ValueKey('deans_rules_status')), findsOneWidget);
+    expect(sent, isNull);   // the summer limits are untouched
   });
 }

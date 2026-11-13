@@ -79,10 +79,9 @@ class _ReportsViewState extends State<ReportsView>
   );
   ReportKind _kind = ReportKind.enrollment;
 
-  // Dean's list rules, DBTC's by default; the Registrar can change them here.
-  final _maxGwa = TextEditingController(text: '1.7');
-  final _minUnits = TextEditingController(text: '15');
-  final _worstGrade = TextEditingController(text: '2.3');
+  // Dean's list rules: filled with the ones saved in Setup; changing them here tries other numbers for this view only.
+  final _maxGwa = TextEditingController();
+  final _worstGrade = TextEditingController();
   String? _deansRules;
 
   @override
@@ -97,7 +96,7 @@ class _ReportsViewState extends State<ReportsView>
   void dispose() {
     widget.tab?.removeListener(_followLink);
     _tabs.dispose();
-    for (final c in [_maxGwa, _minUnits, _worstGrade]) {
+    for (final c in [_maxGwa, _worstGrade]) {
       c.dispose();
     }
     super.dispose();
@@ -265,10 +264,12 @@ class _ReportsViewState extends State<ReportsView>
         );
       case ReportKind.deansList:
         double? read(TextEditingController c) => double.tryParse(c.text.trim());
-        final list = await repo.deansList(termId, maxGwa: read(_maxGwa), minUnits: read(_minUnits), worstGrade: read(_worstGrade));
+        final list = await repo.deansList(termId, maxGwa: read(_maxGwa), worstGrade: read(_worstGrade));
         _deansRules = list.rules;
+        if (_maxGwa.text.trim().isEmpty) _maxGwa.text = gradeText(list.maxGwa);
+        if (_worstGrade.text.trim().isEmpty) _worstGrade.text = gradeText(list.worstGrade);
         return ReportTable(
-          ['Rank', 'Student', 'Student ID', 'Program', 'Year', 'Units', 'GWA', 'Lowest grade'],
+          ['Rank', 'Student', 'Student ID', 'Program', 'Year', 'Units', 'Regular load', 'GWA', 'Lowest grade'],
           [
             for (final r in list.rows)
               [
@@ -278,11 +279,14 @@ class _ReportsViewState extends State<ReportsView>
                 r.programCode ?? '',
                 r.yearLevel ?? '',
                 _num(r.units),
+                _num(r.requiredUnits),
                 r.gwa.toStringAsFixed(2),
                 r.lowestGrade.toStringAsFixed(2),
               ],
           ],
-          note: 'Rules: ${list.rules}. Every subject counts in the GWA, NSTP and PE included.'
+          note: 'Rules: ${list.rules}. Every subject counts in the GWA, NSTP and PE included. '
+              'The regular study load is the curriculum\'s units for the student\'s year and semester '
+              '(${_num(list.fallbackUnits)} when there is none). Saved rules are in Setup → Limits & Rules.'
               '${list.studentsWithMissingGrades > 0 ? ' ${list.studentsWithMissingGrades} student(s) still have a subject without a final grade and are not checked yet, so this list is not final.' : ''}',
         );
       case ReportKind.teacherLoads:
@@ -429,7 +433,6 @@ class _ReportsViewState extends State<ReportsView>
                           ),
                           if (_kind == ReportKind.deansList) ...[
                             _ruleField('deans_max_gwa', _maxGwa, 'GWA at most'),
-                            _ruleField('deans_min_units', _minUnits, 'Units at least'),
                             _ruleField('deans_worst_grade', _worstGrade, 'No grade below'),
                             TextButton(
                               key: const ValueKey('deans_apply'),
