@@ -52,6 +52,8 @@ void main() {
     String field(String key) => tester.widget<TextField>(find.byKey(ValueKey(key))).controller!.text;
     expect((field('summer_limit_field'), field('graduating_limit_field')), ('9', '12'));
     expect(find.text('Using the starting values.'), findsOneWidget);
+    // Nothing changed yet, so Save is off.
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('save_unit_limits_button'))).onPressed, isNull);
 
     await tester.enterText(find.byKey(const ValueKey('summer_limit_field')), '6');
     await tester.enterText(find.byKey(const ValueKey('graduating_limit_field')), '10.5');
@@ -62,11 +64,13 @@ void main() {
     expect(find.textContaining('Unit limits saved'), findsOneWidget);
 
     await tester.enterText(find.byKey(const ValueKey('summer_limit_field')), '13');
+    await tester.pump(); // Save turns on once the change shows
     await tester.tap(find.byKey(const ValueKey('save_unit_limits_button')));
     await tester.pumpAndSettle();
     expect(find.textContaining('cannot be lower'), findsOneWidget);
 
     await tester.enterText(find.byKey(const ValueKey('summer_limit_field')), 'abc');
+    await tester.pump(); // Save turns on once the change shows
     await tester.tap(find.byKey(const ValueKey('save_unit_limits_button')));
     await tester.pumpAndSettle();
     expect(find.text('Enter both limits as numbers.'), findsOneWidget);

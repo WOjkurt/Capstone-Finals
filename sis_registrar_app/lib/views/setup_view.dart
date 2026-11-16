@@ -252,11 +252,12 @@ class _ProgramsTabState extends State<_ProgramsTab> {
     return InkWell(
       key: ValueKey('program_curricula_${p.programId}'),
       onTap: () => context.read<SetupBloc>().add(SwitchSetupTab(6)),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
+      // One line per program: the newest year first, older ones beside it (a Wrap stacked them inside the row).
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (final c in list)
+          for (final (i, c) in list.indexed) ...[
+            if (i > 0) const SizedBox(width: 6),
             Tooltip(
               message: '${c.name}: ${c.subjectCount} subjects, ${c.studentCount} students'
                   '${c.isNewest ? '. New students get this one.' : ''}',
@@ -264,6 +265,7 @@ class _ProgramsTabState extends State<_ProgramsTab> {
                   ? StatusBadge.success(label: 'SY ${c.effectiveSchoolYear} • newest')
                   : StatusBadge.neutral(label: 'SY ${c.effectiveSchoolYear}'),
             ),
+          ],
         ],
       ),
     );
@@ -320,6 +322,8 @@ class _ProgramsTabState extends State<_ProgramsTab> {
                         headingRowColor:
                             WidgetStateProperty.all(const Color(0xFFF8FAFC)),
                         horizontalMargin: 24,
+                        dataRowMinHeight: 56,
+                        dataRowMaxHeight: 64,
                         columns: const [
                           DataColumn(
                             label: Text('Program Code',

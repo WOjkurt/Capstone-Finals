@@ -83,13 +83,47 @@ class _GraduationCandidatesReportState extends State<GraduationCandidatesReport>
     return 'Graduation_Candidates${program != null ? '_$program' : ''}';
   }
 
+  /// The printout lists open subjects once per status ("Not taken (12): GEC 01, GEC 02 …") instead of
+  /// repeating the status after every code, and gives each column a fixed share of the page.
+  static const _pdfHeaders = ['Student', 'Student ID', 'Program', 'Year', 'Status', 'Units earned', 'Taking now', 'Still needs'];
+  static const _pdfFlex = [2.2, 1.3, 1.2, 0.6, 1.3, 1.1, 2.0, 5.5];
+
+  static String _byStatus(List<GraduationSubject> list) {
+    final groups = <String, List<String>>{};
+    for (final s in list) {
+      groups.putIfAbsent(s.statusLabel, () => []).add(s.subjectCode);
+    }
+    return [
+      for (final e in groups.entries)
+        '${e.key[0].toUpperCase()}${e.key.substring(1)} (${e.value.length}): ${e.value.join(', ')}',
+    ].join('\n');
+  }
+
+  List<List<Object?>> get _pdfRows => [
+        for (final r in _visible)
+          [
+            r.name,
+            r.studentId ?? '',
+            r.programCode ?? '',
+            r.yearLevel ?? '',
+            r.statusLabel,
+            '${_units(r.earnedUnits)} of ${_units(r.totalUnits)}',
+            r.inProgress.map((s) => s.subjectCode).join(', '),
+            r.lacking.isEmpty ? '-' : '${_units(_sumUnits(r.lacking))} units\n${_byStatus(r.lacking)}',
+          ],
+      ];
+
   Future<void> _print() async {
     try {
       final bytes = await buildReportPdf(
         title: 'Candidates for Graduation',
-        subtitle: _status == null ? 'All final-year students' : _visible.first.statusLabel,
-        headers: _headers,
-        rows: _tableRows,
+        subtitle: [
+          _programs.where((p) => p.programId == _programId).firstOrNull?.programCode ?? 'All programs',
+          _status == null ? 'all final-year students' : _visible.first.statusLabel,
+        ].join(' - '),
+        headers: _pdfHeaders,
+        rows: _pdfRows,
+        columnFlex: _pdfFlex,
         landscape: true,
         logo: await loadSchoolLogo(),
       );
@@ -231,19 +265,9 @@ class _GraduationCandidatesReportState extends State<GraduationCandidatesReport>
                 decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
                 child: Text(r.statusLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
               ),
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              expandedCrossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (r.inProgress.isEmpty && r.lacking.isEmpty)
-                  const Text('Every subject of the curriculum is passed or credited.', style: TextStyle(fontSize: 13)),
-                if (r.inProgress.isNotEmpty) _subjects('Taking now', r.inProgress),
-                if (r.lacking.isNotEmpty) _subjects('Still needs', r.lacking),
-                if (r.curriculumName != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text('Curriculum: ${r.curriculumName}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                  ),
-              ],
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [_details(r)],
             ),
           ),
         );
@@ -251,19 +275,130 @@ class _GraduationCandidatesReportState extends State<GraduationCandidatesReport>
     );
   }
 
-  Widget _subjects(String title, List<GraduationSubject> list) => Padding(
-        padding: const EdgeInsets.only(top: 6),
+  static double _sumUnits(List<GraduationSubject> l) => l.fold(0.0, (a, s) => a + s.units);
+
+  static String _semester(int s) => switch (s) {
+        1 => '1st Semester',
+        2 => '2nd Semester',
+        3 => 'Summer',
+        _ => 'Semester not set',
+      };
+
+  /// What one student still needs: three numbers, then every open subject in one table,
+  /// grouped by the year and semester it belongs to in the curriculum.
+  Widget _details(GraduationCandidate r) {
+    final open = [...r.inProgress, ...r.lacking]
+      ..sort((a, b) {
+        final y = a.yearLevel.compareTo(b.yearLevel);
+        if (y != 0) return y;
+        final s = a.semester.compareTo(b.semester);
+        return s != 0 ? s : a.subjectCode.compareTo(b.subjectCode);
+      });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 1, color: AppColors.border),
+        const SizedBox(height: 14),
+        Wrap(spacing: 12, runSpacing: 12, children: [
+          _stat('Units earned', '${_units(r.earnedUnits)} of ${_units(r.totalUnits)}'),
+          _stat('Taking now', '${r.inProgress.length} subject(s) · ${_units(_sumUnits(r.inProgress))} units'),
+          _stat('Still needs', '${r.lacking.length} subject(s) · ${_units(_sumUnits(r.lacking))} units',
+              alert: r.lacking.isNotEmpty),
+        ]),
+        const SizedBox(height: 14),
+        if (open.isEmpty)
+          const Text('Every subject of the curriculum is passed or credited.', style: TextStyle(fontSize: 13))
+        else
+          _subjectTable(open),
+        if (r.curriculumName != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text('Curriculum: ${r.curriculumName}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          ),
+      ],
+    );
+  }
+
+  Widget _stat(String label, String value, {bool alert = false}) => Container(
+        constraints: const BoxConstraints(minWidth: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: alert ? const Color(0xFFFEF2F2) : AppColors.scaffoldBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: alert ? const Color(0xFFFECACA) : AppColors.border),
+        ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title.toUpperCase(),
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: AppColors.textSecondary)),
-          for (final s in list)
-            Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                '${s.subjectCode}  ${s.subjectTitle} · ${_units(s.units)} u · Year ${s.yearLevel}${s.status == 'InProgress' ? '' : ' · ${s.statusLabel}'}',
-                style: const TextStyle(fontSize: 13),
-              ),
-            ),
+          Text(label.toUpperCase(),
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: AppColors.textSecondary)),
+          const SizedBox(height: 4),
+          Text(value,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: alert ? const Color(0xFFB91C1C) : AppColors.textPrimary)),
         ]),
       );
+
+  Widget _subjectTable(List<GraduationSubject> list) {
+    const head = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569));
+    Widget row(List<Widget> cells, {Color? color, Key? key}) => Container(
+          key: key,
+          color: color,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(children: [
+            SizedBox(width: 110, child: cells[0]),
+            Expanded(child: cells[1]),
+            SizedBox(width: 60, child: Align(alignment: Alignment.centerRight, child: cells[2])),
+            const SizedBox(width: 24),
+            SizedBox(width: 120, child: Align(alignment: Alignment.centerLeft, child: cells[3])),
+          ]),
+        );
+    final children = <Widget>[
+      row(const [Text('CODE', style: head), Text('SUBJECT', style: head), Text('UNITS', style: head), Text('STATUS', style: head)],
+          color: const Color(0xFFF1F5F9)),
+    ];
+    (int, int)? group;
+    for (final s in list) {
+      if (group != (s.yearLevel, s.semester)) {
+        group = (s.yearLevel, s.semester);
+        children.add(Container(
+          width: double.infinity,
+          color: AppColors.scaffoldBg,
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+          child: Text('Year ${s.yearLevel} · ${_semester(s.semester)}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
+        ));
+      }
+      children.add(row([
+        Text(s.subjectCode, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(s.subjectTitle, style: const TextStyle(fontSize: 13)),
+        Text(_units(s.units), style: const TextStyle(fontSize: 13)),
+        _statusBadge(s),
+      ], key: ValueKey('grad_subject_${s.subjectCode}')));
+    }
+    return Container(
+      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        for (final (i, c) in children.indexed) ...[
+          if (i > 0) const Divider(height: 1, color: AppColors.borderSubtle),
+          c,
+        ],
+      ]),
+    );
+  }
+
+  Widget _statusBadge(GraduationSubject s) {
+    final (bg, fg) = switch (s.status) {
+      'InProgress' => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF)),
+      'Failed' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
+      'Dropped' || 'Withdrawn' => (const Color(0xFFFFEDD5), const Color(0xFF9A3412)),
+      'PartiallyCredited' => (const Color(0xFFFEF9C3), const Color(0xFF854D0E)),
+      _ => (AppColors.borderSubtle, AppColors.textSecondary),
+    };
+    final label = s.statusLabel;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(label.isEmpty ? '' : label[0].toUpperCase() + label.substring(1),
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: fg)),
+    );
+  }
 }

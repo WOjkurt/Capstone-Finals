@@ -292,6 +292,8 @@ void main() {
     // Newest is listed first.
     expect(tester.getTopLeft(find.text('SY 2026-2027 • newest')).dx,
         lessThan(tester.getTopLeft(find.text('SY 2021-2022')).dx));
+    // On one line, not stacked on top of each other.
+    expect(tester.getCenter(find.text('SY 2026-2027 • newest')).dy, tester.getCenter(find.text('SY 2021-2022')).dy);
     expect(find.text('No curriculum yet'), findsOneWidget); // AB-REED
 
     await tester.tap(find.text('SY 2021-2022'));

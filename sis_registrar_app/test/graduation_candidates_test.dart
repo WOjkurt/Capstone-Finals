@@ -57,9 +57,16 @@ void main() {
 
     await tester.tap(find.text('Lim, Cara'));
     await tester.pumpAndSettle();
-    expect(find.text('IT 301  Networks · 3 u · Year 3 · failed'), findsOneWidget);
-    expect(find.text('OJT 401  Practicum · 6 u · Year 4 · not taken'), findsOneWidget);
-    expect(find.text('CAP 402  Capstone 2 · 3 u · Year 4'), findsOneWidget);
+    // One table of open subjects, grouped by year and semester, each with its status.
+    Finder inRow(String code, String text) =>
+        find.descendant(of: find.byKey(ValueKey('grad_subject_$code')), matching: find.text(text));
+    expect(inRow('IT 301', 'Networks'), findsOneWidget);
+    expect(inRow('IT 301', 'Failed'), findsOneWidget);
+    expect(inRow('OJT 401', 'Not taken'), findsOneWidget);
+    expect(inRow('OJT 401', '6'), findsOneWidget);
+    expect(inRow('CAP 402', 'Taking now'), findsOneWidget);
+    expect(find.textContaining('Year 3 · '), findsOneWidget);
+    expect(find.text('STILL NEEDS'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('grad_Lacking')));
     await tester.pumpAndSettle();

@@ -83,6 +83,7 @@ class _ReportsViewState extends State<ReportsView>
   final _maxGwa = TextEditingController();
   final _worstGrade = TextEditingController();
   String? _deansRules;
+  DeansList? _deans;
 
   @override
   void initState() {
@@ -266,6 +267,7 @@ class _ReportsViewState extends State<ReportsView>
         double? read(TextEditingController c) => double.tryParse(c.text.trim());
         final list = await repo.deansList(termId, maxGwa: read(_maxGwa), worstGrade: read(_worstGrade));
         _deansRules = list.rules;
+        _deans = list;
         if (_maxGwa.text.trim().isEmpty) _maxGwa.text = gradeText(list.maxGwa);
         if (_worstGrade.text.trim().isEmpty) _worstGrade.text = gradeText(list.worstGrade);
         return ReportTable(
@@ -284,10 +286,6 @@ class _ReportsViewState extends State<ReportsView>
                 r.lowestGrade.toStringAsFixed(2),
               ],
           ],
-          note: 'Rules: ${list.rules}. Every subject counts in the GWA, NSTP and PE included. '
-              'The regular study load is the curriculum\'s units for the student\'s year and semester '
-              '(${_num(list.fallbackUnits)} when there is none). Saved rules are in Setup → Limits & Rules.'
-              '${list.studentsWithMissingGrades > 0 ? ' ${list.studentsWithMissingGrades} student(s) still have a subject without a final grade and are not checked yet, so this list is not final.' : ''}',
         );
       case ReportKind.teacherLoads:
         final rows = await repo.teacherLoads(termId);
@@ -410,61 +408,53 @@ class _ReportsViewState extends State<ReportsView>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: Row(
                         children: [
                           // Shared with the other pages: changing it here changes it everywhere.
                           if (currentTerm.terms.isNotEmpty)
-                            CurrentTermPicker(term: currentTerm, width: 280),
-                          SegmentedButton<ReportKind>(
-                            key: const ValueKey('report_kind_selector'),
-                            segments: [
-                              for (final k in ReportKind.values)
-                                ButtonSegment(value: k, label: Text(k.title)),
-                            ],
-                            selected: {_kind},
-                            onSelectionChanged: (s) {
-                              setState(() => _kind = s.first);
-                              _loadReport();
-                            },
-                          ),
-                          if (_kind == ReportKind.deansList) ...[
-                            _ruleField('deans_max_gwa', _maxGwa, 'GWA at most'),
-                            _ruleField('deans_worst_grade', _worstGrade, 'No grade below'),
-                            TextButton(
-                              key: const ValueKey('deans_apply'),
-                              onPressed: _loading ? null : _loadReport,
-                              child: const Text('Apply'),
-                            ),
-                          ],
+                            Flexible(child: CurrentTermPicker(term: currentTerm, width: 280)),
+                          const Spacer(),
                           OutlinedButton.icon(
                             key: const ValueKey('download_csv_button'),
                             icon: const Icon(Icons.download_rounded, size: 18),
                             label: const Text('Download CSV'),
-                            onPressed:
-                                (_table == null ||
-                                    _loading ||
-                                    _table!.rows.isEmpty)
-                                ? null
-                                : _download,
+                            onPressed: _canExport ? _download : null,
                           ),
+                          const SizedBox(width: 8),
                           OutlinedButton.icon(
                             key: const ValueKey('print_report_button'),
                             icon: const Icon(Icons.print_outlined, size: 18),
                             label: const Text('Print'),
-                            onPressed:
-                                (_table == null ||
-                                    _loading ||
-                                    _table!.rows.isEmpty)
-                                ? null
-                                : _print,
+                            onPressed: _canExport ? _print : null,
                           ),
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SegmentedButton<ReportKind>(
+                          key: const ValueKey('report_kind_selector'),
+                          showSelectedIcon: false,
+                          segments: [
+                            for (final k in ReportKind.values)
+                              ButtonSegment(value: k, label: Text(k.title)),
+                          ],
+                          selected: {_kind},
+                          onSelectionChanged: (s) {
+                            setState(() => _kind = s.first);
+                            _loadReport();
+                          },
+                        ),
+                      ),
+                    ),
+                    if (_kind == ReportKind.deansList && _deans != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+                        child: _deansRulesPanel(_deans!),
+                      ),
                     Expanded(child: _buildBody()),
                   ],
                 ),
@@ -483,8 +473,10 @@ class _ReportsViewState extends State<ReportsView>
     );
   }
 
+  bool get _canExport => _table != null && !_loading && _table!.rows.isNotEmpty;
+
   Widget _ruleField(String key, TextEditingController c, String label) => SizedBox(
-        width: 120,
+        width: 130,
         child: TextField(
           key: ValueKey(key),
           controller: c,
@@ -492,6 +484,106 @@ class _ReportsViewState extends State<ReportsView>
           onSubmitted: (_) => _loadReport(),
           decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder()),
         ),
+      );
+
+  /// The Dean's list rules as a short checklist, with a place to try other grades for this view only.
+  Widget _deansRulesPanel(DeansList d) {
+    Widget rule(String text) => Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.accentGreen),
+          const SizedBox(width: 6),
+          Text(text, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+        ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          key: const ValueKey('deans_rules_panel'),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Wrap(
+            spacing: 32,
+            runSpacing: 16,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('RULES USED',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: AppColors.textSecondary)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 20, runSpacing: 8, children: [
+                      rule('GWA ${gradeText(d.maxGwa)} or better'),
+                      rule('No grade below ${gradeText(d.worstGrade)}'),
+                      rule('Carries at least their regular study load'),
+                      rule('No failed, dropped or withdrawn subject'),
+                    ]),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Every subject counts in the GWA, NSTP and PE included. Regular study load = the curriculum\'s units '
+                      'for the student\'s year and semester (${_num(d.fallbackUnits)} when there is none).',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('TRY OTHER GRADES (THIS VIEW ONLY)',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: AppColors.textSecondary)),
+                  const SizedBox(height: 10),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    _ruleField('deans_max_gwa', _maxGwa, 'GWA at most'),
+                    const SizedBox(width: 8),
+                    _ruleField('deans_worst_grade', _worstGrade, 'No grade below'),
+                    const SizedBox(width: 8),
+                    FilledButton.tonal(
+                      key: const ValueKey('deans_apply'),
+                      onPressed: _loading ? null : _loadReport,
+                      child: const Text('Apply'),
+                    ),
+                  ]),
+                  const SizedBox(height: 6),
+                  const Text('To change them for good: Setup → Limits & Rules.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (d.studentsWithMissingGrades > 0) ...[
+          const SizedBox(height: 10),
+          _notice(
+            '${d.studentsWithMissingGrades} student(s) still have a subject without a final grade and are not checked yet, '
+            'so this list is not final.',
+            key: const ValueKey('deans_missing_grades'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// An amber notice box for things the Registrar should know about a report.
+  Widget _notice(String text, {Key? key, Widget? action}) => Container(
+        key: key,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.accentAmberLight,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF92400E)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: Color(0xFF92400E)))),
+          ?action,
+        ]),
       );
 
   Widget _buildBody() {
@@ -517,8 +609,7 @@ class _ReportsViewState extends State<ReportsView>
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            'Nothing to show for ${_kind.title.toLowerCase()} in this term.'
-            '${_kind == ReportKind.deansList && table.note != null ? '\n\n${table.note}' : ''}',
+            'Nothing to show for ${_kind.title.toLowerCase()} in this term.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textSecondary),
           ),
@@ -532,75 +623,114 @@ class _ReportsViewState extends State<ReportsView>
         children: [
           if (table.note != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      table.note!,
-                      key: const ValueKey('report_note'),
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
-                    ),
-                  ),
-                  if (table.missingSex > 0 && _term != null)
-                    TextButton.icon(
-                      key: const ValueKey('fill_missing_sex_button'),
-                      icon: const Icon(Icons.edit_note_rounded, size: 18),
-                      label: Text('Fill in missing sex (${table.missingSex})'),
-                      onPressed: () async {
-                        final term = _term!;
-                        final changed = await MissingSexDialog.show(context, termId: term.termId, termLabel: term.label);
-                        if (changed == true) _loadReport();
-                      },
-                    ),
-                ],
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _notice(
+                table.note!,
+                key: const ValueKey('report_note'),
+                action: table.missingSex > 0 && _term != null
+                    ? TextButton.icon(
+                        key: const ValueKey('fill_missing_sex_button'),
+                        icon: const Icon(Icons.edit_note_rounded, size: 18),
+                        label: Text('Fill in missing sex (${table.missingSex})'),
+                        onPressed: () async {
+                          final term = _term!;
+                          final changed = await MissingSexDialog.show(context, termId: term.termId, termLabel: term.label);
+                          if (changed == true) _loadReport();
+                        },
+                      )
+                    : null,
               ),
             ),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: SingleChildScrollView(
+          _ReportDataTable(table: table),
+        ],
+      ),
+    );
+  }
+}
+
+/// A term report as a full-width table: numbers line up on the right, the TOTAL row is shaded,
+/// and a row count sits under it.
+class _ReportDataTable extends StatelessWidget {
+  final ReportTable table;
+  const _ReportDataTable({required this.table});
+
+  bool _isTotal(List<Object?> r) => r.isNotEmpty && r.first == 'TOTAL';
+
+  /// A column is numeric when every filled cell in it is a number (rank, counts, units, grades).
+  /// ID and LRN columns are digits too, but they are names, not amounts, so they stay on the left.
+  bool _numeric(int i) {
+    final header = table.headers[i];
+    if (header.contains('ID') || header.contains('LRN')) return false;
+    var any = false;
+    for (final r in table.rows) {
+      final c = i < r.length ? r[i] : null;
+      if (c == null || c == '' || _isTotal(r) && i == 0) continue;
+      if (c is num || (c is String && RegExp(r'^\d+(\.\d+)?$').hasMatch(c))) {
+        any = true;
+      } else {
+        return false;
+      }
+    }
+    return any;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final numeric = [for (var i = 0; i < table.headers.length; i++) _numeric(i)];
+    final dataRows = table.rows.where((r) => !_isTotal(r)).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: DataTable(
-                key: const ValueKey('report_table'),
-                headingRowColor: WidgetStateProperty.all(
-                  const Color(0xFFF8FAFC),
-                ),
-                columns: [
-                  for (final h in table.headers)
-                    DataColumn(
-                      label: Text(
-                        h,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  key: const ValueKey('report_table'),
+                  headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                  headingRowHeight: 44,
+                  dataRowMinHeight: 40,
+                  dataRowMaxHeight: 48,
+                  horizontalMargin: 20,
+                  columnSpacing: 32,
+                  columns: [
+                    for (final (i, h) in table.headers.indexed)
+                      DataColumn(
+                        numeric: numeric[i],
+                        label: Text(h, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF475569))),
                       ),
-                    ),
-                ],
-                rows: [
-                  for (final r in table.rows)
-                    DataRow(
-                      cells: [
-                        for (final c in r)
-                          DataCell(
-                            Text(
+                  ],
+                  rows: [
+                    for (final r in table.rows)
+                      DataRow(
+                        color: _isTotal(r) ? WidgetStateProperty.all(const Color(0xFFF1F5F9)) : null,
+                        cells: [
+                          for (final c in r)
+                            DataCell(Text(
                               '${c ?? ''}',
-                              style: TextStyle(
-                                fontWeight: r.first == 'TOTAL'
-                                    ? FontWeight.w700
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                ],
+                              style: TextStyle(fontWeight: _isTotal(r) ? FontWeight.w700 : FontWeight.normal),
+                            )),
+                        ],
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text('$dataRows row(s)', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+        ),
+      ],
     );
   }
 }
@@ -886,12 +1016,53 @@ class _IrregularStudentsReportState extends State<IrregularStudentsReport> {
             style: TextStyle(color: AppColors.textSecondary)),
       );
     }
-    return ListView.separated(
+    // Grouped by program, then year level; in each group, students ready to be regular come first.
+    final groups = <(String, int?), List<IrregularStudent>>{};
+    for (final r in rows) {
+      groups.putIfAbsent((r.programCode ?? 'No program', r.yearLevel), () => []).add(r);
+    }
+    final keys = groups.keys.toList()
+      ..sort((a, b) {
+        final p = a.$1.compareTo(b.$1);
+        return p != 0 ? p : (a.$2 ?? 99).compareTo(b.$2 ?? 99);
+      });
+    for (final list in groups.values) {
+      list.sort((a, b) {
+        if (a.readyToBeRegular != b.readyToBeRegular) return a.readyToBeRegular ? -1 : 1;
+        return a.studentName.compareTo(b.studentName);
+      });
+    }
+    return ListView(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      itemCount: rows.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 6),
-      itemBuilder: (_, i) {
-        final r = rows[i];
+      children: [
+        for (final k in keys) ...[
+          Padding(
+            key: ValueKey('irregular_group_${k.$1}_${k.$2}'),
+            padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
+            child: Row(children: [
+              Text(
+                '${k.$1} · ${k.$2 != null ? 'Year ${k.$2}' : 'No year level'}',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: AppColors.borderSubtle, borderRadius: BorderRadius.circular(10)),
+                child: Text('${groups[k]!.length}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Divider(color: AppColors.border)),
+            ]),
+          ),
+          for (final r in groups[k]!)
+            Padding(padding: const EdgeInsets.only(bottom: 6), child: _row(r)),
+        ],
+      ],
+    );
+  }
+
+  Widget _row(IrregularStudent r) {
         return Container(
           key: ValueKey('irregular_${r.userId}'),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -907,14 +1078,11 @@ class _IrregularStudentsReportState extends State<IrregularStudentsReport> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(r.studentName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                    Text(
-                      [
-                        if (r.programCode != null) r.programCode!,
-                        if (r.yearLevel != null) 'Year ${r.yearLevel}',
-                        if (r.irregularSince != null) 'irregular since ${formatDate(r.irregularSince!)}',
-                      ].join(' · '),
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
+                    if (r.irregularSince != null)
+                      Text(
+                        'Irregular since ${formatDate(r.irregularSince!)}',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
                   ],
                 ),
               ),
@@ -949,7 +1117,5 @@ class _IrregularStudentsReportState extends State<IrregularStudentsReport> {
             ],
           ),
         );
-      },
-    );
   }
 }

@@ -16,6 +16,7 @@ Future<Uint8List> buildReportPdf({
   Uint8List? logo,
   bool compress = true,
   DateTime? printedAt,
+  List<double>? columnFlex,
 }) {
   final when = printedAt ?? DateTime.now();
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -55,6 +56,9 @@ Future<Uint8List> buildReportPdf({
         cellStyle: const pw.TextStyle(fontSize: 7.5),
         cellPadding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2),
         border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey600),
+        // Fixed shares of the page width, so one long column cannot squeeze the others to a letter wide.
+        columnWidths: columnFlex == null ? null : {for (final (i, f) in columnFlex.indexed) i: pw.FlexColumnWidth(f)},
+        cellAlignment: pw.Alignment.topLeft,
       ),
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 6),

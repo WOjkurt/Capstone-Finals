@@ -215,9 +215,13 @@ void main() {
       expect(tester.widget<TextField>(find.byKey(const ValueKey('deans_max_gwa'))).controller!.text, '1.7');
       expect(find.text('Cruz, Ana'), findsOneWidget);
       expect(find.text('1.21'), findsOneWidget);
-      expect(find.textContaining('GWA 1.7 or better, no grade below 2.3, at least their regular study load'), findsOneWidget);
-      expect(find.textContaining('NSTP and PE included'), findsOneWidget);
-      expect(find.textContaining('3 student(s) still have a subject without a final grade'), findsOneWidget);
+      final panel = find.byKey(const ValueKey('deans_rules_panel'));
+      expect(find.descendant(of: panel, matching: find.text('GWA 1.7 or better')), findsOneWidget);
+      expect(find.descendant(of: panel, matching: find.text('No grade below 2.3')), findsOneWidget);
+      expect(find.descendant(of: panel, matching: find.text('Carries at least their regular study load')), findsOneWidget);
+      expect(find.descendant(of: panel, matching: find.textContaining('NSTP and PE included')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('deans_missing_grades')),
+          matching: find.textContaining('3 student(s) still have a subject without a final grade')), findsOneWidget);
 
       await tester.enterText(find.byKey(const ValueKey('deans_max_gwa')), '2');
       await tester.tap(find.byKey(const ValueKey('deans_apply')));
