@@ -38,6 +38,27 @@ class GradesRepository {
         .toList();
   }
 
+  /// A student's grades across every term. A Program Head may read this for
+  /// students in their own program; the API scopes it server-side.
+  Future<List<GradeModel>> getStudentGrades(String userId) async {
+    final headers = await _auth.getAuthHeaders();
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/grades/student/$userId'),
+      headers: headers,
+    );
+
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+
+    return (jsonDecode(res.body) as List)
+        .map((e) => GradeModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<GradeModel> submitGrade(
     String studyLoadId, {
     double? midtermGrade,

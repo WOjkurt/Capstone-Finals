@@ -14,6 +14,7 @@ import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/stat_card.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/student_grade_history_dialog.dart';
 import 'widgets/term_dropdown.dart';
 import '../models/setup_models.dart';
 
@@ -51,7 +52,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     try {
       final repo = getIt<ClassRepository>();
       final terms = await repo.getTerms();
-      final active = terms.where((t) => t.isActive).firstOrNull ?? terms.firstOrNull;
+      final active =
+          terms.where((t) => t.isActive).firstOrNull ?? terms.firstOrNull;
       if (mounted) {
         setState(() {
           _terms = terms;
@@ -64,11 +66,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
 
     if (mounted) {
       context.read<ProgramOverviewBloc>().add(
-            LoadProgramClassesEvent(
-              termId: _selectedTermId,
-              yearLevel: _selectedYearLevel,
-            ),
-          );
+        LoadProgramClassesEvent(
+          termId: _selectedTermId,
+          yearLevel: _selectedYearLevel,
+        ),
+      );
     }
   }
 
@@ -85,10 +87,12 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
       barrierDismissible: true,
       builder: (ctx) => _ProgramClassDetailDialog(
         classItem: classItem,
-        onScheduleChanged: () => bloc.add(LoadProgramClassesEvent(
-          termId: _selectedTermId,
-          yearLevel: _selectedYearLevel,
-        )),
+        onScheduleChanged: () => bloc.add(
+          LoadProgramClassesEvent(
+            termId: _selectedTermId,
+            yearLevel: _selectedYearLevel,
+          ),
+        ),
       ),
     );
   }
@@ -100,13 +104,14 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
       children: [
         PageHeader(
           title: 'Program Overview',
-          subtitle: 'Departmental curriculum oversight, faculty course distribution, and class monitoring.',
+          subtitle:
+              'Departmental curriculum oversight, faculty course distribution, and class monitoring.',
           onRefresh: () => context.read<ProgramOverviewBloc>().add(
-                LoadProgramClassesEvent(
-                  termId: _selectedTermId,
-                  yearLevel: _selectedYearLevel,
-                ),
-              ),
+            LoadProgramClassesEvent(
+              termId: _selectedTermId,
+              yearLevel: _selectedYearLevel,
+            ),
+          ),
           action: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -117,16 +122,16 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   onChanged: (newTermId) {
                     setState(() => _selectedTermId = newTermId);
                     context.read<ProgramOverviewBloc>().add(
-                          LoadProgramClassesEvent(
-                            termId: _selectedTermId,
-                            yearLevel: _selectedYearLevel,
-                          ),
-                        );
+                      LoadProgramClassesEvent(
+                        termId: _selectedTermId,
+                        yearLevel: _selectedYearLevel,
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(width: 8),
               ],
-                          ],
+            ],
           ),
         ),
         Expanded(
@@ -151,14 +156,18 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   SnackBar(
                     content: Row(
                       children: [
-                        const Icon(Icons.error_outline_rounded,
-                            color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
-                            child: Text(
-                          'Failed to assign teacher: ${state.message}',
-                          style: const TextStyle(fontSize: 13),
-                        )),
+                          child: Text(
+                            'Failed to assign teacher: ${state.message}',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
                       ],
                     ),
                     backgroundColor: AppColors.error,
@@ -220,8 +229,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline_rounded,
-                            color: Color(0xFFDC2626), size: 48),
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: Color(0xFFDC2626),
+                          size: 48,
+                        ),
                         const SizedBox(height: 16),
                         const Text(
                           'Failed to load program overview',
@@ -242,7 +254,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                         ),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
-                          onPressed: () => context.read<ProgramOverviewBloc>().add(
+                          onPressed: () =>
+                              context.read<ProgramOverviewBloc>().add(
                                 LoadProgramClassesEvent(
                                   termId: _selectedTermId,
                                   yearLevel: _selectedYearLevel,
@@ -270,19 +283,29 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 final all = classes;
                 final totalClasses = all.length;
                 final activeFaculty = all
-                    .where((c) =>
-                        c.userId != null &&
-                        (c.teacherName?.trim().isNotEmpty ?? false))
+                    .where(
+                      (c) =>
+                          c.userId != null &&
+                          (c.teacherName?.trim().isNotEmpty ?? false),
+                    )
                     .map((c) => c.teacherName!.trim().toLowerCase())
                     .toSet()
                     .length;
-                final unassignedCount = all.where((c) => c.userId == null).length;
+                final unassignedCount = all
+                    .where((c) => c.userId == null)
+                    .length;
 
                 final filtered = all.where((c) {
                   if (_viewMode == _OverviewViewMode.byClass) {
-                    if (_filterUnassignedFaculty && c.userId != null) return false;
-                    if (_filterNoSchedule && c.schedules.isNotEmpty) return false;
-                    if (_filterZeroEnrolled && c.enrolledCount > 0) return false;
+                    if (_filterUnassignedFaculty && c.userId != null) {
+                      return false;
+                    }
+                    if (_filterNoSchedule && c.schedules.isNotEmpty) {
+                      return false;
+                    }
+                    if (_filterZeroEnrolled && c.enrolledCount > 0) {
+                      return false;
+                    }
                   }
 
                   if (_searchQuery.isEmpty) return true;
@@ -297,7 +320,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   children: [
                     SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 20),
+                        horizontal: 28,
+                        vertical: 20,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -308,18 +333,24 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                           ),
                           const SizedBox(height: 20),
                           _buildControlBar(
-                              filteredCount: filtered.length,
-                              totalCount: totalClasses),
+                            filteredCount: filtered.length,
+                            totalCount: totalClasses,
+                          ),
                           const SizedBox(height: 20),
                           if (filtered.isEmpty)
                             _buildEmptyResults(
-                                hasZeroClassesInTerm: totalClasses == 0)
+                              hasZeroClassesInTerm: totalClasses == 0,
+                            )
                           else if (_viewMode == _OverviewViewMode.byFaculty)
-                            _buildByFacultyView(filtered,
-                                assigningClassId: assigningClassId)
+                            _buildByFacultyView(
+                              filtered,
+                              assigningClassId: assigningClassId,
+                            )
                           else
-                            _buildByClassView(filtered,
-                                assigningClassId: assigningClassId),
+                            _buildByClassView(
+                              filtered,
+                              assigningClassId: assigningClassId,
+                            ),
                         ],
                       ),
                     ),
@@ -409,7 +440,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
-  Widget _buildControlBar({required int filteredCount, required int totalCount}) {
+  Widget _buildControlBar({
+    required int filteredCount,
+    required int totalCount,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -423,9 +457,17 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   controller: _searchController,
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
                   decoration: InputDecoration(
-                    hintText: 'Search by subject code, title, section, or faculty name...',
-                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
+                    hintText:
+                        'Search by subject code, title, section, or faculty name...',
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear, size: 16),
@@ -448,7 +490,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   style: const TextStyle(fontSize: 13),
@@ -476,9 +521,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                       setState(() => _viewMode = _OverviewViewMode.byFaculty);
                       if (_selectedYearLevel != null) {
                         setState(() => _selectedYearLevel = null);
-                        context
-                            .read<ProgramOverviewBloc>()
-                            .add(LoadProgramClassesEvent());
+                        context.read<ProgramOverviewBloc>().add(
+                          LoadProgramClassesEvent(),
+                        );
                       }
                     },
                   ),
@@ -487,7 +532,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                     label: 'By Class',
                     icon: Icons.grid_view_rounded,
                     isSelected: _viewMode == _OverviewViewMode.byClass,
-                    onTap: () => setState(() => _viewMode = _OverviewViewMode.byClass),
+                    onTap: () =>
+                        setState(() => _viewMode = _OverviewViewMode.byClass),
                   ),
                 ],
               ),
@@ -500,10 +546,7 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             spacing: 16,
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _buildYearLevelFilter(),
-              _buildQuickFilterChips(),
-            ],
+            children: [_buildYearLevelFilter(), _buildQuickFilterChips()],
           ),
         ],
       ],
@@ -549,12 +592,15 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                     if (_selectedYearLevel == lvl.value) return;
                     setState(() => _selectedYearLevel = lvl.value);
                     context.read<ProgramOverviewBloc>().add(
-                          LoadProgramClassesEvent(yearLevel: _selectedYearLevel),
-                        );
+                      LoadProgramClassesEvent(yearLevel: _selectedYearLevel),
+                    );
                   },
                   borderRadius: BorderRadius.circular(6),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected ? Colors.white : Colors.transparent,
                       borderRadius: BorderRadius.circular(6),
@@ -572,8 +618,12 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                       lvl.label,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -603,7 +653,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           label: 'Unassigned Faculty',
           icon: Icons.person_off_outlined,
           isSelected: _filterUnassignedFaculty,
-          onTap: () => setState(() => _filterUnassignedFaculty = !_filterUnassignedFaculty),
+          onTap: () => setState(
+            () => _filterUnassignedFaculty = !_filterUnassignedFaculty,
+          ),
         ),
         const SizedBox(width: 6),
         _buildFilterToggleChip(
@@ -617,7 +669,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           label: 'Zero Enrolled',
           icon: Icons.people_outline,
           isSelected: _filterZeroEnrolled,
-          onTap: () => setState(() => _filterZeroEnrolled = !_filterZeroEnrolled),
+          onTap: () =>
+              setState(() => _filterZeroEnrolled = !_filterZeroEnrolled),
         ),
       ],
     );
@@ -637,7 +690,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : const Color(0xFFF1F5F9),
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppColors.primary : const Color(0xFFE2E8F0),
@@ -675,8 +730,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_today_outlined,
-                size: 48, color: Colors.grey.shade400),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(height: 12),
             const Text(
               'No classes have been opened for this term yet.',
@@ -745,11 +803,8 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
       if (_selectedYearLevel != null) {
         _selectedYearLevel = null;
         context.read<ProgramOverviewBloc>().add(
-              LoadProgramClassesEvent(
-                termId: _selectedTermId,
-                yearLevel: null,
-              ),
-            );
+          LoadProgramClassesEvent(termId: _selectedTermId, yearLevel: null),
+        );
       }
     });
   }
@@ -762,21 +817,23 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
         classItem: classItem,
         onAssign: (teacherUserId) {
           context.read<ProgramOverviewBloc>().add(
-                AssignTeacherEvent(
-                  classId: classItem.classId,
-                  teacherUserId: teacherUserId,
-                  termId: _selectedTermId,
-                  yearLevel: _selectedYearLevel,
-                ),
-              );
+            AssignTeacherEvent(
+              classId: classItem.classId,
+              teacherUserId: teacherUserId,
+              termId: _selectedTermId,
+              yearLevel: _selectedYearLevel,
+            ),
+          );
         },
       ),
     );
   }
 
   // ── By Faculty View ──
-  Widget _buildByFacultyView(List<ClassModel> classes,
-      {String? assigningClassId}) {
+  Widget _buildByFacultyView(
+    List<ClassModel> classes, {
+    String? assigningClassId,
+  }) {
     // Separate unassigned and assigned
     final unassigned = classes.where((c) => c.userId == null).toList();
 
@@ -797,7 +854,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
       children: [
         // Unassigned Offerings at the top for immediate executive attention
         if (unassigned.isNotEmpty) ...[
-          _buildUnassignedBanner(unassigned, assigningClassId: assigningClassId),
+          _buildUnassignedBanner(
+            unassigned,
+            assigningClassId: assigningClassId,
+          ),
           const SizedBox(height: 24),
         ],
 
@@ -806,8 +866,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           const Center(child: Text('No classes available.'))
         else ...[
           for (final facultyName in sortedFaculty) ...[
-            _buildFacultyCard(facultyName, facultyMap[facultyName]!,
-                assigningClassId: assigningClassId),
+            _buildFacultyCard(
+              facultyName,
+              facultyMap[facultyName]!,
+              assigningClassId: assigningClassId,
+            ),
             const SizedBox(height: 16),
           ],
         ],
@@ -815,8 +878,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
-  Widget _buildUnassignedBanner(List<ClassModel> unassigned,
-      {String? assigningClassId}) {
+  Widget _buildUnassignedBanner(
+    List<ClassModel> unassigned, {
+    String? assigningClassId,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBEB),
@@ -842,8 +907,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   color: const Color(0xFFFDE68A),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.warning_amber_rounded,
-                    color: Color(0xFF92400E), size: 22),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFF92400E),
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -862,7 +930,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF92400E),
                             borderRadius: BorderRadius.circular(12),
@@ -894,9 +965,13 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             spacing: 12,
             runSpacing: 12,
             children: unassigned
-                .map((c) => _buildCompactClassItem(c,
+                .map(
+                  (c) => _buildCompactClassItem(
+                    c,
                     isWarning: true,
-                    isSaving: assigningClassId == c.classId))
+                    isSaving: assigningClassId == c.classId,
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -904,9 +979,15 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
-  Widget _buildFacultyCard(String facultyName, List<ClassModel> classes,
-      {String? assigningClassId}) {
-    final totalStudents = classes.fold<int>(0, (sum, c) => sum + c.enrolledCount);
+  Widget _buildFacultyCard(
+    String facultyName,
+    List<ClassModel> classes, {
+    String? assigningClassId,
+  }) {
+    final totalStudents = classes.fold<int>(
+      0,
+      (sum, c) => sum + c.enrolledCount,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -934,7 +1015,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 foregroundColor: AppColors.primary,
                 child: Text(
                   facultyName.isNotEmpty ? facultyName[0].toUpperCase() : 'F',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -962,7 +1046,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(20),
@@ -971,7 +1058,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.class_outlined, size: 13, color: Color(0xFF1D4ED8)),
+                    const Icon(
+                      Icons.class_outlined,
+                      size: 13,
+                      color: Color(0xFF1D4ED8),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       '${classes.length} Classes',
@@ -994,8 +1085,12 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             spacing: 12,
             runSpacing: 12,
             children: classes
-                .map((c) => _buildCompactClassItem(c,
-                    isSaving: assigningClassId == c.classId))
+                .map(
+                  (c) => _buildCompactClassItem(
+                    c,
+                    isSaving: assigningClassId == c.classId,
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -1003,8 +1098,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     );
   }
 
-  Widget _buildCompactClassItem(ClassModel c,
-      {bool isWarning = false, bool isSaving = false}) {
+  Widget _buildCompactClassItem(
+    ClassModel c, {
+    bool isWarning = false,
+    bool isSaving = false,
+  }) {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: isSaving ? null : () => _openClassDetail(context, c),
@@ -1015,7 +1113,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           color: isWarning ? Colors.white : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isWarning ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0),
+            color: isWarning
+                ? const Color(0xFFFDE68A)
+                : const Color(0xFFE2E8F0),
           ),
         ),
         child: Column(
@@ -1026,9 +1126,14 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: isWarning ? const Color(0xFF92400E) : AppColors.primary,
+                    color: isWarning
+                        ? const Color(0xFF92400E)
+                        : AppColors.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -1041,7 +1146,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(4),
@@ -1072,14 +1180,21 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.schedule, size: 12, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.schedule,
+                  size: 12,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     c.scheduleSummary,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ],
@@ -1092,7 +1207,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
               runSpacing: 6,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(4),
@@ -1100,8 +1218,11 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.people_outline,
-                          size: 12, color: Color(0xFF475569)),
+                      const Icon(
+                        Icons.people_outline,
+                        size: 12,
+                        color: Color(0xFF475569),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${c.enrolledCount} Enrolled',
@@ -1129,7 +1250,9 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
                         onTap: () => _openAssignDialog(context, c),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 3),
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: isWarning
                                 ? const Color(0xFF92400E)
@@ -1193,8 +1316,10 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
   }
 
   // ── By Class View (Flat Grid) ──
-  Widget _buildByClassView(List<ClassModel> classes,
-      {String? assigningClassId}) {
+  Widget _buildByClassView(
+    List<ClassModel> classes, {
+    String? assigningClassId,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount = 3;
@@ -1348,7 +1473,10 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(6),
@@ -1364,7 +1492,10 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(6),
@@ -1382,7 +1513,10 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   if (c.yearLevel != null) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(6),
@@ -1400,7 +1534,10 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   ],
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(12),
@@ -1433,7 +1570,10 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
               // Teacher Badge
               if (isUnassigned)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF3C7),
                     borderRadius: BorderRadius.circular(6),
@@ -1442,8 +1582,11 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 13, color: Color(0xFF92400E)),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 13,
+                        color: Color(0xFF92400E),
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Unassigned Faculty',
@@ -1462,7 +1605,9 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(6),
@@ -1471,12 +1616,14 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.person_outline_rounded,
-                              size: 13, color: Color(0xFF475569)),
+                          const Icon(
+                            Icons.person_outline_rounded,
+                            size: 13,
+                            color: Color(0xFF475569),
+                          ),
                           const SizedBox(width: 4),
                           ConstrainedBox(
-                            constraints:
-                                const BoxConstraints(maxWidth: 130),
+                            constraints: const BoxConstraints(maxWidth: 130),
                             child: Text(
                               c.teacherName ?? 'Faculty Assigned',
                               maxLines: 1,
@@ -1498,19 +1645,24 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                         onTap: widget.onAssign,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3),
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.25)),
+                              color: AppColors.primary.withValues(alpha: 0.25),
+                            ),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.swap_horiz_rounded,
-                                  size: 12, color: AppColors.primary),
+                              Icon(
+                                Icons.swap_horiz_rounded,
+                                size: 12,
+                                color: AppColors.primary,
+                              ),
                               SizedBox(width: 3),
                               Text(
                                 'Change',
@@ -1535,7 +1687,9 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   onTap: widget.onAssign,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF92400E),
                       borderRadius: BorderRadius.circular(6),
@@ -1543,8 +1697,11 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.person_add_rounded,
-                            size: 13, color: Colors.white),
+                        Icon(
+                          Icons.person_add_rounded,
+                          size: 13,
+                          color: Colors.white,
+                        ),
                         SizedBox(width: 5),
                         Text(
                           'Assign Teacher',
@@ -1565,13 +1722,18 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                     SizedBox(width: 8),
-                    Text('Saving...',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
+                    Text(
+                      'Saving...',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1579,8 +1741,11 @@ class _ProgramClassCardState extends State<_ProgramClassCard> {
               // Schedule summary
               Row(
                 children: [
-                  const Icon(Icons.schedule,
-                      size: 12, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.schedule,
+                    size: 12,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -1608,7 +1773,10 @@ class _ProgramClassDetailDialog extends StatefulWidget {
   final ClassModel classItem;
   final VoidCallback? onScheduleChanged;
 
-  const _ProgramClassDetailDialog({required this.classItem, this.onScheduleChanged});
+  const _ProgramClassDetailDialog({
+    required this.classItem,
+    this.onScheduleChanged,
+  });
 
   @override
   State<_ProgramClassDetailDialog> createState() =>
@@ -1701,8 +1869,11 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.class_rounded,
-                      color: AppColors.primary, size: 28),
+                  child: const Icon(
+                    Icons.class_rounded,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -1713,7 +1884,9 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(4),
@@ -1730,12 +1903,15 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF3F4F6),
                               borderRadius: BorderRadius.circular(4),
-                              border:
-                                  Border.all(color: const Color(0xFFE5E7EB)),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                              ),
                             ),
                             child: Text(
                               c.className,
@@ -1750,12 +1926,15 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF3F4F6),
                                 borderRadius: BorderRadius.circular(4),
-                                border:
-                                    Border.all(color: const Color(0xFFE5E7EB)),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E7EB),
+                                ),
                               ),
                               child: Text(
                                 'Year ${c.yearLevel}',
@@ -1771,12 +1950,15 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                           if (isUnassigned)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFEF3C7),
                                 borderRadius: BorderRadius.circular(4),
-                                border:
-                                    Border.all(color: const Color(0xFFFDE68A)),
+                                border: Border.all(
+                                  color: const Color(0xFFFDE68A),
+                                ),
                               ),
                               child: const Text(
                                 '⚠️ Unassigned Faculty',
@@ -1790,12 +1972,15 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                           else
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(4),
-                                border:
-                                    Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
                               ),
                               child: Text(
                                 '👤 ${c.teacherName}',
@@ -1845,8 +2030,11 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.schedule_rounded,
-                        size: 16, color: AppColors.primary),
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       'Class Schedules',
@@ -1861,8 +2049,10 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                 const SizedBox(height: 10),
                 if (c.schedules.isEmpty)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF9FAFB),
                       borderRadius: BorderRadius.circular(8),
@@ -1870,8 +2060,10 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                     ),
                     child: const Text(
                       'No specific meeting schedules have been assigned to this class yet.',
-                      style:
-                          TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   )
                 else
@@ -1881,7 +2073,9 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                     children: c.schedules.map((s) {
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(8),
@@ -1892,7 +2086,9 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF0F172A),
                                 borderRadius: BorderRadius.circular(4),
@@ -1919,18 +2115,24 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                               const SizedBox(width: 10),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFEFF6FF),
                                   borderRadius: BorderRadius.circular(4),
-                                  border:
-                                      Border.all(color: const Color(0xFFBFDBFE)),
+                                  border: Border.all(
+                                    color: const Color(0xFFBFDBFE),
+                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.location_on_outlined,
-                                        size: 13, color: Color(0xFF2563EB)),
+                                    const Icon(
+                                      Icons.location_on_outlined,
+                                      size: 13,
+                                      color: Color(0xFF2563EB),
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       s.room,
@@ -1961,8 +2163,11 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.insights_rounded,
-                        size: 16, color: AppColors.primary),
+                    Icon(
+                      Icons.insights_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       'Grades',
@@ -1985,8 +2190,11 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
             // Roster Section Header + Search Bar
             Row(
               children: [
-                const Icon(Icons.people_alt_rounded,
-                    size: 16, color: AppColors.primary),
+                const Icon(
+                  Icons.people_alt_rounded,
+                  size: 16,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Enrolled Students Roster',
@@ -1999,8 +2207,10 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                 const SizedBox(width: 10),
                 if (_roster != null)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -2025,11 +2235,17 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                     decoration: InputDecoration(
                       hintText: 'Filter by student name...',
                       hintStyle: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                      prefixIcon: const Icon(Icons.search,
-                          size: 16, color: AppColors.textSecondary),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12),
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
                       filled: true,
                       fillColor: const Color(0xFFF9FAFB),
                       border: OutlineInputBorder(
@@ -2043,7 +2259,9 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(
-                            color: AppColors.primary, width: 1.5),
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                     style: const TextStyle(fontSize: 12),
@@ -2054,9 +2272,7 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
             const SizedBox(height: 12),
 
             // Roster Table
-            Expanded(
-              child: _buildRosterBody(displayedRoster),
-            ),
+            Expanded(child: _buildRosterBody(displayedRoster)),
 
             const SizedBox(height: 16),
             const Divider(height: 1, color: AppColors.border),
@@ -2067,7 +2283,10 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                 if (widget.classItem.isMinor)
                   const Text(
                     'Schedule set by the College Head',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   )
                 else
                   OutlinedButton.icon(
@@ -2097,8 +2316,10 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
           children: [
             CircularProgressIndicator(strokeWidth: 2),
             SizedBox(height: 12),
-            Text('Loading student roster...',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            Text(
+              'Loading student roster...',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
           ],
         ),
       );
@@ -2109,18 +2330,18 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded,
-                color: Color(0xFFDC2626), size: 36),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Color(0xFFDC2626),
+              size: 36,
+            ),
             const SizedBox(height: 8),
             Text(
               'Failed to load roster: $_error',
               style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626)),
             ),
             const SizedBox(height: 8),
-            TextButton(
-              onPressed: _fetchRoster,
-              child: const Text('Retry'),
-            ),
+            TextButton(onPressed: _fetchRoster, child: const Text('Retry')),
           ],
         ),
       );
@@ -2151,49 +2372,74 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
               const Divider(height: 1, color: AppColors.border),
           itemBuilder: (ctx, index) {
             final item = roster[index];
-            return Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 14,
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    foregroundColor: const Color(0xFF475569),
-                    child: Text(
-                      item.displayName.isNotEmpty
-                          ? item.displayName[0].toUpperCase()
-                          : 'S',
-                      style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.bold),
+            final studentId = item.studentUserId;
+            return InkWell(
+              key: ValueKey('roster_row_${item.studyLoadId}'),
+              // A Program Head may read grades for students in their program.
+              onTap: studentId == null || studentId.isEmpty
+                  ? null
+                  : () => StudentGradeHistoryDialog.show(
+                      context,
+                      studentUserId: studentId,
+                      studentName: item.displayName,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.displayName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      foregroundColor: const Color(0xFF475569),
+                      child: Text(
+                        item.displayName.isNotEmpty
+                            ? item.displayName[0].toUpperCase()
+                            : 'S',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
                         ),
-                        if (item.studentUserId != null && item.studentUserId!.isNotEmpty)
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            'ID: ${item.studentUserId}',
+                            item.displayName,
                             style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
                             ),
                           ),
-                      ],
+                          if (item.studentUserId != null &&
+                              item.studentUserId!.isNotEmpty)
+                            Text(
+                              'ID: ${item.studentUserId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  StatusBadge.forLoadStatus(item.loadStatus),
-                ],
+                    StatusBadge.forLoadStatus(item.loadStatus),
+                    if (studentId != null && studentId.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           },
@@ -2202,4 +2448,3 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
     );
   }
 }
-

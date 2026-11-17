@@ -128,6 +128,10 @@ class GradeModel {
   final String? subjectTitle;
   final String? className;
 
+  /// Only returned by the per-student grade history, not by the class sheet.
+  final double? units;
+  final String? termLabel;
+
   const GradeModel({
     required this.gradeId,
     required this.studyLoadId,
@@ -143,6 +147,8 @@ class GradeModel {
     this.subjectCode,
     this.subjectTitle,
     this.className,
+    this.units,
+    this.termLabel,
   });
 
   factory GradeModel.fromJson(Map<String, dynamic> json) {
@@ -163,6 +169,8 @@ class GradeModel {
       subjectCode: json['subjectCode'] as String?,
       subjectTitle: json['subjectTitle'] as String?,
       className: json['className'] as String?,
+      units: (json['units'] as num?)?.toDouble(),
+      termLabel: json['termLabel'] as String?,
     );
   }
 

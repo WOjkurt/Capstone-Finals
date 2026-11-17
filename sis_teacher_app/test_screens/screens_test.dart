@@ -61,6 +61,13 @@ Future<http.Response> _api(http.Request req) async {
       for (final n in ['Dela Cruz, Ana', 'Reyes, Mark', 'Santos, Jay', 'Lim, Grace', 'Tan, Rico'])
         {'studyLoadID': 'sl-$n', 'studentUserID': 'u-$n', 'studentName': n, 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'className': 'BSIT 1A', 'loadStatus': 'Enrolled'},
     ];
+  } else if (path.contains('/api/grades/student/')) {
+    body = [
+      {'gradeID': 'h1', 'studyLoadID': 'sl1', 'subjectCode': 'IT 311', 'subjectTitle': 'Systems Integration and Architecture', 'units': 3, 'termLabel': '2026-2027 (1st Sem)', 'midtermGrade': 1.75, 'finalGrade': 1.5, 'remarksLabel': 'Passed'},
+      {'gradeID': 'h2', 'studyLoadID': 'sl2', 'subjectCode': 'IT 312', 'subjectTitle': 'Mobile App Development', 'units': 3, 'termLabel': '2026-2027 (1st Sem)', 'midtermGrade': 2.25},
+      {'gradeID': 'h3', 'studyLoadID': 'sl3', 'subjectCode': 'IT 211', 'subjectTitle': 'Data Structures', 'units': 3, 'termLabel': '2025-2026 (2nd Sem)', 'midtermGrade': 2.0, 'finalGrade': 2.25, 'remarksLabel': 'Passed'},
+      {'gradeID': 'h4', 'studyLoadID': 'sl4', 'subjectCode': 'GEC 102', 'subjectTitle': 'Understanding the Self', 'units': 3, 'termLabel': '2025-2026 (2nd Sem)', 'midtermGrade': 3.5, 'finalGrade': 4.0, 'remarksLabel': 'Failed'},
+    ];
   } else if (path.contains('/api/grades/class/')) {
     body = [
       {'gradeID': 'g1', 'studyLoadID': 'sl1', 'studentName': 'Dela Cruz, Ana', 'midtermGrade': 1.75, 'finalGrade': 1.5},
@@ -131,6 +138,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('IT 101').first);
         await shot(tester, 't06_class_detail');
+
+        // A roster row opens that student's grade history.
+        await tester.tap(find.text('Dela Cruz, Ana').first);
+        await shot(tester, 't07_student_grade_history');
       }
     }, () => MockClient(_api));
   });
