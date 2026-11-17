@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.DTOs.Admin;
 using Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -33,6 +34,15 @@ public class AdminStaffController : ControllerBase
         try
         {
             var result = await _staffService.CreateStaffAsync(dto, adminUserId);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(adminUserId, ActivityActions.StaffCreated,
+                    $"Created {result.RoleName} account for {result.Firstname} {result.Lastname} ({result.Email})",
+                    result.UserID);
+            }
+
             return CreatedAtAction(nameof(GetAllStaff), new { id = result.UserID }, result);
         }
         catch (KeyNotFoundException ex)
@@ -63,6 +73,15 @@ public class AdminStaffController : ControllerBase
         try
         {
             var result = await _staffService.DisableStaffAsync(id, adminUserId);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(adminUserId, ActivityActions.AccountDisabled,
+                    $"Disabled the {result.RoleName} account of {result.Firstname} {result.Lastname} ({result.Email})",
+                    result.UserID);
+            }
+
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -86,6 +105,15 @@ public class AdminStaffController : ControllerBase
         try
         {
             var result = await _staffService.ReactivateStaffAsync(id, adminUserId);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(adminUserId, ActivityActions.AccountReactivated,
+                    $"Reactivated the {result.RoleName} account of {result.Firstname} {result.Lastname} ({result.Email})",
+                    result.UserID);
+            }
+
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -111,9 +139,22 @@ public class AdminStaffController : ControllerBase
             return BadRequest(ModelState);
         }
 
+        var log = this.ActivityLog();
+        // Read the role before the change, so an escalation shows as old -> new.
+        var before = log == null ? null : await log.DescribeStaffAsync(id);
+
         try
         {
             var result = await _staffService.UpdateStaffAsync(id, dto, adminUserId);
+
+            if (log != null && before != null && before.Value.Role != result.Role)
+            {
+                await log.LogAsync(adminUserId, ActivityActions.RoleChanged,
+                    $"{result.Firstname} {result.Lastname} ({result.Email}): "
+                        + $"{RoleUtils.GetRoleName(before.Value.Role)} -> {result.RoleName}",
+                    result.UserID);
+            }
+
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

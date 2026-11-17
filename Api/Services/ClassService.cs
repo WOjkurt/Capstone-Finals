@@ -236,7 +236,9 @@ public class ClassService : IClassService
             throw new KeyNotFoundException($"Class with ID '{classId}' was not found.");
         }
 
-        entity.UserID = dto.UserID;
+        // The assigned teacher is deliberately not settable here. It goes through
+        // PATCH /api/Classes/{id}/teacher, which checks the assignee's role and
+        // program, blocks schedule clashes, and writes an audit entry.
         entity.ClassName = dto.ClassName;
 
         await _classRepository.UpdateAsync(entity);

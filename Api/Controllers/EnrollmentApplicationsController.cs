@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.Domain.Enrollment;
 using Api.DTOs.Enrollment;
 using Api.Services;
@@ -52,6 +53,16 @@ public class EnrollmentApplicationsController : ControllerBase
         try
         {
             await _enrollmentService.ApproveApplicationAsync(id, reviewedByUserId, dto?.YearLevel);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                await log.LogAsync(reviewedByUserId, ActivityActions.ApplicationApproved,
+                    dto?.YearLevel == null
+                        ? $"Approved enrollment application {id}"
+                        : $"Approved enrollment application {id}, year level set to {dto.YearLevel}");
+            }
+
             return Ok(new { message = "Application approved successfully." });
         }
         catch (KeyNotFoundException ex)
@@ -75,6 +86,15 @@ public class EnrollmentApplicationsController : ControllerBase
         try
         {
             await _enrollmentService.RejectApplicationAsync(id, reviewedByUserId, dto?.Reason);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                var reason = string.IsNullOrWhiteSpace(dto?.Reason) ? "no reason given" : dto!.Reason!;
+                await log.LogAsync(reviewedByUserId, ActivityActions.ApplicationRejected,
+                    $"Rejected enrollment application {id}: {reason}");
+            }
+
             return Ok(new { message = "Application rejected successfully." });
         }
         catch (KeyNotFoundException ex)
@@ -103,6 +123,16 @@ public class EnrollmentApplicationsController : ControllerBase
         try
         {
             var result = await _enrollmentService.LinkAccountAsync(id, dto.Email.Trim(), reviewedByUserId);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                // This is what gives a sign-in a student record, so it is worth tracing.
+                await log.LogAsync(reviewedByUserId, ActivityActions.AccountLinked,
+                    $"Linked {dto.Email.Trim()} to enrollment application {id}",
+                    result.StudentUserID, result.TermID);
+            }
+
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

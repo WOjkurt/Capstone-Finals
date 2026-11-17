@@ -26,6 +26,9 @@ public interface IActivityLogService
     /// <summary>The student and term a grade belongs to, for logging corrections.</summary>
     Task<(Guid StudentId, Guid TermId)?> DescribeGradeAsync(Guid gradeId);
 
+    /// <summary>A staff account's name, role and active flag, read before a change so the log can show old and new.</summary>
+    Task<(string Name, int Role, bool IsActive)?> DescribeStaffAsync(Guid userId);
+
     /// <summary>Current year level of each student, read before a change so the log can show old and new.</summary>
     Task<Dictionary<Guid, int?>> YearLevelsAsync(IEnumerable<Guid> studentIds);
 
@@ -126,6 +129,24 @@ public class ActivityLogService : IActivityLogService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not describe grade {Id} for the activity log", gradeId);
+            return null;
+        }
+    }
+
+    public async Task<(string Name, int Role, bool IsActive)?> DescribeStaffAsync(Guid userId)
+    {
+        try
+        {
+            var u = await _context.Users.AsNoTracking()
+                .Where(x => x.UserID == userId)
+                .Select(x => new { x.Role, x.IsActive })
+                .FirstOrDefaultAsync();
+            if (u == null) return null;
+            return (await NameOfAsync(userId) ?? "Unknown staff", u.Role, u.IsActive);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not describe staff {Id} for the activity log", userId);
             return null;
         }
     }

@@ -1,0 +1,11 @@
+# Keep credentials and local build output out of images built from a working
+# copy. Render builds from git, where these are gitignored, but a local
+# `docker build` would otherwise bake them in.
+**/dbtc-firebase-service-account.json
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/*.user
+bin/
+obj/
+.vs/
+.vscode/

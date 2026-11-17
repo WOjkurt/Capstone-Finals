@@ -65,12 +65,21 @@ public static class ActivityActions
     public const string StudentIdChanged = "STUDENT_ID_CHANGED";
     public const string RecordsImported = "RECORDS_IMPORTED";
     public const string SchoolEmailSet = "SCHOOL_EMAIL_SET";
+    public const string GradeSubmitted = "GRADE_SUBMITTED";
+    public const string StaffCreated = "STAFF_CREATED";
+    public const string RoleChanged = "ROLE_CHANGED";
+    public const string AccountDisabled = "ACCOUNT_DISABLED";
+    public const string AccountReactivated = "ACCOUNT_REACTIVATED";
+    public const string ApplicationApproved = "APPLICATION_APPROVED";
+    public const string ApplicationRejected = "APPLICATION_REJECTED";
+    public const string AccountLinked = "ACCOUNT_LINKED";
 
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditRemoved, CreditsImported, FormsImported, EmailsImported, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
         PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged, RecordsImported, SchoolEmailSet,
+        GradeSubmitted, StaffCreated, RoleChanged, AccountDisabled, AccountReactivated, ApplicationApproved, ApplicationRejected, AccountLinked,
         SignInBlocked, AccessDenied
     };
 }

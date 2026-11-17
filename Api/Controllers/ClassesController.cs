@@ -343,9 +343,21 @@ public class ClassesController : ControllerBase
     [HttpGet("{classId:guid}/schedules")]
     public async Task<IActionResult> GetSchedules(Guid classId)
     {
-        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid || (Guid)userIdObj == Guid.Empty)
+        if (!HttpContext.Items.TryGetValue("user_id", out var userIdObj) || userIdObj is not Guid authUserId || authUserId == Guid.Empty)
         {
             return Unauthorized(new { message = "Authentication required." });
+        }
+
+        if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int role)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
+        }
+
+        // Same check as GetById: a signed-in caller should not be able to read
+        // the times and room of any class just by knowing its id.
+        if (!await _classService.CanAccessClassAsync(classId, authUserId, role))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied." });
         }
 
         var schedules = await _scheduleService.GetByClassIdAsync(classId);
