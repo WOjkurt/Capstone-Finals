@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sis_college_head_app/blocs/auth_bloc.dart';
 import 'package:sis_college_head_app/blocs/faculty_bloc.dart';
+import 'package:sis_college_head_app/blocs/irregular_bloc.dart';
 import 'package:sis_college_head_app/blocs/pending_loads_bloc.dart';
 import 'package:sis_college_head_app/blocs/students_bloc.dart';
 import 'package:sis_college_head_app/repositories/class_repository.dart';
@@ -68,6 +69,11 @@ Future<http.Response> _api(http.Request req) async {
       {'userId': 'u1', 'fullName': 'Cruz, Ana', 'programCode': 'BSIT', 'yearLevel': 1, 'lrn': '123456789012', 'pendingCount': 5, 'pendingUnits': 15, 'termUnits': 15, 'maxUnits': 21, 'isOverloaded': false},
       {'userId': 'u2', 'fullName': 'Santos, Ben', 'programCode': 'BSME', 'yearLevel': 4, 'pendingCount': 8, 'pendingUnits': 24, 'termUnits': 24, 'maxUnits': 21, 'isOverloaded': true, 'overloadReason': 'Graduating this year, needs the back subjects.', 'overloadApprovedBy': 'Carla Head'},
     ];
+  } else if (path.endsWith('/api/student-records/irregular')) {
+    body = [
+      {'userId': 'i1', 'studentName': 'Cruz, Ana', 'programCode': 'BSIT', 'yearLevel': 2, 'lrn': '123456789012', 'backMajorUnitsPassed': 6, 'readyToBeRegular': true, 'irregularSince': '2025-08-01T00:00:00Z'},
+      {'userId': 'i2', 'studentName': 'Santos, Ben', 'programCode': 'BSME', 'yearLevel': 3, 'backMajorUnitsPassed': 3, 'readyToBeRegular': false, 'irregularSince': '2026-01-15T00:00:00Z'},
+    ];
   } else if (path.endsWith('/api/students/search')) {
     body = [
       {'userId': 'u1', 'firstname': 'Ana', 'lastname': 'Cruz', 'email': 'ana.cruz@dbtc-cebu.edu.ph', 'role': 5, 'programId': 1, 'programCode': 'BSIT', 'yearLevel': 1, 'lrn': '123456789012'},
@@ -103,6 +109,7 @@ void main() {
         AcademicSetupRepository(MockAuthService(), client));
     final pendingLoads = PendingLoadsBloc(ClassRepository(MockAuthService(), client),
         AcademicSetupRepository(MockAuthService(), client));
+    final irregular = IrregularBloc(StudentRepository(MockAuthService(), client));
     await tester.pumpWidget(RepaintBoundary(
       key: _boundary,
       child: MaterialApp(
@@ -114,6 +121,7 @@ void main() {
             BlocProvider<StudentsBloc>.value(value: students),
             BlocProvider<FacultyBloc>.value(value: faculty),
             BlocProvider<PendingLoadsBloc>.value(value: pendingLoads),
+            BlocProvider<IrregularBloc>.value(value: irregular),
           ],
           child: MainLayoutView(auth: auth),
         ),
@@ -125,7 +133,9 @@ void main() {
     await shot(tester, 'c02_students_results');
     await tester.tap(find.byKey(const ValueKey('nav_Pending loads')));
     await shot(tester, 'c03_pending_loads');
+    await tester.tap(find.byKey(const ValueKey('nav_Irregular students')));
+    await shot(tester, 'c04_irregular');
     await tester.tap(find.byKey(const ValueKey('nav_Faculty')));
-    await shot(tester, 'c04_faculty');
+    await shot(tester, 'c05_faculty');
   });
 }

@@ -38,4 +38,20 @@ class StudentRepository {
         .map((e) => UserSearchResultModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// Students on irregular standing across the whole college, with their
+  /// progress back to regular. Read-only here: only the Registrar may change
+  /// a student's standing.
+  Future<List<IrregularStudentModel>> getIrregularStudents() async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/student-records/irregular');
+    final res = await _client.get(uri, headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return (jsonDecode(res.body) as List)
+        .map((e) => IrregularStudentModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 }

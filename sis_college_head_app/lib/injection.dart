@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'blocs/faculty_bloc.dart';
+import 'blocs/irregular_bloc.dart';
 import 'blocs/pending_loads_bloc.dart';
 import 'blocs/students_bloc.dart';
 import 'repositories/class_repository.dart';
@@ -34,6 +35,8 @@ void setupLocator() {
         getIt<ClassRepository>(),
         getIt<AcademicSetupRepository>(),
       ));
+  getIt.registerFactory<IrregularBloc>(
+      () => IrregularBloc(getIt<StudentRepository>()));
   getIt.registerFactory<PendingLoadsBloc>(() => PendingLoadsBloc(
         getIt<ClassRepository>(),
         getIt<AcademicSetupRepository>(),

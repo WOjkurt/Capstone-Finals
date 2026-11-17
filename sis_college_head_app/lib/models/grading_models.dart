@@ -93,3 +93,52 @@ class UserSearchResultModel {
     );
   }
 }
+
+/// A student on irregular standing and how far they are from returning to
+/// regular. DBTC's rule is 6 units of back major subjects passed.
+class IrregularStudentModel {
+  final String userId;
+  final String studentName;
+  final String? lrn;
+  final String? programCode;
+  final int? yearLevel;
+  final DateTime? irregularSince;
+  final double backMajorUnitsPassed;
+  final bool readyToBeRegular;
+
+  const IrregularStudentModel({
+    required this.userId,
+    required this.studentName,
+    this.lrn,
+    this.programCode,
+    this.yearLevel,
+    this.irregularSince,
+    required this.backMajorUnitsPassed,
+    required this.readyToBeRegular,
+  });
+
+  /// The units the Registrar's rule asks for before a student is regular again.
+  static const double unitsToRegular = 6;
+
+  String get progressLabel {
+    final passed = backMajorUnitsPassed;
+    final text =
+        passed.toStringAsFixed(passed.truncateToDouble() == passed ? 0 : 1);
+    return '$text/${unitsToRegular.toStringAsFixed(0)} units';
+  }
+
+  factory IrregularStudentModel.fromJson(Map<String, dynamic> json) {
+    final since = json['irregularSince'] as String?;
+    return IrregularStudentModel(
+      userId: json['userId'] as String? ?? json['userID'] as String? ?? '',
+      studentName: json['studentName'] as String? ?? 'Unknown Student',
+      lrn: json['lrn'] as String? ?? json['LRN'] as String?,
+      programCode: json['programCode'] as String?,
+      yearLevel: (json['yearLevel'] as num?)?.toInt(),
+      irregularSince: since == null ? null : DateTime.tryParse(since),
+      backMajorUnitsPassed:
+          (json['backMajorUnitsPassed'] as num?)?.toDouble() ?? 0.0,
+      readyToBeRegular: json['readyToBeRegular'] as bool? ?? false,
+    );
+  }
+}

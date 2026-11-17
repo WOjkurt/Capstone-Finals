@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/auth_bloc.dart';
 import 'blocs/faculty_bloc.dart';
+import 'blocs/irregular_bloc.dart';
 import 'blocs/pending_loads_bloc.dart';
 import 'blocs/students_bloc.dart';
 import 'firebase_options.dart';
@@ -50,6 +51,9 @@ class SisCollegeHeadApp extends StatelessWidget {
         ),
         BlocProvider<PendingLoadsBloc>(
           create: (_) => getIt<PendingLoadsBloc>(),
+        ),
+        BlocProvider<IrregularBloc>(
+          create: (_) => getIt<IrregularBloc>(),
         ),
       ],
       child: MaterialApp(
