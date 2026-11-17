@@ -9,6 +9,7 @@ import '../models/class_models.dart';
 import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
+import 'widgets/class_grade_summary.dart';
 import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/stat_card.dart';
@@ -1948,6 +1949,33 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                       );
                     }).toList(),
                   ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 16),
+
+            // How the class is doing, for a Program Head who does not teach it.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.insights_rounded,
+                        size: 16, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text(
+                      'Grades',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ClassGradeSummary(classId: c.classId),
               ],
             ),
             const SizedBox(height: 16),

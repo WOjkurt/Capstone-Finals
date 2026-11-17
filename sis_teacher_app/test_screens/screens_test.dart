@@ -56,6 +56,19 @@ Future<http.Response> _api(http.Request req) async {
             {'userID': 't2', 'firstname': 'Rita', 'lastname': 'Santos', 'email': 'rita.santos@dbtc-cebu.edu.ph', 'role': 3, 'roleName': 'Teacher', 'programID': 1, 'programCode': 'BSIT'},
           ]
         : <Object>[];
+  } else if (path.contains('/api/studyloads/class/')) {
+    body = [
+      for (final n in ['Dela Cruz, Ana', 'Reyes, Mark', 'Santos, Jay', 'Lim, Grace', 'Tan, Rico'])
+        {'studyLoadID': 'sl-$n', 'studentUserID': 'u-$n', 'studentName': n, 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'className': 'BSIT 1A', 'loadStatus': 'Enrolled'},
+    ];
+  } else if (path.contains('/api/grades/class/')) {
+    body = [
+      {'gradeID': 'g1', 'studyLoadID': 'sl1', 'studentName': 'Dela Cruz, Ana', 'midtermGrade': 1.75, 'finalGrade': 1.5},
+      {'gradeID': 'g2', 'studyLoadID': 'sl2', 'studentName': 'Reyes, Mark', 'midtermGrade': 2.25, 'finalGrade': 2.0},
+      {'gradeID': 'g3', 'studyLoadID': 'sl3', 'studentName': 'Santos, Jay', 'midtermGrade': 3.5, 'finalGrade': 5.0},
+      {'gradeID': 'g4', 'studyLoadID': 'sl4', 'studentName': 'Lim, Grace', 'midtermGrade': 4.0},
+      {'gradeID': 'g5', 'studyLoadID': 'sl5', 'studentName': 'Tan, Rico', 'midtermGrade': 2.0},
+    ];
   } else if (path.endsWith('/api/subjects')) {
     body = [
       {'subjectID': 's1', 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'lecUnits': 2, 'labUnits': 1, 'lecHours': 2, 'labHours': 3, 'programID': 1, 'yearLevel': 1, 'defaultSemester': 1},
@@ -110,6 +123,14 @@ void main() {
       for (final p in pages) {
         await tester.tap(find.byKey(ValueKey('nav_$p')));
         await shot(tester, 't0${i++}_${p.replaceAll(' ', '_').toLowerCase()}');
+      }
+
+      // The class detail dialog holds the grade summary, so capture it open.
+      if (head) {
+        await tester.tap(find.byKey(const ValueKey('nav_Program Overview')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('IT 101').first);
+        await shot(tester, 't06_class_detail');
       }
     }, () => MockClient(_api));
   });
