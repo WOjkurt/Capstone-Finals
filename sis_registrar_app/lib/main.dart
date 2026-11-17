@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/applications_bloc.dart';
@@ -23,6 +25,12 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // This is the most privileged role on a shared office computer, so closing
+  // the tab must end the session. SESSION survives a reload, not a tab close.
+  if (kIsWeb) {
+    await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
+  }
 
   setupLocator();
 
