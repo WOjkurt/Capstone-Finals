@@ -93,14 +93,21 @@ void main() {
         await pumpAt(tester, width);
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.byKey(const ValueKey('full_sidebar')), findsNothing);
-        expect(find.byKey(const ValueKey('sign_out_button')), findsOneWidget);
+        // Signing out lives on the Profile page, not in the chrome.
+        expect(find.byKey(const ValueKey('sign_out_button')), findsNothing);
+        // The app bar names the page; the page header no longer repeats it.
+        expect(find.text('My Schedule'), findsOneWidget);
         for (final label in ['Grades', 'Clearance', 'Enroll', 'Profile', 'Schedule']) {
           await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text(label)));
           await tester.pumpAndSettle();
+          if (label == 'Grades') {
+            expect(find.text('My Grades'), findsOneWidget);
+          }
           if (label == 'Profile') {
             await tester.scrollUntilVisible(find.byKey(const ValueKey('change_password_button')), 200,
                 scrollable: find.byType(Scrollable).last);
             expect(find.byKey(const ValueKey('change_password_button')), findsOneWidget);
+            expect(find.byKey(const ValueKey('sign_out_button')), findsOneWidget);
           }
         }
       }, () => MockClient(fakeApi));
@@ -113,7 +120,7 @@ void main() {
       expect(find.byKey(const ValueKey('compact_sidebar')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('nav_My Grades')));
       await tester.pumpAndSettle();
-      expect(find.text('Official midterm and final grades per academic term.'), findsOneWidget);
+      expect(find.text('Total Subjects'), findsOneWidget);
 
       await pumpAt(tester, 1440, height: 900);
       expect(find.byKey(const ValueKey('full_sidebar')), findsOneWidget);
@@ -121,6 +128,36 @@ void main() {
       expect(find.text('Student Portal'), findsOneWidget);
     }, () => MockClient(fakeApi));
   });
+
+  for (final width in [412.0, 1440.0]) {
+    testWidgets('Profile offers Sign out ($width)', (tester) async {
+      await http.runWithClient(() async {
+        await pumpAt(tester, width, height: 900);
+
+        // Go to Profile, whichever menu this width uses.
+        if (width < 700) {
+          await tester.tap(find.descendant(
+              of: find.byType(NavigationBar), matching: find.text('Profile')));
+        } else {
+          await tester.tap(find.byKey(const ValueKey('nav_Profile')));
+        }
+        await tester.pumpAndSettle();
+
+        final signOut = find.byKey(const ValueKey('sign_out_button'));
+        await tester.scrollUntilVisible(signOut, 200,
+            scrollable: find.byType(Scrollable).last);
+        // scrollUntilVisible stops as soon as the widget is built, which can
+        // still leave it below the viewport; this brings it fully into view.
+        await tester.ensureVisible(signOut);
+        await tester.pumpAndSettle();
+        expect(signOut, findsOneWidget);
+
+        await tester.tap(signOut);
+        await tester.pumpAndSettle();
+        expect(find.text('Log out?'), findsOneWidget);
+      }, () => MockClient(fakeApi));
+    });
+  }
 
   test('the menu name falls back to the email', () {
     expect(studentAuth(fullName: ' ').displayName, 'ana.delacruz.2026@dbtc-cebu.edu.ph');

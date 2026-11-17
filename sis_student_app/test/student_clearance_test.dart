@@ -8,6 +8,7 @@ import 'package:sis_student_app/models/setup_models.dart';
 import 'package:sis_student_app/models/student_models.dart';
 import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/views/clearance_status_view.dart';
+import 'package:sis_student_app/views/widgets/status_badge.dart';
 
 class MockStudentRepository implements StudentRepository {
   List<GradeClearanceModel> clearances = [];
@@ -141,7 +142,7 @@ void main() {
       bloc.close();
     });
 
-    testWidgets('renders clearance cards and summary strip when records exist', (tester) async {
+    testWidgets('renders one row per term with a status badge', (tester) async {
       repo.clearances = [term1Clearance, term2Clearance];
       final bloc = ClearanceBloc(repo);
 
@@ -149,20 +150,24 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // Summary counts
-      expect(find.text('Total Terms'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('Cleared'), findsWidgets);
-      expect(find.text('Withheld'), findsWidgets);
+      // One badge per term, no summary strip
+      expect(find.byType(StatusBadge), findsNWidgets(2));
+      expect(find.text('Total Terms'), findsNothing);
+      expect(find.text('Cleared'), findsOneWidget);
+      expect(find.text('Withheld'), findsOneWidget);
 
-      // Term 2 Card (most recent first, cleared)
+      // Term 2 row (most recent first, cleared)
       expect(find.text('2025-2026 (Sem 2)'), findsOneWidget);
-      expect(find.text('Grade viewing authorized for this term'), findsOneWidget);
-      expect(find.textContaining('Audited by: Registrar Officer'), findsOneWidget);
+      expect(find.textContaining('Cleared by Registrar Officer'), findsOneWidget);
 
-      // Term 1 Card (withheld)
+      // Term 1 row (withheld)
       expect(find.text('2025-2026 (Sem 1)'), findsOneWidget);
-      expect(find.text('Grades withheld pending settlement'), findsOneWidget);
+      expect(find.text('Settle requirements with the Registrar'), findsOneWidget);
+
+      // Newest term is listed first
+      final term2Y = tester.getTopLeft(find.text('2025-2026 (Sem 2)')).dy;
+      final term1Y = tester.getTopLeft(find.text('2025-2026 (Sem 1)')).dy;
+      expect(term2Y, lessThan(term1Y));
 
       bloc.close();
     });

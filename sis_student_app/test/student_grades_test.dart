@@ -8,6 +8,7 @@ import 'package:sis_student_app/models/setup_models.dart';
 import 'package:sis_student_app/models/student_models.dart';
 import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/views/grades_view.dart';
+import 'package:sis_student_app/views/widgets/status_badge.dart';
 
 class MockStudentRepository implements StudentRepository {
   List<AcademicTermModel> terms = [];
@@ -261,7 +262,6 @@ void main() {
       await tester.pumpAndSettle(); // Loaded
 
       expect(find.text('My Grades'), findsOneWidget);
-      expect(find.text('Clearance Withheld'), findsOneWidget);
       expect(find.text('Grades Withheld Pending Clearance'), findsOneWidget);
       expect(find.textContaining('Requirements for Clearance'), findsOneWidget);
 
@@ -284,7 +284,6 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      expect(find.text('Clearance Cleared'), findsOneWidget);
       expect(find.text('No Grades Submitted Yet'), findsOneWidget);
       expect(find.textContaining('No grades have been submitted yet'), findsOneWidget);
 
@@ -338,21 +337,90 @@ void main() {
       expect(find.text('Passed'), findsWidgets);
       expect(find.text('Pending Final'), findsOneWidget);
 
-      // Grade Cards
+      // Table rows (desktop width → DataTable)
+      expect(find.byType(DataTable), findsOneWidget);
       expect(find.text('IT 311'), findsOneWidget);
       expect(find.text('Systems Integration and Architecture'), findsOneWidget);
       expect(find.text('1.75'), findsOneWidget);
       expect(find.text('2.00'), findsOneWidget);
-      expect(find.text('Instructor: Prof. Rizal'), findsOneWidget);
+      expect(find.textContaining('Prof. Rizal'), findsOneWidget);
 
-      // Midterm-only card
+      // Midterm-only row
       expect(find.text('IT 312'), findsOneWidget);
       expect(find.text('Mobile App Development'), findsOneWidget);
       expect(find.text('2.25'), findsOneWidget);
       expect(find.text('—'), findsWidgets); // Final grade displays "—" and Remarks displays "—"
-      expect(find.text('Instructor: Prof. Luna'), findsOneWidget);
+      expect(find.textContaining('Prof. Luna'), findsOneWidget);
 
       bloc.close();
+    });
+
+    testWidgets('uses compact rows instead of a table on phones', (tester) async {
+      tester.view.physicalSize = const Size(390, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      repo.clearances = [
+        const GradeClearanceModel(
+          clearanceId: 'c-2',
+          userId: 'user-1',
+          termId: 'term-2',
+          isCleared: true,
+        ),
+      ];
+      repo.gradesByTerm['term-2'] = [
+        const GradeModel(
+          gradeId: 'g-1',
+          studyLoadId: 'sl-1',
+          midtermGrade: 1.75,
+          finalGrade: 2.00,
+          remarks: 1,
+          remarksLabel: 'Passed',
+          subjectCode: 'IT 311',
+          subjectTitle: 'Systems Integration and Architecture',
+          className: 'BSIT-3A',
+          teacherName: 'Prof. Rizal',
+          units: 3,
+        ),
+      ];
+
+      final bloc = GradesBloc(repo);
+      await tester.pumpWidget(createWidgetUnderTest(bloc));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DataTable), findsNothing);
+      expect(find.textContaining('IT 311 ·'), findsOneWidget);
+      expect(find.textContaining('Mid 1.75'), findsOneWidget);
+      expect(find.textContaining('Final 2.00'), findsOneWidget);
+      // The remark is plain text on phones, not a coloured badge.
+      expect(find.byType(StatusBadge), findsNothing);
+      expect(find.text('Passed'), findsWidgets);
+
+      bloc.close();
+    });
+  });
+
+  group('GradeModel', () {
+    test('parses units from JSON', () {
+      final grade = GradeModel.fromJson(const {
+        'gradeId': 'g-1',
+        'studyLoadId': 'sl-1',
+        'subjectCode': 'IT 311',
+        'units': 3,
+      });
+
+      expect(grade.units, 3.0);
+    });
+
+    test('leaves units null when the API omits it', () {
+      final grade = GradeModel.fromJson(const {
+        'gradeId': 'g-1',
+        'studyLoadId': 'sl-1',
+      });
+
+      expect(grade.units, isNull);
     });
   });
 }

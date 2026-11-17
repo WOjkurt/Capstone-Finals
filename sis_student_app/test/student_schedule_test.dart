@@ -10,12 +10,19 @@ import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/services/auth_service.dart';
 import 'package:sis_student_app/theme/app_theme.dart';
 import 'package:sis_student_app/views/schedule_view.dart';
+import 'package:sis_student_app/views/widgets/term_dropdown.dart';
 
 class FakeAuthService extends AuthService {}
 
 class FakeStudentRepository implements StudentRepository {
   AcademicTermModel? activeTerm;
   List<StudentScheduleItemModel> scheduleItems = [];
+
+  /// Per-term schedules; falls back to [scheduleItems] when a term has no entry.
+  Map<String, List<StudentScheduleItemModel>> scheduleByTerm = {};
+
+  /// When set, overrides the default "just the active term" list.
+  List<AcademicTermModel>? allTerms;
   bool shouldThrow = false;
   String? lastUserIdPassed;
   String? lastTermIdPassed;
@@ -38,12 +45,12 @@ class FakeStudentRepository implements StudentRepository {
     }
     lastUserIdPassed = userId;
     lastTermIdPassed = termId;
-    return scheduleItems;
+    return scheduleByTerm[termId] ?? scheduleItems;
   }
 
   @override
   Future<List<AcademicTermModel>> getAllTerms() async =>
-      activeTerm != null ? [activeTerm!] : [];
+      allTerms ?? (activeTerm != null ? [activeTerm!] : []);
 
   @override
   Future<List<GradeClearanceModel>> getGradeClearances(String userId) async => [];
@@ -542,6 +549,114 @@ void main() {
       expect(find.text('PHYS 101'), findsNothing);
       expect(find.text('University Physics'), findsNothing);
       expect(find.text('Waiting for Registrar approval'), findsNothing);
+
+      bloc.close();
+    });
+
+    testWidgets('term dropdown loads a previous term\'s schedule',
+        (tester) async {
+      const activeTerm = AcademicTermModel(
+        termId: 'term-2',
+        schoolYear: '2026-2027',
+        semester: 1,
+        isActive: true,
+      );
+      const pastTerm = AcademicTermModel(
+        termId: 'term-1',
+        schoolYear: '2025-2026',
+        semester: 2,
+        isActive: false,
+      );
+
+      repository.activeTerm = activeTerm;
+      repository.allTerms = [activeTerm, pastTerm];
+      repository.scheduleByTerm = {
+        'term-2': [
+          const StudentScheduleItemModel(
+            studyLoadId: 'sl-now',
+            classId: 'c-now',
+            subjectCode: 'CS 301',
+            subjectTitle: 'Software Engineering',
+            units: 3.0,
+            className: 'BSCS 3A',
+            loadStatus: 'Enrolled',
+            termLabel: '2026-2027 (1st Sem)',
+          ),
+        ],
+        'term-1': [
+          const StudentScheduleItemModel(
+            studyLoadId: 'sl-past',
+            classId: 'c-past',
+            subjectCode: 'CS 201',
+            subjectTitle: 'Data Structures',
+            units: 3.0,
+            className: 'BSCS 2A',
+            loadStatus: 'Enrolled',
+            termLabel: '2025-2026 (2nd Sem)',
+          ),
+        ],
+      };
+
+      final bloc = ScheduleBloc(repository);
+      await tester.pumpWidget(createTestWidget(bloc: bloc));
+      await tester.pumpAndSettle();
+
+      // Starts on the active term
+      expect(find.text('CS 301'), findsOneWidget);
+      expect(find.text('CS 201'), findsNothing);
+
+      // Pick the previous term from the dropdown
+      await tester.tap(find.byType(TermDropdown));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2025-2026 (2nd Sem)').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastTermIdPassed, 'term-1');
+      expect(find.text('CS 201'), findsOneWidget);
+      expect(find.text('CS 301'), findsNothing);
+
+      bloc.close();
+    });
+  });
+
+  group('ScheduleBloc term selection', () {
+    late FakeStudentRepository repository;
+
+    setUp(() {
+      repository = FakeStudentRepository();
+    });
+
+    test('SelectScheduleTermEvent fetches the chosen term', () async {
+      const activeTerm = AcademicTermModel(
+        termId: 'term-2',
+        schoolYear: '2026-2027',
+        semester: 1,
+        isActive: true,
+      );
+      const pastTerm = AcademicTermModel(
+        termId: 'term-1',
+        schoolYear: '2025-2026',
+        semester: 2,
+        isActive: false,
+      );
+
+      repository.activeTerm = activeTerm;
+      repository.allTerms = [activeTerm, pastTerm];
+
+      final bloc = ScheduleBloc(repository);
+      bloc.add(LoadScheduleEvent(userId: 'student-1'));
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect((bloc.state as ScheduleLoaded).selectedTerm?.termId, 'term-2');
+      expect((bloc.state as ScheduleLoaded).terms.length, 2);
+
+      bloc.add(SelectScheduleTermEvent(term: pastTerm, userId: 'student-1'));
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      final state = bloc.state as ScheduleLoaded;
+      expect(state.selectedTerm?.termId, 'term-1');
+      expect(state.isTermLoading, isFalse);
+      expect(repository.lastTermIdPassed, 'term-1');
 
       bloc.close();
     });

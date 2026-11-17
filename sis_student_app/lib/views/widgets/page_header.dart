@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Top of every page: a title that matches the menu label, one line of help,
-/// an optional main action, and an optional small refresh button.
+/// Top of every page: a title that matches the menu label, an optional main
+/// action, and an optional small refresh button.
 class PageHeader extends StatelessWidget {
   final String title;
-  final String subtitle;
+
+  /// An optional line of help under the title. Most pages leave this out — the
+  /// title and the menu already say what the page is.
+  final String? subtitle;
   final Widget? action;
 
   /// Shows a small refresh icon button. Refreshing is a minor action, so it never
@@ -17,31 +20,98 @@ class PageHeader extends StatelessWidget {
   /// Extra controls under the title, such as the term picker.
   final Widget? below;
 
+  /// On phones the app bar already names the page, so a header carrying nothing
+  /// but a refresh button is an empty white strip and collapses away. Pages that
+  /// have no pull-to-refresh of their own set this false to keep the button.
+  final bool collapseWhenEmptyOnPhone;
+
   const PageHeader({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.action,
     this.onRefresh,
     this.onBack,
     this.below,
+    this.collapseWhenEmptyOnPhone = true,
   });
 
   @override
   Widget build(BuildContext context) {
     // Students mostly use phones: tighter spacing and smaller text there.
     final phone = MediaQuery.sizeOf(context).width < 700;
+    final hasSubtitle = subtitle != null && subtitle!.isNotEmpty;
+
+    // Nothing left to show on a phone once the title lives in the app bar.
+    if (phone &&
+        collapseWhenEmptyOnPhone &&
+        !hasSubtitle &&
+        below == null &&
+        action == null &&
+        onBack == null) {
+      return const SizedBox.shrink();
+    }
+
+    final backButton = onBack == null
+        ? null
+        : IconButton(
+            key: const ValueKey('page_back_button'),
+            tooltip: 'Back',
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back_rounded),
+          );
+
+    final refreshButton = onRefresh == null
+        ? null
+        : IconButton(
+            key: const ValueKey('page_refresh_button'),
+            tooltip: 'Refresh',
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh_rounded),
+            color: const Color(0xFF475569),
+            style: IconButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+
+    Widget wrap(Widget child) => Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: phone ? 16 : 32,
+            vertical: phone ? 10 : 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+          ),
+          child: child,
+        );
+
+    // On a phone with no title or subtitle to show, the refresh button would
+    // sit alone above the controls. Put them on one line instead.
+    if (phone && !hasSubtitle && below != null) {
+      return wrap(Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (backButton != null) ...[backButton, const SizedBox(width: 8)],
+          Expanded(child: below!),
+          if (refreshButton != null) ...[
+            const SizedBox(width: 12),
+            refreshButton,
+          ],
+          if (action != null) ...[const SizedBox(width: 12), action!],
+        ],
+      ));
+    }
+
     final top = Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (onBack != null) ...[
-            IconButton(
-              key: const ValueKey('page_back_button'),
-              tooltip: 'Back',
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_rounded),
-            ),
+          if (backButton != null) ...[
+            backButton,
             const SizedBox(width: 8),
           ],
           Expanded(
@@ -49,39 +119,34 @@ class PageHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: phone ? 20 : 24,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF111827),
-                    letterSpacing: -0.5,
+                // On phones the app bar already names the page, so the title
+                // is not repeated here.
+                if (!phone)
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: phone ? 13 : 14,
-                    color: const Color(0xFF6B7280),
+                if (hasSubtitle) ...[
+                  if (!phone) const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: TextStyle(
+                      fontSize: phone ? 13 : 14,
+                      color: const Color(0xFF6B7280),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
-          if (onRefresh != null) ...[
+          if (refreshButton != null) ...[
             const SizedBox(width: 16),
-            IconButton(
-              key: const ValueKey('page_refresh_button'),
-              tooltip: 'Refresh',
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
-              color: const Color(0xFF475569),
-              style: IconButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
+            refreshButton,
           ],
           if (action != null) ...[
             const SizedBox(width: 12),
@@ -89,13 +154,8 @@ class PageHeader extends StatelessWidget {
           ],
         ],
     );
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: phone ? 16 : 32, vertical: phone ? 14 : 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
-      ),
-      child: below == null
+    return wrap(
+      below == null
           ? top
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

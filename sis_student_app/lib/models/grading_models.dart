@@ -164,6 +164,7 @@ class GradeModel {
   final String? subjectCode;
   final String? subjectTitle;
   final String? className;
+  final double? units;
 
   const GradeModel({
     required this.gradeId,
@@ -180,6 +181,7 @@ class GradeModel {
     this.subjectCode,
     this.subjectTitle,
     this.className,
+    this.units,
   });
 
   factory GradeModel.fromJson(Map<String, dynamic> json) {
@@ -200,6 +202,7 @@ class GradeModel {
       subjectCode: json['subjectCode'] as String?,
       subjectTitle: json['subjectTitle'] as String?,
       className: json['className'] as String?,
+      units: (json['units'] as num?)?.toDouble(),
     );
   }
 

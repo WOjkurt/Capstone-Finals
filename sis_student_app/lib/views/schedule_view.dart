@@ -5,6 +5,7 @@ import '../models/class_models.dart';
 import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/term_dropdown.dart';
 
 class ScheduleView extends StatefulWidget {
   final String userId;
@@ -60,14 +61,13 @@ class _ScheduleViewState extends State<ScheduleView> {
     double totalUnits = 0.0;
 
     if (state is ScheduleLoaded) {
-      term = state.activeTerm;
+      term = state.selectedTerm;
       enrolledCount = state.enrolledItems.length;
       totalUnits = state.totalUnits;
     }
 
     return PageHeader(
       title: 'My Schedule',
-      subtitle: 'View your enrolled subjects, class sections, and weekly schedule.',
       onRefresh: () => _loadSchedule(refresh: true),
       below: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,7 +77,22 @@ class _ScheduleViewState extends State<ScheduleView> {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              // Active Term Pill
+              // Term picker (falls back to a static pill when no terms exist)
+              if (state is ScheduleLoaded && state.terms.isNotEmpty)
+                TermDropdown(
+                  terms: state.terms,
+                  selected: state.selectedTerm,
+                  activeTerm: state.activeTerm,
+                  onChanged: (newTerm) {
+                    context.read<ScheduleBloc>().add(
+                          SelectScheduleTermEvent(
+                            term: newTerm,
+                            userId: widget.userId,
+                          ),
+                        );
+                  },
+                )
+              else
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -117,32 +132,14 @@ class _ScheduleViewState extends State<ScheduleView> {
                         ),
                       ),
                     ),
-                    if (term != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentGreen,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'ACTIVE',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
 
               // Enrolled Stats Pill (when loaded)
-              if (state is ScheduleLoaded && term != null) ...[
+              if (state is ScheduleLoaded &&
+                  term != null &&
+                  !state.isTermLoading) ...[
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -247,7 +244,18 @@ class _ScheduleViewState extends State<ScheduleView> {
     }
 
     if (state is ScheduleLoaded) {
-      if (state.activeTerm == null) {
+      // Spinner while a different term's schedule is loading
+      if (state.isTermLoading) {
+        return [
+          const SliverFillRemaining(
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          ),
+        ];
+      }
+
+      if (state.terms.isEmpty && state.selectedTerm == null) {
         return [
           SliverFillRemaining(
             hasScrollBody: false,
@@ -368,7 +376,7 @@ class _ScheduleViewState extends State<ScheduleView> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'You are not currently enrolled in any subjects for ${state.activeTerm!.label}. If you just registered, please allow a few minutes or consult the Registrar.',
+                          'No classes were found for ${state.selectedTerm?.label ?? 'this term'}. If you just registered, please allow a few minutes or consult the Registrar.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 13,
@@ -533,7 +541,9 @@ class _ScheduleViewState extends State<ScheduleView> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Section: ${item.className} · ${item.unitsLabel}',
+                            hasRealSection(item.className)
+                                ? 'Section: ${item.className} · ${item.unitsLabel}'
+                                : item.unitsLabel,
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondary,
@@ -570,10 +580,43 @@ class _ScheduleViewState extends State<ScheduleView> {
   }
 }
 
+/// Section name the API gives classes created by the records import, for
+/// historical loads that never belonged to a real section.
+/// See Api/Services/RecordsImportService.cs (`ImportedClassName`).
+const String _importedClassName = 'Old records';
+
+/// False for an empty section and for the import placeholder, so neither is
+/// shown to the student as if it were a real section.
+bool hasRealSection(String className) =>
+    className.isNotEmpty &&
+    className.trim().toLowerCase() != _importedClassName.toLowerCase();
+
 class _StudentClassCard extends StatelessWidget {
   final StudentScheduleItemModel item;
 
   const _StudentClassCard({required this.item});
+
+  /// One neutral chip. The card reads calmer when the chips do not each carry
+  /// their own colour.
+  Widget _chip(String label, {bool bold = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: bold ? 12 : 11,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+          color: const Color(0xFF475569),
+          letterSpacing: bold ? 0.3 : 0,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -601,82 +644,17 @@ class _StudentClassCard extends StatelessWidget {
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // Subject Code Badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    item.subjectCode,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryDark,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
+                // Subject Code
+                _chip(item.subjectCode, bold: true),
 
-                // Section Badge
-                if (item.className.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3.5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Text(
-                      item.className,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
-                  ),
+                // Section — hidden for imported historical records, which carry
+                // a placeholder section name rather than a real one.
+                if (hasRealSection(item.className)) _chip(item.className),
 
-                // Units Badge
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFDCFCE7)),
-                  ),
-                  child: Text(
-                    item.unitsLabel,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.accentGreenDark,
-                    ),
-                  ),
-                ),
+                // Units
+                _chip(item.unitsLabel),
 
-                // Load Status Badge (e.g. Enrolled)
-                if (item.loadStatus.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 7, vertical: 3.5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      item.loadStatus,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
+                // No status chip: this list only ever holds enrolled classes.
               ],
             ),
           ),

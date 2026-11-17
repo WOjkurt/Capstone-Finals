@@ -263,8 +263,9 @@ class _EnrollmentViewState extends State<EnrollmentView> {
           SliverToBoxAdapter(
             child: PageHeader(
               title: 'Enrollment',
-              subtitle: 'Enroll for the next term with your information from last time.',
               onRefresh: _load,
+              // This page has no pull-to-refresh, so keep the button on phones.
+              collapseWhenEmptyOnPhone: false,
             ),
           ),
           SliverPadding(

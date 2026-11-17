@@ -5,6 +5,9 @@ import '../models/grading_models.dart';
 import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/stat_strip.dart';
+import 'widgets/status_badge.dart';
+import 'widgets/term_dropdown.dart';
 
 class GradesView extends StatefulWidget {
   final String userId;
@@ -24,8 +27,8 @@ class _GradesViewState extends State<GradesView> {
 
   void _loadGrades({bool refresh = false}) {
     context.read<GradesBloc>().add(
-          LoadGradesEvent(userId: widget.userId, refresh: refresh),
-        );
+      LoadGradesEvent(userId: widget.userId, refresh: refresh),
+    );
   }
 
   @override
@@ -42,9 +45,7 @@ class _GradesViewState extends State<GradesView> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                SliverToBoxAdapter(
-                  child: _buildHeader(state),
-                ),
+                SliverToBoxAdapter(child: _buildHeader(state)),
                 ..._buildBodySlivers(state),
               ],
             ),
@@ -59,102 +60,25 @@ class _GradesViewState extends State<GradesView> {
   Widget _buildHeader(GradesState state) {
     return PageHeader(
       title: 'My Grades',
-      subtitle: 'Official midterm and final grades per academic term.',
       onRefresh: () => _loadGrades(refresh: true),
-      // Term picker, and a subtle clearance status beside it.
       below: state is! GradesLoaded
           ? null
-          : Wrap(
-              spacing: 12,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (state.terms.isNotEmpty)
-                  _buildTermDropdown(state)
-                else
-                  _buildStaticTermPill(state.selectedTerm),
-                _buildClearanceStatusIndicator(state),
-              ],
-            ),
+          : (state.terms.isNotEmpty
+                ? _buildTermDropdown(state)
+                : _buildStaticTermPill(state.selectedTerm)),
     );
   }
 
   Widget _buildTermDropdown(GradesLoaded state) {
-    return Container(
-      height: 34,
-      // Never wider than a phone screen, less the page margins.
-      width: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 280.0),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<AcademicTermModel>(
-          value: state.selectedTerm,
-          isDense: true,
-          isExpanded: true,
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: AppColors.textSecondary,
-          ),
-          // A dropdown's style replaces the theme's, so it must name the font itself.
-          style: const TextStyle(
-            fontFamily: AppTheme.fontFamily,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-          onChanged: (AcademicTermModel? newTerm) {
-            if (newTerm != null) {
-              context.read<GradesBloc>().add(
-                    SelectTermEvent(term: newTerm, userId: widget.userId),
-                  );
-            }
-          },
-          items: state.terms.map((term) {
-            final isCurrentActive =
-                state.activeTerm?.termId == term.termId || term.isActive;
-            return DropdownMenuItem<AcademicTermModel>(
-              value: term,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.calendar_today_rounded,
-                    size: 13,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(child: Text(term.label, overflow: TextOverflow.ellipsis)),
-                  if (isCurrentActive) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentGreen,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: const Text(
-                        'ACTIVE',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }).toList(),
-        ),
-      ),
+    return TermDropdown(
+      terms: state.terms,
+      selected: state.selectedTerm,
+      activeTerm: state.activeTerm,
+      onChanged: (newTerm) {
+        context.read<GradesBloc>().add(
+          SelectTermEvent(term: newTerm, userId: widget.userId),
+        );
+      },
     );
   }
 
@@ -178,41 +102,13 @@ class _GradesViewState extends State<GradesView> {
     );
   }
 
-  /// Compact, secondary clearance status indicator (icon + label)
-  Widget _buildClearanceStatusIndicator(GradesLoaded state) {
-    final isWithheld = state.isClearanceWithheld;
-    final color = isWithheld ? const Color(0xFFB45309) : AppColors.accentGreenDark;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          isWithheld ? Icons.lock_outline_rounded : Icons.check_circle_rounded,
-          size: 13,
-          color: color,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          isWithheld ? 'Clearance Withheld' : 'Clearance Cleared',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
   // ── Body Slivers ───────────────────────────────────────────────────────────
 
   List<Widget> _buildBodySlivers(GradesState state) {
     if (state is GradesLoading || state is GradesInitial) {
       return [
         const SliverFillRemaining(
-          child: Center(
-            child: CircularProgressIndicator(),
-          ),
+          child: Center(child: CircularProgressIndicator()),
         ),
       ];
     }
@@ -236,8 +132,11 @@ class _GradesViewState extends State<GradesView> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline_rounded,
-                          size: 40, color: AppColors.error),
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 40,
+                        color: AppColors.error,
+                      ),
                       const SizedBox(height: 10),
                       const Text(
                         'Failed to Load Grades',
@@ -260,7 +159,10 @@ class _GradesViewState extends State<GradesView> {
                       ElevatedButton.icon(
                         onPressed: () => _loadGrades(refresh: true),
                         icon: const Icon(Icons.refresh_rounded, size: 15),
-                        label: const Text('Try Again', style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'Try Again',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
@@ -275,51 +177,30 @@ class _GradesViewState extends State<GradesView> {
     if (state is GradesLoaded) {
       // 1. Clearance Masking Check
       if (state.isClearanceWithheld) {
-        return [
-          SliverToBoxAdapter(
-            child: _buildClearanceWithheldCard(state),
-          ),
-        ];
+        return [SliverToBoxAdapter(child: _buildClearanceWithheldCard(state))];
       }
 
       // 2. Loading state when switching terms
       if (state.isTermGradesLoading) {
         return [
           const SliverFillRemaining(
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
+            child: Center(child: CircularProgressIndicator()),
           ),
         ];
       }
 
       // 3. Cleared, but empty grades list
       if (state.grades.isEmpty) {
-        return [
-          SliverToBoxAdapter(
-            child: _buildEmptyGradesCard(state),
-          ),
-        ];
+        return [SliverToBoxAdapter(child: _buildEmptyGradesCard(state))];
       }
 
       // 4. Cleared with grades present
       return [
+        SliverToBoxAdapter(child: _buildSummaryCountsBar(state)),
         SliverToBoxAdapter(
-          child: _buildSummaryCountsBar(state),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final grade = state.grades[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildGradeCard(grade),
-                );
-              },
-              childCount: state.grades.length,
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: _buildGradesList(state),
           ),
         ),
       ];
@@ -406,8 +287,11 @@ class _GradesViewState extends State<GradesView> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info_outline_rounded,
-                            size: 15, color: Color(0xFFB45309)),
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 15,
+                          color: Color(0xFFB45309),
+                        ),
                         SizedBox(width: 5),
                         Text(
                           'Requirements for Clearance',
@@ -499,337 +383,309 @@ class _GradesViewState extends State<GradesView> {
   // ── Summary Stats Bar (Unified compact card) ───────────────────────────────
 
   Widget _buildSummaryCountsBar(GradesLoaded state) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatSegment(
-                  label: 'Total Subjects',
-                  count: state.totalSubjects.toString(),
-                  color: AppColors.textPrimary,
-                ),
-                _buildStatDivider(),
-                _buildStatSegment(
-                  label: 'Passed',
-                  count: state.passedCount.toString(),
-                  color: AppColors.accentGreenDark,
-                ),
-                if (state.failedCount > 0) ...[
-                  _buildStatDivider(),
-                  _buildStatSegment(
-                    label: 'Failed',
-                    count: state.failedCount.toString(),
-                    color: const Color(0xFF991B1B),
-                  ),
-                ],
-                _buildStatDivider(),
-                _buildStatSegment(
-                  label: 'Pending Final',
-                  count: state.pendingFinalCount.toString(),
-                  color: state.pendingFinalCount > 0
-                      ? const Color(0xFFB45309)
-                      : AppColors.textSecondary,
-                ),
-              ],
-            ),
-          ),
+    return StatStrip(
+      items: [
+        StatStripItem(
+          label: 'Total Subjects',
+          count: state.totalSubjects.toString(),
+          color: AppColors.textPrimary,
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatSegment({
-    required String label,
-    required String count,
-    required Color color,
-  }) {
-    // Equal shares of the row, so all the numbers fit on a phone.
-    return Expanded(
-      child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          count,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: color,
-            height: 1.1,
-          ),
+        StatStripItem(
+          label: 'Passed',
+          count: state.passedCount.toString(),
+          color: AppColors.accentGreenDark,
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textSecondary,
+        if (state.failedCount > 0)
+          StatStripItem(
+            label: 'Failed',
+            count: state.failedCount.toString(),
+            color: const Color(0xFF991B1B),
           ),
+        StatStripItem(
+          label: 'Pending Final',
+          count: state.pendingFinalCount.toString(),
+          color: state.pendingFinalCount > 0
+              ? const Color(0xFFB45309)
+              : AppColors.textSecondary,
         ),
       ],
-      ),
     );
   }
 
-  Widget _buildStatDivider() {
-    return Container(
-      width: 1,
-      height: 22,
-      color: const Color(0xFFE2E8F0),
-    );
-  }
+  // ── Grades List (responsive: table ≥700px, compact rows on phones) ─────────
 
-  // ── Subject Grade Card ─────────────────────────────────────────────────────
-
-  Widget _buildGradeCard(GradeModel grade) {
-    final hasFinal = grade.finalGrade != null;
-    final isPassed = hasFinal && grade.finalGrade! <= 3.00;
-
+  Widget _buildGradesList(GradesLoaded state) {
+    final isPhone = MediaQuery.sizeOf(context).width < 700;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: BoxConstraints(maxWidth: isPhone ? 800 : 900),
         child: Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Primary Focus: Subject Code + Section Tag
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    grade.subjectCode ?? 'N/A',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primaryDark,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  if (grade.className != null &&
-                      grade.className!.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: const Color(0xFFCBD5E1)),
-                      ),
-                      child: Text(
-                        grade.className!,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 2),
-
-              // Subject Title
-              Text(
-                grade.subjectTitle ?? 'Untitled Subject',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  height: 1.3,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // 2. Grades & Outcome Row (Midterm, Final, Remarks integrated inline)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildGradePeriodColumn(
-                        periodName: 'MIDTERM',
-                        gradeValue: grade.midtermGrade,
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 26,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                    Expanded(
-                      child: _buildGradePeriodColumn(
-                        periodName: 'FINAL',
-                        gradeValue: grade.finalGrade,
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 26,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'REMARKS',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          _buildRemarksBadge(grade, hasFinal, isPassed),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 3. Card Footer (tight, instructor info)
-              if (grade.teacherName != null && grade.teacherName!.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.person_outline_rounded,
-                      size: 12,
-                      color: AppColors.textMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Instructor: ${grade.teacherName}',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
+          child: isPhone ? _buildCompactRows(state) : _buildGradesTable(state),
         ),
       ),
     );
   }
 
-  Widget _buildRemarksBadge(
-      GradeModel grade, bool hasFinal, bool isPassed) {
-    if (!hasFinal) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Text(
-          '—',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF64748B),
-          ),
-        ),
-      );
-    }
+  static String _formatGrade(double? value) =>
+      value == null ? '—' : value.toStringAsFixed(2);
 
-    if (isPassed) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFDCFCE7),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
-        ),
-        child: Text(
-          grade.remarksLabel ?? 'Passed',
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF15803D),
-          ),
-        ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFEE2E2),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
-        ),
-        child: Text(
-          grade.remarksLabel ?? 'Failed',
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF991B1B),
-          ),
-        ),
-      );
-    }
+  static String _formatUnits(double? value) => value == null
+      ? '—'
+      : value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 1);
+
+  /// Plain wording for the phone rows, where a coloured pill would shout over
+  /// the grades themselves.
+  static String _remarksText(GradeModel grade) {
+    if (grade.finalGrade == null) return '—';
+    return grade.finalGrade! <= 3.00
+        ? (grade.remarksLabel ?? 'Passed')
+        : (grade.remarksLabel ?? 'Failed');
   }
 
-  Widget _buildGradePeriodColumn({
-    required String periodName,
-    required double? gradeValue,
-  }) {
-    final isSubmitted = gradeValue != null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          periodName,
-          style: const TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-            color: AppColors.textSecondary,
+  Widget _remarksBadge(GradeModel grade) {
+    if (grade.finalGrade == null) {
+      return StatusBadge.neutral(label: '—');
+    }
+    return grade.finalGrade! <= 3.00
+        ? StatusBadge.success(label: grade.remarksLabel ?? 'Passed')
+        : StatusBadge.danger(label: grade.remarksLabel ?? 'Failed');
+  }
+
+  Widget _buildGradesTable(GradesLoaded state) {
+    // Fill the card's width; scroll sideways only when it can't fit (700-760px).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The other five columns need roughly this much; whatever is left
+        // belongs to SUBJECT, so a long title ellipsizes instead of pushing
+        // the grade columns out of view.
+        final subjectWidth = (constraints.maxWidth - 440)
+            .clamp(150.0, 440.0)
+            .toDouble();
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              dataRowMinHeight: 52,
+              dataRowMaxHeight: 68,
+              columnSpacing: 24,
+              columns: const [
+                DataColumn(label: Text('CODE')),
+                DataColumn(label: Text('SUBJECT')),
+                DataColumn(label: Text('UNITS'), numeric: true),
+                DataColumn(label: Text('MIDTERM'), numeric: true),
+                DataColumn(label: Text('FINAL'), numeric: true),
+                DataColumn(label: Text('REMARKS')),
+              ],
+              rows: state.grades
+                  .map((g) => _buildGradeRow(g, subjectWidth))
+                  .toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  DataRow _buildGradeRow(GradeModel grade, double subjectWidth) {
+    return DataRow(
+      cells: [
+        DataCell(
+          Text(
+            grade.subjectCode ?? 'N/A',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primaryDark,
+            ),
           ),
         ),
-        const SizedBox(height: 3),
-        Text(
-          isSubmitted ? gradeValue.toStringAsFixed(2) : '—',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: isSubmitted ? AppColors.textPrimary : AppColors.textMuted,
-            height: 1.1,
+        DataCell(
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: subjectWidth),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        grade.subjectTitle ?? 'Untitled Subject',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (grade.className != null &&
+                        grade.className!.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                        ),
+                        child: Text(
+                          grade.className!,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (grade.teacherName != null &&
+                    grade.teacherName!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    grade.teacherName!,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
+        DataCell(
+          Text(
+            _formatUnits(grade.units),
+            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+          ),
+        ),
+        DataCell(
+          Text(
+            _formatGrade(grade.midtermGrade),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: grade.midtermGrade != null
+                  ? AppColors.textPrimary
+                  : AppColors.textMuted,
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            _formatGrade(grade.finalGrade),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: grade.finalGrade != null
+                  ? AppColors.textPrimary
+                  : AppColors.textMuted,
+            ),
+          ),
+        ),
+        DataCell(_remarksBadge(grade)),
       ],
+    );
+  }
+
+  Widget _buildCompactRows(GradesLoaded state) {
+    return Column(
+      children: [
+        for (var i = 0; i < state.grades.length; i++) ...[
+          if (i > 0)
+            const Divider(height: 1, thickness: 1, color: AppColors.border),
+          _buildCompactRow(state.grades[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactRow(GradeModel grade) {
+    const labelStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      color: AppColors.textSecondary,
+    );
+    const valueStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: AppColors.textPrimary,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: grade.subjectCode ?? 'N/A',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+                const TextSpan(
+                  text: ' · ',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+                TextSpan(
+                  text: grade.subjectTitle ?? 'Untitled Subject',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            style: const TextStyle(fontSize: 13, height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          // The grades lead this line; the remark is a quiet trailing note.
+          Row(
+            children: [
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: 'Mid ', style: labelStyle),
+                      TextSpan(
+                        text: _formatGrade(grade.midtermGrade),
+                        style: valueStyle,
+                      ),
+                      const TextSpan(text: '   Final ', style: labelStyle),
+                      TextSpan(
+                        text: _formatGrade(grade.finalGrade),
+                        style: valueStyle,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(_remarksText(grade), style: labelStyle),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

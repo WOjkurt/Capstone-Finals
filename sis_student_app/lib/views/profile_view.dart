@@ -5,6 +5,7 @@ import '../models/student_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/password_reset.dart';
+import 'widgets/sign_out.dart';
 
 class ProfileView extends StatefulWidget {
   final String email;
@@ -51,7 +52,6 @@ class _ProfileViewState extends State<ProfileView> {
   Widget _buildHeader(ProfileState state) {
     return PageHeader(
       title: 'Profile',
-      subtitle: 'Your student account and enrollment details.',
       onRefresh: () => context.read<ProfileBloc>().add(LoadProfileEvent(refresh: true)),
     );
   }
@@ -261,6 +261,19 @@ class _ProfileViewState extends State<ProfileView> {
             icon: const Icon(Icons.lock_reset_rounded, size: 18),
             label: const Text('Change password'),
             onPressed: () => confirmChangePassword(context, widget.email),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('sign_out_button'),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('Sign out'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF991B1B),
+              side: BorderSide(
+                color: const Color(0xFF991B1B).withValues(alpha: 0.4),
+              ),
+            ),
+            onPressed: () => confirmSignOut(context),
           ),
         ],
       ),

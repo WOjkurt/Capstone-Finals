@@ -85,41 +85,6 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     });
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text(
-          "You'll need to sign in again to access the portal.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: const Color(0xFF991B1B),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      context.read<AuthBloc>().add(LogoutRequested());
-    }
-  }
-
   /// The shared content area — same for both layouts.
   Widget _buildContentStack(int currentIndex) {
     return IndexedStack(
@@ -214,13 +179,6 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     final initial = widget.auth.displayName.isNotEmpty
         ? widget.auth.displayName[0].toUpperCase()
         : 'S';
-    final signOut = IconButton(
-      key: const ValueKey('sign_out_button'),
-      tooltip: 'Sign out',
-      icon: const Icon(Icons.logout_rounded, size: 20),
-      color: AppColors.sidebarTextMuted,
-      onPressed: () => _confirmLogout(context),
-    );
     final avatar = CircleAvatar(
       radius: 17,
       backgroundColor: AppColors.sidebarBorder,
@@ -296,17 +254,14 @@ class _MainLayoutViewState extends State<MainLayoutView> {
               compact ? 0 : 12,
               18,
             ),
+            // Just who is signed in. Signing out lives on the Profile page.
             child: compact
-                ? Column(
-                    children: [
-                      Tooltip(
-                        message:
-                            '${widget.auth.displayName} (${widget.auth.roleName})',
-                        child: avatar,
-                      ),
-                      const SizedBox(height: 6),
-                      signOut,
-                    ],
+                ? Center(
+                    child: Tooltip(
+                      message:
+                          '${widget.auth.displayName} (${widget.auth.roleName})',
+                      child: avatar,
+                    ),
                   )
                 : Row(
                     children: [
@@ -336,7 +291,6 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                           ],
                         ),
                       ),
-                      signOut,
                     ],
                   ),
           ),
@@ -408,13 +362,18 @@ class _MainLayoutViewState extends State<MainLayoutView> {
   ) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
-      appBar: _buildTopAppBar(context),
+      appBar: _buildTopAppBar(
+        context,
+        navItems[currentIndex]['title'] as String,
+      ),
       body: _buildContentStack(currentIndex),
       bottomNavigationBar: _buildBottomNav(navItems, currentIndex),
     );
   }
 
-  PreferredSizeWidget _buildTopAppBar(BuildContext context) {
+  /// On phones the bar names the page you are on; the brand lives on the
+  /// sign-in screen and the desktop menu, so it is not repeated here.
+  PreferredSizeWidget _buildTopAppBar(BuildContext context, String title) {
     return AppBar(
       backgroundColor: AppColors.sidebarBg,
       elevation: 0,
@@ -422,8 +381,8 @@ class _MainLayoutViewState extends State<MainLayoutView> {
       title: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(7),
@@ -435,40 +394,19 @@ class _MainLayoutViewState extends State<MainLayoutView> {
             ),
           ),
           const SizedBox(width: 10),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'DBTC-CEBU',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                  color: Colors.white,
-                ),
+          Expanded(
+            child: Text(
+              title,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
               ),
-              Text(
-                'Student Portal',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.sidebarTextMuted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
-      actions: [
-        IconButton(
-          key: const ValueKey('sign_out_button'),
-          tooltip: 'Sign out',
-          icon: const Icon(Icons.logout_rounded, color: AppColors.sidebarTextMuted, size: 22),
-          onPressed: () => _confirmLogout(context),
-        ),
-        const SizedBox(width: 4),
-      ],
     );
   }
 

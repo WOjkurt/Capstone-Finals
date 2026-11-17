@@ -5,6 +5,7 @@ import '../blocs/clearance_bloc.dart';
 import '../models/grading_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/status_badge.dart';
 
 class ClearanceStatusView extends StatefulWidget {
   final String userId;
@@ -59,7 +60,6 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
   Widget _buildHeader(ClearanceState state) {
     return PageHeader(
       title: 'Clearance Status',
-      subtitle: 'Check your grade viewing clearance across academic terms.',
       onRefresh: () => _loadClearances(refresh: true),
     );
   }
@@ -143,21 +143,9 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
 
       return [
         SliverToBoxAdapter(
-          child: _buildSummaryCountsBar(state),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final item = state.clearances[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildClearanceCard(item),
-                );
-              },
-              childCount: state.clearances.length,
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+            child: _buildClearanceList(state),
           ),
         ),
       ];
@@ -166,212 +154,27 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
     return [];
   }
 
-  // ── Summary Stats Bar (Unified compact card) ───────────────────────────────
+  // ── Clearance List (one row per term) ──────────────────────────────────────
 
-  Widget _buildSummaryCountsBar(ClearanceLoaded state) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatSegment(
-                  label: 'Total Terms',
-                  count: state.totalTerms.toString(),
-                  color: AppColors.textPrimary,
-                ),
-                _buildStatDivider(),
-                _buildStatSegment(
-                  label: 'Cleared',
-                  count: state.clearedCount.toString(),
-                  color: AppColors.accentGreenDark,
-                ),
-                _buildStatDivider(),
-                _buildStatSegment(
-                  label: 'Withheld',
-                  count: state.withheldCount.toString(),
-                  color: state.withheldCount > 0
-                      ? const Color(0xFFB45309)
-                      : AppColors.textSecondary,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatSegment({
-    required String label,
-    required String count,
-    required Color color,
-  }) {
-    // Equal shares of the row, so all the numbers fit on a phone.
-    return Expanded(
-      child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          count,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: color,
-            height: 1.1,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
-      ),
-    );
-  }
-
-  Widget _buildStatDivider() {
-    return Container(
-      width: 1,
-      height: 22,
-      color: const Color(0xFFE2E8F0),
-    );
-  }
-
-  // ── Clearance Card ─────────────────────────────────────────────────────────
-
-  Widget _buildClearanceCard(GradeClearanceModel item) {
-    final dateFormat = DateFormat('MMM d, yyyy • h:mm a');
-
+  Widget _buildClearanceList(ClearanceLoaded state) {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 800),
         child: Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
-          padding: const EdgeInsets.all(12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Term Label & Status Badge Row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.calendar_today_rounded,
-                    size: 14,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      item.termLabel ?? 'Academic Term',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primaryDark,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildStatusBadge(item.isCleared),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // 2. Audit Detail Box
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: item.isCleared
-                      ? const Color(0xFFF0FDF4)
-                      : const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: item.isCleared
-                        ? const Color(0xFFDCFCE7)
-                        : const Color(0xFFFDE68A),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          item.isCleared
-                              ? Icons.verified_user_rounded
-                              : Icons.lock_clock_outlined,
-                          size: 13,
-                          color: item.isCleared
-                              ? AppColors.accentGreenDark
-                              : const Color(0xFFB45309),
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            item.isCleared
-                                ? 'Grade viewing authorized for this term'
-                                : 'Grades withheld pending settlement',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: item.isCleared
-                                  ? AppColors.accentGreenDark
-                                  : const Color(0xFFB45309),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (item.isCleared &&
-                        (item.clearedByUserName != null || item.clearedAt != null)) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        [
-                          if (item.clearedByUserName != null)
-                            'Audited by: ${item.clearedByUserName}',
-                          if (item.clearedAt != null)
-                            dateFormat.format(item.clearedAt!.toLocal()),
-                        ].join(' • '),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF15803D),
-                        ),
-                      ),
-                    ] else if (!item.isCleared) ...[
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Please verify accounting, library, and departmental requirements with the Registrar.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF78350F),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              for (var i = 0; i < state.clearances.length; i++) ...[
+                if (i > 0)
+                  const Divider(
+                      height: 1, thickness: 1, color: AppColors.border),
+                _buildClearanceRow(state.clearances[i]),
+              ],
             ],
           ),
         ),
@@ -379,60 +182,57 @@ class _ClearanceStatusViewState extends State<ClearanceStatusView> {
     );
   }
 
-  Widget _buildStatusBadge(bool isCleared) {
-    if (isCleared) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFDCFCE7),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: const Color(0xFF16A34A).withValues(alpha: 0.3),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle_rounded, size: 11, color: Color(0xFF15803D)),
-            SizedBox(width: 4),
-            Text(
-              'Cleared',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF15803D),
-              ),
-            ),
-          ],
-        ),
-      );
+  Widget _buildClearanceRow(GradeClearanceModel item) {
+    final dateFormat = DateFormat('MMM d, yyyy');
+
+    final String detail;
+    if (item.isCleared) {
+      detail = [
+        if (item.clearedByUserName != null)
+          'Cleared by ${item.clearedByUserName}',
+        if (item.clearedAt != null)
+          dateFormat.format(item.clearedAt!.toLocal()),
+      ].join(' · ');
     } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFEE2E2),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: const Color(0xFFDC2626).withValues(alpha: 0.3),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.lock_outline_rounded, size: 11, color: Color(0xFF991B1B)),
-            SizedBox(width: 4),
-            Text(
-              'Withheld',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF991B1B),
-              ),
-            ),
-          ],
-        ),
-      );
+      detail = 'Settle requirements with the Registrar';
     }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.termLabel ?? 'Academic Term',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (detail.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    detail,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          item.isCleared
+              ? StatusBadge.success(label: 'Cleared')
+              : StatusBadge.danger(label: 'Withheld'),
+        ],
+      ),
+    );
   }
 
   // ── Empty State ────────────────────────────────────────────────────────────
