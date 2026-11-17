@@ -224,6 +224,26 @@ class ClassRepository {
         .toList();
   }
 
+  /// Subjects carry the unit counts that classes do not, so faculty workload
+  /// has to join the two. The API scopes this to the caller's own program for
+  /// a Program Head, so no programId is needed.
+  Future<List<SubjectModel>> getSubjects() async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/Subjects');
+    final res = await http.get(uri, headers: headers);
+
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+
+    return (jsonDecode(res.body) as List)
+        .map((e) => SubjectModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<AcademicTermModel?> getActiveTerm() async {
     final headers = await _auth.getAuthHeaders();
     final uri = Uri.parse('$baseUrl/api/academicterms/active');

@@ -33,10 +33,20 @@ class FakeClassRepository implements ClassRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
   List<ClassModel> mockClasses = [];
+  List<SubjectModel> mockSubjects = [];
+  bool shouldThrowOnSubjects = false;
   bool shouldThrow = false;
   bool shouldThrowOnAssign = false;
   String errorMessage = 'Failed to fetch classes';
   String assignErrorMessage = 'Failed to assign teacher';
+
+  @override
+  Future<List<SubjectModel>> getSubjects() async {
+    if (shouldThrowOnSubjects) {
+      throw Exception('Failed to fetch subjects');
+    }
+    return mockSubjects;
+  }
 
   @override
   Future<List<ClassModel>> getProgramClasses(
@@ -306,6 +316,101 @@ void main() {
         classId: 'class-1',
         teacherUserId: null,
       ));
+    });
+  });
+
+  group('FacultyBloc workload units', () {
+    SubjectModel subject(String id, double lec, double lab) => SubjectModel(
+          subjectId: id,
+          subjectCode: id.toUpperCase(),
+          subjectTitle: 'Subject $id',
+          lecUnits: lec,
+          labUnits: lab,
+          lecHours: lec,
+          labHours: lab * 3,
+          programId: 1,
+          yearLevel: 1,
+          defaultSemester: 1,
+        );
+
+    test('sums lecture and lab units across a teacher\'s classes', () async {
+      userSearchRepo.mockTeachers = [teacher1];
+      classRepo.mockClasses = [class1, class2];
+      classRepo.mockSubjects = [
+        subject('sub-1', 2, 1), // 3 units
+        subject('sub-2', 3, 0), // 3 units
+      ];
+
+      bloc.add(LoadFacultyEvent());
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([isA<FacultyLoading>(), isA<FacultyLoaded>()]),
+      );
+
+      final member = (bloc.state as FacultyLoaded).faculty.single;
+      expect(member.totalUnits, 6);
+      expect(member.unitsLabel, '6');
+    });
+
+    test('counts only the subjects actually assigned', () async {
+      userSearchRepo.mockTeachers = [teacher1];
+      classRepo.mockClasses = [class1];
+      classRepo.mockSubjects = [
+        subject('sub-1', 3, 0),
+        subject('sub-2', 3, 0), // taught by nobody here
+      ];
+
+      bloc.add(LoadFacultyEvent());
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([isA<FacultyLoading>(), isA<FacultyLoaded>()]),
+      );
+
+      expect((bloc.state as FacultyLoaded).faculty.single.totalUnits, 3);
+    });
+
+    test('half units render without a trailing zero', () async {
+      userSearchRepo.mockTeachers = [teacher1];
+      classRepo.mockClasses = [class1];
+      classRepo.mockSubjects = [subject('sub-1', 1.5, 0)];
+
+      bloc.add(LoadFacultyEvent());
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([isA<FacultyLoading>(), isA<FacultyLoaded>()]),
+      );
+
+      expect((bloc.state as FacultyLoaded).faculty.single.unitsLabel, '1.5');
+    });
+
+    test('a subject missing from the list contributes nothing', () async {
+      userSearchRepo.mockTeachers = [teacher1];
+      classRepo.mockClasses = [class1, class2];
+      classRepo.mockSubjects = [subject('sub-1', 3, 0)];
+
+      bloc.add(LoadFacultyEvent());
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([isA<FacultyLoading>(), isA<FacultyLoaded>()]),
+      );
+
+      expect((bloc.state as FacultyLoaded).faculty.single.totalUnits, 3);
+    });
+
+    test('faculty still load when the subject lookup fails', () async {
+      userSearchRepo.mockTeachers = [teacher1];
+      classRepo.mockClasses = [class1];
+      classRepo.shouldThrowOnSubjects = true;
+
+      bloc.add(LoadFacultyEvent());
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([isA<FacultyLoading>(), isA<FacultyLoaded>()]),
+      );
+
+      final member = (bloc.state as FacultyLoaded).faculty.single;
+      expect(member.classCount, 1);
+      expect(member.totalUnits, 0);
     });
   });
 }

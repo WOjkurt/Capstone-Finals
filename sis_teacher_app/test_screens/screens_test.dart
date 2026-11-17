@@ -47,6 +47,20 @@ Future<http.Response> _api(http.Request req) async {
     ];
   } else if (path.endsWith('/api/academicterms/active')) {
     body = {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true};
+  } else if (path.endsWith('/api/userdetails')) {
+    // Program Head only: the staff search behind the Faculty page. Role 4 is
+    // asked for separately and merged, so answer only the role=3 call.
+    body = req.url.queryParameters['role'] == '3'
+        ? [
+            {'userID': 't1', 'firstname': 'Ben', 'lastname': 'Teach', 'email': 'ben.teach@dbtc-cebu.edu.ph', 'role': 3, 'roleName': 'Teacher', 'programID': 1, 'programCode': 'BSIT'},
+            {'userID': 't2', 'firstname': 'Rita', 'lastname': 'Santos', 'email': 'rita.santos@dbtc-cebu.edu.ph', 'role': 3, 'roleName': 'Teacher', 'programID': 1, 'programCode': 'BSIT'},
+          ]
+        : <Object>[];
+  } else if (path.endsWith('/api/subjects')) {
+    body = [
+      {'subjectID': 's1', 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'lecUnits': 2, 'labUnits': 1, 'lecHours': 2, 'labHours': 3, 'programID': 1, 'yearLevel': 1, 'defaultSemester': 1},
+      {'subjectID': 's2', 'subjectCode': 'IT 102', 'subjectTitle': 'Computer Programming 1', 'lecUnits': 3, 'labUnits': 0, 'lecHours': 3, 'labHours': 0, 'programID': 1, 'yearLevel': 1, 'defaultSemester': 1},
+    ];
   } else if (path.endsWith('/api/classes')) {
     body = [
       {'classID': 'c1', 'subjectID': 's1', 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'termID': 't1', 'termSchoolYear': '2026-2027', 'termSemester': 1, 'className': 'BSIT 1A', 'enrolledCount': 38, 'userID': 't1', 'teacherName': 'Ben Teach', 'schedules': [{'scheduleID': 'x', 'classID': 'c1', 'daysOfWeek': 'M/W/F', 'startTime': '08:00:00', 'endTime': '09:00:00', 'room': 'R101'}]},

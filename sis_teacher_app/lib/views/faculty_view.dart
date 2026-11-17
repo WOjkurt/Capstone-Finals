@@ -674,7 +674,13 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                               size: 14, color: Color(0xFF1D4ED8)),
                           const SizedBox(width: 6),
                           Text(
-                            '${member.classCount} ${member.classCount == 1 ? 'Class' : 'Classes'} · ${member.totalEnrolledStudents} Students',
+                            [
+                              '${member.classCount} ${member.classCount == 1 ? 'Class' : 'Classes'}',
+                              '${member.totalEnrolledStudents} Students',
+                              // Only when the subject lookup gave us units.
+                              if (member.totalUnits > 0)
+                                '${member.unitsLabel} Units',
+                            ].join(' · '),
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
