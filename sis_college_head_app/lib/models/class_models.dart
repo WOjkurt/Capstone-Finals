@@ -249,6 +249,14 @@ class PendingStudyLoadSummaryModel {
   final int pendingCount;
   final double pendingUnits;
 
+  /// Enrolled + pending units for the term, against the CHED limit, plus the
+  /// overload the College Head recorded when saving over it.
+  final double termUnits;
+  final double maxUnits;
+  final bool isOverloaded;
+  final String? overloadReason;
+  final String? overloadApprovedBy;
+
   const PendingStudyLoadSummaryModel({
     required this.userId,
     required this.fullName,
@@ -258,7 +266,21 @@ class PendingStudyLoadSummaryModel {
     this.yearLevel,
     required this.pendingCount,
     required this.pendingUnits,
+    this.termUnits = 0,
+    this.maxUnits = 0,
+    this.isOverloaded = false,
+    this.overloadReason,
+    this.overloadApprovedBy,
   });
+
+  /// '3' or '4.5' — a trailing '.0' is noise in a units column.
+  static String formatUnits(double value) =>
+      value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 1);
+
+  String get pendingUnitsLabel => formatUnits(pendingUnits);
+
+  /// 'Over the limit' needs the numbers beside it to mean anything.
+  String get termUnitsLabel => '${formatUnits(termUnits)}/${formatUnits(maxUnits)}';
 
   factory PendingStudyLoadSummaryModel.fromJson(Map<String, dynamic> json) {
     return PendingStudyLoadSummaryModel(
@@ -270,6 +292,11 @@ class PendingStudyLoadSummaryModel {
       yearLevel: (json['yearLevel'] as num?)?.toInt(),
       pendingCount: (json['pendingCount'] as num?)?.toInt() ?? 0,
       pendingUnits: (json['pendingUnits'] as num?)?.toDouble() ?? 0.0,
+      termUnits: (json['termUnits'] as num?)?.toDouble() ?? 0.0,
+      maxUnits: (json['maxUnits'] as num?)?.toDouble() ?? 0.0,
+      isOverloaded: json['isOverloaded'] as bool? ?? false,
+      overloadReason: json['overloadReason'] as String?,
+      overloadApprovedBy: json['overloadApprovedBy'] as String?,
     );
   }
 }

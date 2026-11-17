@@ -204,6 +204,31 @@ class ClassRepository {
     return list;
   }
 
+  /// Study loads saved as Pending that the Registrar has not finalized yet.
+  /// The College Head builds these, so this is their own outbox.
+  Future<List<PendingStudyLoadSummaryModel>> getPendingSummary(
+      String termId) async {
+    final headers = await _auth.getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/api/studyloads/pending-summary')
+        .replace(queryParameters: {'termId': termId});
+    final res = await _client.get(uri, headers: headers);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        statusCode: res.statusCode,
+        message: _extractMessage(res.body),
+      );
+    }
+
+    final list = (jsonDecode(res.body) as List)
+        .map((e) =>
+            PendingStudyLoadSummaryModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    list.sort((a, b) =>
+        a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
+    return list;
+  }
+
   Future<UnitLimitModel> getUnitLimit(String userId, String termId) async {
     final headers = await _auth.getAuthHeaders();
     final uri = Uri.parse('$baseUrl/api/studyloads/unit-limit').replace(

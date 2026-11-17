@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sis_college_head_app/blocs/auth_bloc.dart';
 import 'package:sis_college_head_app/blocs/faculty_bloc.dart';
+import 'package:sis_college_head_app/blocs/pending_loads_bloc.dart';
 import 'package:sis_college_head_app/blocs/students_bloc.dart';
 import 'package:sis_college_head_app/repositories/class_repository.dart';
 import 'package:sis_college_head_app/repositories/setup_repository.dart';
@@ -44,21 +45,28 @@ Future<void> _loadFonts() async {
 }
 
 Future<http.Response> _api(http.Request req) async {
-  final path = req.url.path;
+  // The real API routes case-insensitively; compare in lower case or routes
+  // silently fall through to an empty list.
+  final path = req.url.path.toLowerCase();
   Object body = <Object>[];
-  if (path.endsWith('/api/AcademicTerms')) {
+  if (path.endsWith('/api/academicterms')) {
     body = [
       {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true}
     ];
-  } else if (path.endsWith('/api/AcademicPrograms')) {
+  } else if (path.endsWith('/api/academicprograms')) {
     body = [
       {'programID': 1, 'programCode': 'BSIT', 'programName': 'BS Information Technology'},
       {'programID': 2, 'programCode': 'BSME', 'programName': 'BS Mechanical Engineering'},
     ];
-  } else if (path.endsWith('/api/Classes')) {
+  } else if (path.endsWith('/api/classes')) {
     body = [
       {'classID': 'c1', 'subjectID': 's1', 'subjectCode': 'GEC 101', 'subjectTitle': 'Understanding the Self', 'termID': 't1', 'termSchoolYear': '2026-2027', 'termSemester': 1, 'className': 'BSIT 1A', 'enrolledCount': 38, 'userID': 'u9', 'teacherName': 'Dina Santos', 'isMinor': true, 'schedules': [{'scheduleID': 'x', 'classID': 'c1', 'daysOfWeek': 'M/W/F', 'startTime': '08:00:00', 'endTime': '09:00:00', 'room': 'R101'}]},
       {'classID': 'c2', 'subjectID': 's2', 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'termID': 't1', 'termSchoolYear': '2026-2027', 'termSemester': 1, 'className': 'BSIT 1A', 'enrolledCount': 36, 'isMinor': false, 'schedules': []},
+    ];
+  } else if (path.endsWith('/api/studyloads/pending-summary')) {
+    body = [
+      {'userId': 'u1', 'fullName': 'Cruz, Ana', 'programCode': 'BSIT', 'yearLevel': 1, 'lrn': '123456789012', 'pendingCount': 5, 'pendingUnits': 15, 'termUnits': 15, 'maxUnits': 21, 'isOverloaded': false},
+      {'userId': 'u2', 'fullName': 'Santos, Ben', 'programCode': 'BSME', 'yearLevel': 4, 'pendingCount': 8, 'pendingUnits': 24, 'termUnits': 24, 'maxUnits': 21, 'isOverloaded': true, 'overloadReason': 'Graduating this year, needs the back subjects.', 'overloadApprovedBy': 'Carla Head'},
     ];
   } else if (path.endsWith('/api/students/search')) {
     body = [
@@ -93,6 +101,8 @@ void main() {
     final students = StudentsBloc(StudentRepository(MockAuthService(), client), AcademicSetupRepository(MockAuthService(), client));
     final faculty = FacultyBloc(TeacherRepository(MockAuthService(), client), ClassRepository(MockAuthService(), client),
         AcademicSetupRepository(MockAuthService(), client));
+    final pendingLoads = PendingLoadsBloc(ClassRepository(MockAuthService(), client),
+        AcademicSetupRepository(MockAuthService(), client));
     await tester.pumpWidget(RepaintBoundary(
       key: _boundary,
       child: MaterialApp(
@@ -103,6 +113,7 @@ void main() {
             BlocProvider<AuthBloc>.value(value: TestAuthBloc(auth)),
             BlocProvider<StudentsBloc>.value(value: students),
             BlocProvider<FacultyBloc>.value(value: faculty),
+            BlocProvider<PendingLoadsBloc>.value(value: pendingLoads),
           ],
           child: MainLayoutView(auth: auth),
         ),
@@ -112,7 +123,9 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('student_search_field')), 'a');
     await tester.tap(find.byKey(const ValueKey('student_search_button')));
     await shot(tester, 'c02_students_results');
+    await tester.tap(find.byKey(const ValueKey('nav_Pending loads')));
+    await shot(tester, 'c03_pending_loads');
     await tester.tap(find.byKey(const ValueKey('nav_Faculty')));
-    await shot(tester, 'c03_faculty');
+    await shot(tester, 'c04_faculty');
   });
 }

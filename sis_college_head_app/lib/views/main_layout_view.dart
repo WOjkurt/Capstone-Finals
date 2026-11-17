@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
 import 'faculty_view.dart';
+import 'pending_loads_view.dart';
 import 'students_view.dart';
 import 'widgets/password_reset.dart';
 
@@ -15,6 +16,7 @@ class MainLayoutView extends StatefulWidget {
   static List<Map<String, dynamic>> buildNavItems() {
     return [
       {'title': 'Students', 'icon': Icons.school_outlined, 'activeIcon': Icons.school_rounded},
+      {'title': 'Pending loads', 'icon': Icons.pending_actions_outlined, 'activeIcon': Icons.pending_actions_rounded},
       {'title': 'Faculty', 'icon': Icons.groups_outlined, 'activeIcon': Icons.groups_rounded},
     ];
   }
@@ -77,6 +79,8 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     switch (title) {
       case 'Students':
         return const StudentsView();
+      case 'Pending loads':
+        return const PendingLoadsView();
       case 'Faculty':
         return const FacultyView();
       default:

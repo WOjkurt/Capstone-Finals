@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sis_college_head_app/blocs/auth_bloc.dart';
 import 'package:sis_college_head_app/blocs/faculty_bloc.dart';
+import 'package:sis_college_head_app/blocs/pending_loads_bloc.dart';
 import 'package:sis_college_head_app/blocs/students_bloc.dart';
 import 'package:sis_college_head_app/repositories/class_repository.dart';
 import 'package:sis_college_head_app/repositories/setup_repository.dart';
@@ -40,6 +41,7 @@ void main() {
     late TestAuthBloc authBloc;
     late StudentsBloc studentsBloc;
     late FacultyBloc facultyBloc;
+    late PendingLoadsBloc pendingLoadsBloc;
 
     setUp(() {
       final client = MockClient((req) async => http.Response('[]', 200));
@@ -49,6 +51,10 @@ void main() {
       );
       facultyBloc = FacultyBloc(
         TeacherRepository(MockAuthService(), client),
+        ClassRepository(MockAuthService(), client),
+        AcademicSetupRepository(MockAuthService(), client),
+      );
+      pendingLoadsBloc = PendingLoadsBloc(
         ClassRepository(MockAuthService(), client),
         AcademicSetupRepository(MockAuthService(), client),
       );
@@ -67,6 +73,7 @@ void main() {
       authBloc.close();
       studentsBloc.close();
       facultyBloc.close();
+      pendingLoadsBloc.close();
     });
 
     Widget buildSubject() {
@@ -76,6 +83,7 @@ void main() {
             BlocProvider<AuthBloc>.value(value: authBloc),
             BlocProvider<StudentsBloc>.value(value: studentsBloc),
             BlocProvider<FacultyBloc>.value(value: facultyBloc),
+            BlocProvider<PendingLoadsBloc>.value(value: pendingLoadsBloc),
           ],
           child: MainLayoutView(auth: authBloc.state as AuthenticatedState),
         ),
@@ -88,15 +96,16 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
     }
 
-    testWidgets('shows only the Students and Faculty tabs', (tester) async {
+    testWidgets('shows the Students, Pending loads and Faculty tabs', (tester) async {
       setDesktopSize(tester);
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 
       expect(MainLayoutView.buildNavItems().map((i) => i['title']),
-          ['Students', 'Faculty']);
+          ['Students', 'Pending loads', 'Faculty']);
       expect(find.text('College Head'), findsWidgets);
-      expect(find.text('Pending loads'), findsNothing);
+      expect(find.text('Pending loads'), findsWidgets);
+      // Still no registrar-only pages.
       expect(find.text('Setup'), findsNothing);
     });
 

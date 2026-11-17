@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'blocs/faculty_bloc.dart';
+import 'blocs/pending_loads_bloc.dart';
 import 'blocs/students_bloc.dart';
 import 'repositories/class_repository.dart';
 import 'repositories/setup_repository.dart';
@@ -30,6 +31,10 @@ void setupLocator() {
       ));
   getIt.registerFactory<FacultyBloc>(() => FacultyBloc(
         getIt<TeacherRepository>(),
+        getIt<ClassRepository>(),
+        getIt<AcademicSetupRepository>(),
+      ));
+  getIt.registerFactory<PendingLoadsBloc>(() => PendingLoadsBloc(
         getIt<ClassRepository>(),
         getIt<AcademicSetupRepository>(),
       ));
