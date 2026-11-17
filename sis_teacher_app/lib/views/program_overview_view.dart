@@ -12,6 +12,7 @@ import 'widgets/assign_teacher_dialog.dart';
 import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/term_dropdown.dart';
 import '../models/setup_models.dart';
 
 enum _OverviewViewMode { byFaculty, byClass }
@@ -108,40 +109,18 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (_terms.isNotEmpty) ...[
-                Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String?>(
-                      value: _selectedTermId,
-                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary, size: 20),
-                      style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-                      onChanged: (newTermId) {
-                        setState(() => _selectedTermId = newTermId);
-                        context.read<ProgramOverviewBloc>().add(
-                              LoadProgramClassesEvent(
-                                termId: _selectedTermId,
-                                yearLevel: _selectedYearLevel,
-                              ),
-                            );
-                      },
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('All Terms'),
-                        ),
-                        ..._terms.map((t) => DropdownMenuItem<String?>(
-                              value: t.termId,
-                              child: Text(t.isActive ? '${t.label} (Active)' : t.label),
-                            )),
-                      ],
-                    ),
-                  ),
+                TermDropdown(
+                  terms: _terms,
+                  selectedTermId: _selectedTermId,
+                  onChanged: (newTermId) {
+                    setState(() => _selectedTermId = newTermId);
+                    context.read<ProgramOverviewBloc>().add(
+                          LoadProgramClassesEvent(
+                            termId: _selectedTermId,
+                            yearLevel: _selectedYearLevel,
+                          ),
+                        );
+                  },
                 ),
                 const SizedBox(width: 8),
               ],

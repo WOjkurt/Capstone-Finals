@@ -5,11 +5,13 @@ import '../blocs/grades_bloc.dart';
 import '../injection.dart';
 import '../models/class_models.dart';
 import '../models/grading_models.dart';
+import '../models/setup_models.dart';
 import '../repositories/class_repository.dart';
 import '../repositories/grading_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/term_dropdown.dart';
 
 class GradesView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -30,11 +32,31 @@ class _GradesViewState extends State<GradesView> {
   bool _isLoadingClasses = true;
   String? _classesError;
   ClassModel? _selectedClass;
+  List<AcademicTermModel> _terms = [];
+  String? _selectedTermId;
 
   @override
   void initState() {
     super.initState();
-    _fetchClasses();
+    _initData();
+  }
+
+  /// Start on the active term rather than every term ever taught.
+  Future<void> _initData() async {
+    try {
+      final terms = await getIt<ClassRepository>().getTerms();
+      final active =
+          terms.where((t) => t.isActive).firstOrNull ?? terms.firstOrNull;
+      if (mounted) {
+        setState(() {
+          _terms = terms;
+          _selectedTermId = active?.termId;
+        });
+      }
+    } catch (_) {
+      // Without terms the page still works; it just shows every term.
+    }
+    if (mounted) await _fetchClasses();
   }
 
   Future<void> _fetchClasses() async {
@@ -44,9 +66,24 @@ class _GradesViewState extends State<GradesView> {
     });
 
     try {
-      final list = await getIt<ClassRepository>().getMyClasses(
+      var list = await getIt<ClassRepository>().getMyClasses(
         teacherUserId: widget.auth.userId,
+        termId: _selectedTermId,
       );
+
+      // Opening a class from My Classes must work even when that class sits
+      // outside the term this page happens to be showing.
+      final wantedId = widget.initialClassId;
+      if (wantedId != null &&
+          _selectedTermId != null &&
+          !list.any((c) => c.classId == wantedId)) {
+        list = await getIt<ClassRepository>().getMyClasses(
+          teacherUserId: widget.auth.userId,
+        );
+        if (mounted && list.any((c) => c.classId == wantedId)) {
+          _selectedTermId = null;
+        }
+      }
 
       if (!mounted) return;
 
@@ -55,15 +92,17 @@ class _GradesViewState extends State<GradesView> {
         _isLoadingClasses = false;
 
         if (_classes.isNotEmpty) {
-          if (widget.initialClassId != null) {
+          if (wantedId != null) {
             _selectedClass = _classes.firstWhere(
-              (c) => c.classId == widget.initialClassId,
+              (c) => c.classId == wantedId,
               orElse: () => _classes.first,
             );
           } else {
             _selectedClass = _classes.first;
           }
           _loadSelectedClassGrades();
+        } else {
+          _selectedClass = null;
         }
       });
     } catch (e) {
@@ -73,6 +112,14 @@ class _GradesViewState extends State<GradesView> {
         _isLoadingClasses = false;
       });
     }
+  }
+
+  void _onTermChanged(String? newTermId) {
+    setState(() {
+      _selectedTermId = newTermId;
+      _selectedClass = null;
+    });
+    _fetchClasses();
   }
 
   @override
@@ -118,6 +165,14 @@ class _GradesViewState extends State<GradesView> {
           action: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (_terms.isNotEmpty) ...[
+                TermDropdown(
+                  terms: _terms,
+                  selectedTermId: _selectedTermId,
+                  onChanged: _onTermChanged,
+                ),
+                const SizedBox(width: 12),
+              ],
               if (!_isLoadingClasses && _classes.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

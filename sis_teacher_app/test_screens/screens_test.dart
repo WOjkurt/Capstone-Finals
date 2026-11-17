@@ -36,13 +36,18 @@ Future<void> _loadFonts() async {
 }
 
 Future<http.Response> _api(http.Request req) async {
-  final path = req.url.path;
+  // The real API routes case-insensitively, and the repositories do not agree on
+  // casing, so compare in lower case or routes silently fall through to [].
+  final path = req.url.path.toLowerCase();
   Object body = <Object>[];
-  if (path.endsWith('/api/AcademicTerms')) {
+  if (path.endsWith('/api/academicterms')) {
     body = [
-      {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true}
+      {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true},
+      {'termID': 't0', 'schoolYear': '2025-2026', 'semester': 2, 'isActive': false},
     ];
-  } else if (path.endsWith('/api/Classes') || path.endsWith('/api/classes')) {
+  } else if (path.endsWith('/api/academicterms/active')) {
+    body = {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true};
+  } else if (path.endsWith('/api/classes')) {
     body = [
       {'classID': 'c1', 'subjectID': 's1', 'subjectCode': 'IT 101', 'subjectTitle': 'Introduction to Computing', 'termID': 't1', 'termSchoolYear': '2026-2027', 'termSemester': 1, 'className': 'BSIT 1A', 'enrolledCount': 38, 'userID': 't1', 'teacherName': 'Ben Teach', 'schedules': [{'scheduleID': 'x', 'classID': 'c1', 'daysOfWeek': 'M/W/F', 'startTime': '08:00:00', 'endTime': '09:00:00', 'room': 'R101'}]},
       {'classID': 'c2', 'subjectID': 's2', 'subjectCode': 'IT 102', 'subjectTitle': 'Computer Programming 1', 'termID': 't1', 'termSchoolYear': '2026-2027', 'termSemester': 1, 'className': 'BSIT 1B', 'enrolledCount': 35, 'userID': 't1', 'teacherName': 'Ben Teach', 'schedules': []},

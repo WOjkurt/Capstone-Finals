@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../blocs/classes_bloc.dart';
+import '../injection.dart';
 import '../models/class_models.dart';
+import '../models/setup_models.dart';
+import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
+import 'widgets/term_dropdown.dart';
 
 class MyClassesView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -18,16 +22,45 @@ class MyClassesView extends StatefulWidget {
 }
 
 class _MyClassesViewState extends State<MyClassesView> {
+  List<AcademicTermModel> _terms = [];
+  String? _selectedTermId;
+
   @override
   void initState() {
     super.initState();
-    _loadClasses();
+    _initData();
+  }
+
+  /// Start on the active term rather than every term ever taught.
+  Future<void> _initData() async {
+    try {
+      final terms = await getIt<ClassRepository>().getTerms();
+      final active =
+          terms.where((t) => t.isActive).firstOrNull ?? terms.firstOrNull;
+      if (mounted) {
+        setState(() {
+          _terms = terms;
+          _selectedTermId = active?.termId;
+        });
+      }
+    } catch (_) {
+      // Without terms the page still works; it just shows every term.
+    }
+    if (mounted) _loadClasses();
   }
 
   void _loadClasses() {
     context.read<ClassesBloc>().add(
-          LoadMyClassesEvent(teacherUserId: widget.auth.userId),
+          LoadMyClassesEvent(
+            teacherUserId: widget.auth.userId,
+            termId: _selectedTermId,
+          ),
         );
+  }
+
+  void _onTermChanged(String? newTermId) {
+    setState(() => _selectedTermId = newTermId);
+    _loadClasses();
   }
 
   void _openClassDetail(BuildContext context, ClassModel classItem) {
@@ -59,6 +92,13 @@ class _MyClassesViewState extends State<MyClassesView> {
           title: 'My Classes',
           subtitle: 'View your assigned subject offerings, weekly schedules, and student rosters.',
           onRefresh: _loadClasses,
+          action: _terms.isEmpty
+              ? null
+              : TermDropdown(
+                  terms: _terms,
+                  selectedTermId: _selectedTermId,
+                  onChanged: _onTermChanged,
+                ),
         ),
         Expanded(
           child: BlocBuilder<ClassesBloc, ClassesState>(
