@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
 import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
+import 'widgets/stat_card.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/term_dropdown.dart';
 import '../models/setup_models.dart';
@@ -365,7 +366,7 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             title: 'Total Offerings',
             value: '$totalClasses',
             subtitle: 'Department classes scheduled',
@@ -376,7 +377,7 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             title: 'Active Faculty',
             value: '$activeFaculty',
             subtitle: 'Instructors currently assigned',
@@ -387,7 +388,7 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             title: 'Unassigned Offerings',
             value: '$unassignedCount',
             subtitle: unassignedCount > 0
@@ -1223,94 +1224,6 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
           },
         );
       },
-    );
-  }
-}
-
-// ── Stat Card Component ──
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final Color? borderColor;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    this.borderColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor ?? AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

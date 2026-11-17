@@ -71,6 +71,19 @@ class _MainLayoutViewState extends State<MainLayoutView> {
 
   static const double _compactBelow = 1280;
 
+  /// Looked up by menu title rather than by position, so the nav list and the
+  /// pages behind it cannot drift apart when a page is added.
+  Widget _pageFor(String title) {
+    switch (title) {
+      case 'Students':
+        return const StudentsView();
+      case 'Faculty':
+        return const FacultyView();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final navItems = _navItems;
@@ -85,9 +98,8 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           Expanded(
             child: IndexedStack(
               index: currentIndex,
-              children: const [
-                StudentsView(),
-                FacultyView(),
+              children: [
+                for (final item in navItems) _pageFor(item['title'] as String),
               ],
             ),
           ),

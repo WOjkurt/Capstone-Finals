@@ -6,6 +6,7 @@ import '../models/class_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
 import 'widgets/page_header.dart';
+import 'widgets/stat_card.dart';
 
 enum _FacultyFilterMode { all, withClasses, zeroClasses }
 
@@ -367,7 +368,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             title: 'Total Faculty',
             value: '$totalFaculty',
             subtitle: 'Instructors in program roster',
@@ -378,7 +379,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             title: 'Teachers with Classes',
             value: '$withClasses',
             subtitle: 'Currently assigned to offerings',
@@ -389,7 +390,7 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _StatCard(
+          child: StatCard(
             title: 'Zero Classes Assigned',
             value: '$zeroClasses',
             subtitle: zeroClasses > 0
@@ -1045,94 +1046,6 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
         teacher: teacher,
         unassignedClasses: unassignedClasses,
         onAssign: onAssign,
-      ),
-    );
-  }
-}
-
-// ── Stat Card Component ──────────────────────────────────────────────────────
-
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final Color? borderColor;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    this.borderColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor ?? AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

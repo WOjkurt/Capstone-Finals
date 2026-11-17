@@ -123,6 +123,31 @@ class _MainLayoutViewState extends State<MainLayoutView> {
 
   static const double _compactBelow = 1280;
 
+  /// Looked up by menu title rather than by position, so the nav list and the
+  /// pages behind it cannot drift apart when a page is added.
+  Widget _pageFor(String title) {
+    switch (title) {
+      case 'My Classes':
+        return MyClassesView(
+          auth: widget.auth,
+          onOpenGrades: _navigateToGradesForClass,
+        );
+      case 'Grades':
+        return GradesView(
+          auth: widget.auth,
+          initialClassId: _selectedGradesClassId,
+        );
+      case 'Grade Corrections':
+        return const GradeCorrectionsView();
+      case 'Program Overview':
+        return const ProgramOverviewView();
+      case 'Faculty':
+        return const FacultyView();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final navItems = _navItems;
@@ -138,19 +163,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
             child: IndexedStack(
               index: currentIndex,
               children: [
-                MyClassesView(
-                  auth: widget.auth,
-                  onOpenGrades: _navigateToGradesForClass,
-                ),
-                GradesView(
-                  auth: widget.auth,
-                  initialClassId: _selectedGradesClassId,
-                ),
-                const GradeCorrectionsView(),
-                if (_isProgramHead) ...[
-                  const ProgramOverviewView(),
-                  const FacultyView(),
-                ],
+                for (final item in navItems) _pageFor(item['title'] as String),
               ],
             ),
           ),
