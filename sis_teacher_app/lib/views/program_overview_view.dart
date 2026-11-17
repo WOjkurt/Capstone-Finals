@@ -12,6 +12,7 @@ import 'widgets/assign_teacher_dialog.dart';
 import 'widgets/class_grade_summary.dart';
 import 'widgets/class_schedule_dialog.dart';
 import 'widgets/page_header.dart';
+import 'widgets/page_states.dart';
 import 'widgets/stat_card.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/student_grade_history_dialog.dart';
@@ -197,83 +198,20 @@ class _ProgramOverviewViewState extends State<ProgramOverviewView> {
               }
 
               if (state is ProgramOverviewLoading) {
-                return const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        'Loading department classes...',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                return const PageLoading(
+                    message: 'Loading department classes...');
               }
 
               if (state is ProgramOverviewError) {
-                return Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 440),
-                    margin: const EdgeInsets.all(24),
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.error_outline_rounded,
-                          color: Color(0xFFDC2626),
-                          size: 48,
+                return PageError(
+                  title: 'Failed to Load Program Classes',
+                  message: state.message,
+                  onRetry: () => context.read<ProgramOverviewBloc>().add(
+                        LoadProgramClassesEvent(
+                          termId: _selectedTermId,
+                          yearLevel: _selectedYearLevel,
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Failed to load program overview',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          state.message,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: () =>
-                              context.read<ProgramOverviewBloc>().add(
-                                LoadProgramClassesEvent(
-                                  termId: _selectedTermId,
-                                  yearLevel: _selectedYearLevel,
-                                ),
-                              ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          icon: const Icon(Icons.refresh_rounded, size: 16),
-                          label: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
                 );
               }
 

@@ -6,6 +6,7 @@ import '../models/class_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
 import 'widgets/page_header.dart';
+import 'widgets/page_states.dart';
 import 'widgets/stat_card.dart';
 
 enum _FacultyFilterMode { all, withClasses, zeroClasses }
@@ -153,69 +154,15 @@ class _FacultyViewContentState extends State<_FacultyViewContent> {
                 }
 
                 if (state is FacultyLoading) {
-                  return const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading faculty roster...',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
+                  return const PageLoading(message: 'Loading faculty roster...');
                 }
 
                 if (state is FacultyError) {
-                  return Center(
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 440),
-                      margin: const EdgeInsets.all(24),
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.error_outline_rounded,
-                              color: Color(0xFFDC2626), size: 48),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Failed to Load Faculty',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            state.message,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () => context
-                                .read<FacultyBloc>()
-                                .add(LoadFacultyEvent()),
-                            icon: const Icon(Icons.refresh, size: 16),
-                            label: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
+                  return PageError(
+                    title: 'Failed to Load Faculty',
+                    message: state.message,
+                    onRetry: () =>
+                        context.read<FacultyBloc>().add(LoadFacultyEvent()),
                   );
                 }
 

@@ -4,6 +4,7 @@ import '../blocs/grade_corrections_bloc.dart';
 import '../models/grading_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/page_states.dart';
 import 'widgets/status_badge.dart';
 
 class GradeCorrectionsView extends StatefulWidget {
@@ -34,68 +35,17 @@ class _GradeCorrectionsViewState extends State<GradeCorrectionsView> {
           child: BlocBuilder<GradeCorrectionsBloc, GradeCorrectionsState>(
             builder: (context, state) {
               if (state is GradeCorrectionsLoading) {
-                return const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        'Loading your correction requests...',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                );
+                return const PageLoading(
+                    message: 'Loading your correction requests...');
               }
 
               if (state is GradeCorrectionsError) {
-                return Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 440),
-                    margin: const EdgeInsets.all(24),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFF87171)),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline,
-                            color: Color(0xFFDC2626), size: 36),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Failed to load corrections',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF991B1B)),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          state.message,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 13, color: Color(0xFFB91C1C)),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () => context
-                              .read<GradeCorrectionsBloc>()
-                              .add(LoadMyCorrectionsEvent()),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFDC2626),
-                            foregroundColor: Colors.white,
-                          ),
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Try Again'),
-                        ),
-                      ],
-                    ),
-                  ),
+                return PageError(
+                  title: 'Failed to load correction requests',
+                  message: state.message,
+                  onRetry: () => context
+                      .read<GradeCorrectionsBloc>()
+                      .add(LoadMyCorrectionsEvent()),
                 );
               }
 
@@ -116,45 +66,12 @@ class _GradeCorrectionsViewState extends State<GradeCorrectionsView> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 440),
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.assignment_late_outlined,
-                  color: AppColors.primary, size: 32),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No Correction Requests',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'You have not submitted any grade correction requests yet. '
-              'To request a correction, open the Grades sheet and tap '
-              '"Request Correction" on a locked grade.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                  height: 1.5),
-            ),
-          ],
-        ),
-      ),
+    return const PageEmpty(
+      icon: Icons.assignment_late_outlined,
+      title: 'No Correction Requests',
+      message: 'You have not submitted any grade correction requests yet. '
+          'To request a correction, open the Grades sheet and tap '
+          '"Request Correction" on a locked grade.',
     );
   }
 

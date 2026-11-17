@@ -10,6 +10,7 @@ import '../repositories/class_repository.dart';
 import '../repositories/grading_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/page_states.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/term_dropdown.dart';
 
@@ -342,40 +343,15 @@ class _GradesViewState extends State<GradesView> {
       },
       builder: (context, state) {
         if (state is GradesSheetLoading) {
-          return const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text(
-                  'Loading class roster and grade records...',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-                ),
-              ],
-            ),
-          );
+          return const PageLoading(
+              message: 'Loading class roster and grade records...');
         }
 
         if (state is GradesSheetError) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 36),
-                const SizedBox(height: 12),
-                Text(
-                  'Error: ${state.message}',
-                  style: const TextStyle(color: Color(0xFF991B1B), fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _loadSelectedClassGrades,
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Retry'),
-                ),
-              ],
-            ),
+          return PageError(
+            title: 'Failed to load the grade sheet',
+            message: state.message,
+            onRetry: _loadSelectedClassGrades,
           );
         }
 

@@ -8,6 +8,7 @@ import '../models/setup_models.dart';
 import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
+import 'widgets/page_states.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/term_dropdown.dart';
 
@@ -104,122 +105,25 @@ class _MyClassesViewState extends State<MyClassesView> {
           child: BlocBuilder<ClassesBloc, ClassesState>(
             builder: (context, state) {
               if (state is ClassesLoading) {
-                return const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        'Loading assigned classes...',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                return const PageLoading(message: 'Loading assigned classes...');
               }
 
               if (state is ClassesError) {
-                return Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 440),
-                    margin: const EdgeInsets.all(24),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFF87171)),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 36),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Failed to load classes',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF991B1B),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          state.message,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFFB91C1C),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _loadClasses,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFDC2626),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Try Again'),
-                        ),
-                      ],
-                    ),
-                  ),
+                return PageError(
+                  title: 'Failed to load classes',
+                  message: state.message,
+                  onRetry: _loadClasses,
                 );
               }
 
               if (state is ClassesLoaded) {
                 final classes = state.classes;
                 if (classes.isEmpty) {
-                  return Center(
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.school_outlined,
-                              color: AppColors.primary,
-                              size: 32,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No Classes Assigned',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'You do not have any teaching assignments registered for this academic period.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  return const PageEmpty(
+                    icon: Icons.school_outlined,
+                    title: 'No Classes Assigned',
+                    message:
+                        'You do not have any teaching assignments registered for this academic period.',
                   );
                 }
 
