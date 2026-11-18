@@ -232,12 +232,12 @@ if (string.IsNullOrEmpty(webhookSecret))
     app.Logger.LogCritical("Webhook GoogleFormsSecret is empty or not configured. All webhook requests will be rejected.");
 }
 
-// Bind to 0.0.0.0 on the port Render assigns (or 5054 for local dev).
-// Under IIS in-process hosting the server owns the bindings and app.Urls is a
-// read-only collection, so clearing it throws; IIS listens on its site binding instead.
-if (!app.Urls.IsReadOnly)
+// Bind to 0.0.0.0 only when a host assigns a port through PORT (Render does).
+// Under IIS the site binding decides the port and app.Urls is read-only, so
+// clearing it would throw; everywhere else the usual ASP.NET Core defaults apply.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!app.Urls.IsReadOnly && !string.IsNullOrEmpty(port))
 {
-    var port = Environment.GetEnvironmentVariable("PORT") ?? "5054";
     app.Urls.Clear();
     app.Urls.Add($"http://0.0.0.0:{port}");
 }
