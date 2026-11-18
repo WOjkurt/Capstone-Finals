@@ -293,8 +293,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-// 4. HTTPS Redirection
-app.UseHttpsRedirection();
+// 4. HTTPS Redirection — disabled: the school server is served over plain HTTP
+// on an IP address with no certificate, so there is no HTTPS port to redirect to.
+// Re-enable this as soon as the server has a certificate.
+// app.UseHttpsRedirection();
 
 // 4. Routing
 app.UseRouting();
