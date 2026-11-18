@@ -232,10 +232,15 @@ if (string.IsNullOrEmpty(webhookSecret))
     app.Logger.LogCritical("Webhook GoogleFormsSecret is empty or not configured. All webhook requests will be rejected.");
 }
 
-// Bind to 0.0.0.0 on the port Render assigns (or 5054 for local dev)
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5054";
-app.Urls.Clear();
-app.Urls.Add($"http://0.0.0.0:{port}");
+// Bind to 0.0.0.0 on the port Render assigns (or 5054 for local dev).
+// Under IIS in-process hosting the server owns the bindings and app.Urls is a
+// read-only collection, so clearing it throws; IIS listens on its site binding instead.
+if (!app.Urls.IsReadOnly)
+{
+    var port = Environment.GetEnvironmentVariable("PORT") ?? "5054";
+    app.Urls.Clear();
+    app.Urls.Add($"http://0.0.0.0:{port}");
+}
 
 // 0. Security Headers (must appear on all responses including 401, 403, and 500)
 app.UseMiddleware<Api.Middleware.SecurityHeadersMiddleware>();
