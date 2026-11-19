@@ -309,7 +309,13 @@ class _ReportsViewState extends State<ReportsView>
   Future<void> _print() async {
     final table = _table;
     final term = _term;
-    if (table == null || term == null) return;
+    if (table == null || term == null) {
+      // Silence here reads as a dead button; say why instead.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nothing to print yet. Choose a term and let the report finish loading.')),
+      );
+      return;
+    }
     try {
       final bytes = _kind == ReportKind.statistics
           ? await buildEnrollmentStatisticsPdf(
@@ -345,7 +351,13 @@ class _ReportsViewState extends State<ReportsView>
   void _download() {
     final table = _table;
     final term = _term;
-    if (table == null || term == null) return;
+    if (table == null || term == null) {
+      // Silence here reads as a dead button; say why instead.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nothing to download yet. Choose a term and let the report finish loading.')),
+      );
+      return;
+    }
     final termPart = term.label.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
     try {
       downloadFile(

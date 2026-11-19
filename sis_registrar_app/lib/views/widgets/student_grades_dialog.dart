@@ -114,7 +114,12 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
   /// Prints every semester's grades (the "Failed only" filter does not apply to the printout).
   Future<void> _print() async {
     final grades = _grades;
-    if (grades == null) return;
+    if (grades == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The grades are still loading. Try again in a moment.')),
+      );
+      return;
+    }
     setState(() => _printing = true);
     try {
       final bytes = await buildResidencyPdf(

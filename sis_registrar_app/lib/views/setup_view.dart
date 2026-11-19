@@ -1955,7 +1955,12 @@ class _ClassesTabState extends State<_ClassesTab> {
   /// Prints the class list of one class, or of every class in the chosen term.
   Future<void> _printClassLists({String? classId}) async {
     final termId = _selectedTermId;
-    if (termId == null) return;
+    if (termId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose a term first, then print the class lists.')),
+      );
+      return;
+    }
     setState(() => _printing = true);
     try {
       final lists = await getIt<ReportRepository>().classLists(termId, classId: classId);

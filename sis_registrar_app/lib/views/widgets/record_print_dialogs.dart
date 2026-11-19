@@ -59,7 +59,14 @@ class _GradeSheetDialogState extends State<GradeSheetDialog> {
         ? widget.grades.where((g) => g.subjectCode == _subject).toList()
         : widget.grades.where((g) => (g.termLabel ?? 'Unknown term') == _term).toList();
     // A student with no subjects yet still gets a blank sheet.
-    if (picked.isEmpty && widget.grades.isNotEmpty) return;
+    if (picked.isEmpty && widget.grades.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_bySubject
+            ? 'No records for that subject, so there is nothing to print.'
+            : 'No subjects in that semester, so there is nothing to print.')),
+      );
+      return;
+    }
     setState(() => _printing = true);
     try {
       final bytes = await buildGradeSheetPdf(
@@ -361,7 +368,10 @@ class _CertificateDialogState extends State<CertificateDialog> {
 
   Future<void> _print() async {
     final d = _data;
-    if (d == null) return;
+    if (d == null) {
+      setState(() => _error = "The details for this student have not loaded yet, so there is nothing to print.");
+      return;
+    }
     setState(() {
       _printing = true;
       _error = null;
