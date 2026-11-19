@@ -73,16 +73,34 @@ builder.Services.AddSingleton<IFirebaseAuthVerifier, FirebaseAuthVerifier>();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORS POLICY — reads allowed origins from configuration.
-// Local dev origins are listed in appsettings.Development.json.
-// In production (Render), set the Cors__AllowedOrigins__0 env var to your
-// deployed frontend URL.
+// The deployed server's own origins are in appsettings.json, local dev ones in
+// appsettings.Development.json. Add more with Cors__AllowedOrigins__<n>
+// environment variables (n starts at 0, and overrides the entry at that index).
+//
+// Cors:AllowLoopback (default true) additionally allows http://localhost:<port>
+// and http://127.0.0.1:<port> on any port. The Flutter web dev server picks a
+// random port unless it is given --web-port, so without this a tester running
+// the app on their own machine is refused by the browser and every page comes
+// up empty with nothing in the UI to say why.
 // ─────────────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+var allowLoopbackOrigins = builder.Configuration.GetValue("Cors:AllowLoopback", true);
+
+// localhost and 127.0.0.1 reach only the tester's own machine, so any port is safe here.
+static bool IsLoopbackOrigin(string origin) =>
+    Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+    && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+    && (uri.IsLoopback || string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod());
+        policy.SetIsOriginAllowed(origin =>
+                  allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)
+                  || (allowLoopbackOrigins && IsLoopbackOrigin(origin)))
+              .AllowAnyHeader()
+              .AllowAnyMethod());
 });
 
 // Firebase Admin Setup
