@@ -279,6 +279,8 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
           if (p.studentsPerProgram.isNotEmpty) line(perGroup(p.studentsPerProgram), color: AppColors.textSecondary),
           if (p.studentsPerCurriculum.isNotEmpty) line('Curricula: ${perGroup(p.studentsPerCurriculum)}', color: AppColors.textSecondary),
           line('${p.gradesPassed} passed, ${p.gradesFailed} failed, ${p.dropped} dropped, ${p.noGradeYet} without a final grade'),
+          if (p.midtermsRecorded > 0)
+            line('${p.midtermsRecorded} midterm grade(s) kept while the final grade is still to come'),
           if (p.alreadyImported > 0) line('${p.alreadyImported} subject record(s) are already in the system and will be skipped'),
           if (p.termsCreated.isNotEmpty) line('Terms that will be added: ${p.termsCreated.join(', ')}'),
           if (p.totalProblems > 0) ...[

@@ -319,14 +319,24 @@ public partial class RecordsImportService : IRecordsImportService
                 : $"Program {code} is not in Setup → Academic Programs: {rows} row(s) skipped. Add it first if these students should be imported.");
         }
 
-        // 5. What the existing students already have, so re-running skips it.
+        // 5. What the existing students already have. A subject that is fully recorded is
+        // skipped on a re-run, but one whose other grade has arrived since (midterms imported
+        // mid-semester, finals added at the end) is filled in rather than skipped.
         var studentUserIds = existing.Values.Select(u => u.UserID).ToList();
-        var existingLoads = (await _context.StudyLoads.AsNoTracking()
+        var loadIdByKey = (await _context.StudyLoads.AsNoTracking()
                 .Where(sl => studentUserIds.Contains(sl.UserID) && sl.Class != null)
-                .Select(sl => new { sl.UserID, sl.Class!.SubjectID, sl.Class.TermID })
+                .Select(sl => new { sl.StudyLoadID, sl.UserID, sl.Class!.SubjectID, sl.Class.TermID })
                 .ToListAsync())
-            .Select(x => (x.UserID, x.SubjectID, x.TermID))
-            .ToHashSet();
+            .GroupBy(x => (x.UserID, x.SubjectID, x.TermID))
+            .ToDictionary(x => x.Key, x => x.First().StudyLoadID);
+        // Tracked, so a grade filled in below is saved.
+        var knownLoadIds = loadIdByKey.Values.ToList();
+        var gradeByLoadId = knownLoadIds.Count == 0
+            ? new Dictionary<Guid, Grade>()
+            : await _context.Grades.Where(gr => knownLoadIds.Contains(gr.StudyLoadID))
+                .ToDictionaryAsync(gr => gr.StudyLoadID);
+        // The same subject twice in one file: the second row is a duplicate, not an update.
+        var seenThisRun = new HashSet<(Guid, Guid, Guid)>();
 
         // 6. Terms (created when missing) and the classes that hold imported grades.
         var terms = await _context.AcademicTerms.ToListAsync();
@@ -480,17 +490,72 @@ public partial class RecordsImportService : IRecordsImportService
                 }
 
                 var term = TermFor(g.SchoolYear, g.Semester);
-                if (existingLoads.Contains((userId, subject.SubjectID, term.TermID)))
+                var loadKey = (userId, subject.SubjectID, term.TermID);
+
+                // Read on its own: mid-semester the midterm is the only grade there is.
+                decimal? midtermGrade = decimal.TryParse(g.Midterm, NumberStyles.Number, CultureInfo.InvariantCulture, out var mg) && GradeScale.IsValid(mg)
+                    ? mg : FixGradeTypo(g.Midterm);
+
+                if (!seenThisRun.Add(loadKey))
                 {
                     result.AlreadyImported++;
                     continue;
                 }
-                existingLoads.Add((userId, subject.SubjectID, term.TermID));
+
+                if (loadIdByKey.TryGetValue(loadKey, out var knownLoadId))
+                {
+                    // Already imported: add a grade that has arrived since, but never change one
+                    // that is already recorded — that is what a grade correction is for.
+                    var recorded = gradeByLoadId.GetValueOrDefault(knownLoadId);
+                    bool addMidterm = !dropped && midtermGrade != null && recorded?.MidtermGrade == null;
+                    bool addFinal = finalGrade != null && recorded?.FinalGrade == null;
+                    if (!addMidterm && !addFinal)
+                    {
+                        result.AlreadyImported++;
+                        continue;
+                    }
+
+                    if (addFinal)
+                    {
+                        if (GradeScale.Remarks(finalGrade!.Value) == 1) result.GradesPassed++;
+                        else result.GradesFailed++;
+                        clearances.Add((userId, term.TermID));
+                    }
+                    if (addMidterm && !addFinal && recorded?.FinalGrade == null) result.MidtermsRecorded++;
+
+                    if (dryRun) continue;
+                    if (recorded == null)
+                    {
+                        _context.Grades.Add(new Grade
+                        {
+                            GradeID = Guid.NewGuid(),
+                            StudyLoadID = knownLoadId,
+                            MidtermGrade = midtermGrade,
+                            FinalGrade = finalGrade,
+                            Remarks = finalGrade != null ? GradeScale.Remarks(finalGrade.Value) : null,
+                            SubmittedByUserID = callerUserId,
+                            DateSubmitted = DateTime.UtcNow,
+                        });
+                    }
+                    else
+                    {
+                        if (addMidterm) recorded.MidtermGrade = midtermGrade;
+                        if (addFinal)
+                        {
+                            recorded.FinalGrade = finalGrade;
+                            recorded.Remarks = GradeScale.Remarks(finalGrade!.Value);
+                        }
+                        recorded.SubmittedByUserID = callerUserId;
+                        recorded.DateSubmitted = DateTime.UtcNow;
+                    }
+                    continue;
+                }
 
                 if (dropped) result.Dropped++;
                 else if (finalGrade == null) result.NoGradeYet++;
                 else if (GradeScale.Remarks(finalGrade.Value) == 1) result.GradesPassed++;
                 else result.GradesFailed++;
+                if (!dropped && midtermGrade != null && finalGrade == null) result.MidtermsRecorded++;
                 if (finalGrade != null) clearances.Add((userId, term.TermID));
 
                 if (dryRun) continue;
@@ -504,17 +569,16 @@ public partial class RecordsImportService : IRecordsImportService
                     CreatedByUserID = callerUserId,
                 };
                 _context.StudyLoads.Add(load);
-                if (finalGrade != null)
+                // A dropped subject keeps no grade; otherwise either grade on its own is worth keeping.
+                if (!dropped && (midtermGrade != null || finalGrade != null))
                 {
-                    decimal? midterm = decimal.TryParse(g.Midterm, NumberStyles.Number, CultureInfo.InvariantCulture, out var mg) && GradeScale.IsValid(mg)
-                        ? mg : FixGradeTypo(g.Midterm);
                     _context.Grades.Add(new Grade
                     {
                         GradeID = Guid.NewGuid(),
                         StudyLoadID = load.StudyLoadID,
-                        MidtermGrade = midterm,
+                        MidtermGrade = midtermGrade,
                         FinalGrade = finalGrade,
-                        Remarks = GradeScale.Remarks(finalGrade.Value),
+                        Remarks = finalGrade != null ? GradeScale.Remarks(finalGrade.Value) : null,
                         SubmittedByUserID = callerUserId,
                         DateSubmitted = DateTime.UtcNow,
                     });

@@ -23,8 +23,10 @@ public class RecordsImportResultDto
     public int GradesPassed { get; set; }
     public int GradesFailed { get; set; }
     public int Dropped { get; set; }
-    /// <summary>Subjects with no final grade yet (NA or blank): saved as enrolled, without a grade.</summary>
+    /// <summary>Subjects with no final grade yet (NA or blank): saved as enrolled. A midterm grade on the row is still kept.</summary>
     public int NoGradeYet { get; set; }
+    /// <summary>Subjects whose midterm grade was saved while the final grade is still to come.</summary>
+    public int MidtermsRecorded { get; set; }
     /// <summary>Rows already in the system from an earlier import; skipped.</summary>
     public int AlreadyImported { get; set; }
 

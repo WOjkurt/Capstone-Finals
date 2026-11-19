@@ -439,4 +439,121 @@ public class RecordsImportTests : IDisposable
         var result = Assert.IsType<ConflictObjectResult>(await Students().SetSchoolEmail(id, new SetSchoolEmailDto { SchoolEmail = "y@dbtc-cebu.edu.ph" }));
         Assert.Contains("already signed in", result.Value!.ToString());
     }
+
+    // ── Midterms during the semester ───────────────────────────────────
+    // Mid-semester the registrar imports a file whose MG column is filled and FG is still empty.
+
+    private MemoryStream OneSubject(string mg, string fg) => Workbook(
+        ("1ST SEM_2025-2026", new[] { GradesHeader, G("2.5060208E7", "DELA CRUZ", "BTVTEd /MT", "MT 101A", mg, fg) }));
+
+    private Task<Api.DTOs.Records.RecordsImportResultDto> RunOne(string mg, string fg, bool dryRun = false) =>
+        new RecordsImportService(_context).ImportAsync(OneSubject(mg, fg), null, ["2025-2026"], dryRun, true, _registrar);
+
+    [Fact]
+    public async Task MidtermWithoutAFinal_IsKept()
+    {
+        var result = await RunOne("1.75", "");
+
+        var grade = await _context.Grades.SingleAsync();
+        Assert.Equal(1.75m, grade.MidtermGrade);
+        Assert.Null(grade.FinalGrade);
+        Assert.Null(grade.Remarks);                 // passed or failed is not known yet
+        Assert.Equal(_registrar, grade.SubmittedByUserID);
+
+        Assert.Equal(1, result.NoGradeYet);          // counts the missing final grade
+        Assert.Equal(1, result.MidtermsRecorded);
+        Assert.Equal(0, result.TotalProblems);
+
+        // Nothing is released: a term is cleared only once the final grade is in.
+        Assert.Empty(await _context.GradeClearances.ToListAsync());
+    }
+
+    [Fact]
+    public async Task TheFinalGrade_AddedLater_LandsOnTheSameRow()
+    {
+        await RunOne("1.75", "");
+        var result = await RunOne("1.75", "2.0");
+
+        var grade = await _context.Grades.SingleAsync();
+        Assert.Equal(1.75m, grade.MidtermGrade);
+        Assert.Equal(2.0m, grade.FinalGrade);
+        Assert.Equal(1, grade.Remarks);              // passed
+        Assert.Single(await _context.StudyLoads.ToListAsync());
+
+        Assert.Equal(0, result.AlreadyImported);     // filled in, not skipped
+        Assert.Equal(1, result.GradesPassed);
+        Assert.True((await _context.GradeClearances.SingleAsync()).IsCleared);
+    }
+
+    [Fact]
+    public async Task AMidtermThatArrivesAfterTheFinal_IsAlsoFilledIn()
+    {
+        await RunOne("", "2.0");
+        await RunOne("1.75", "2.0");
+
+        var grade = await _context.Grades.SingleAsync();
+        Assert.Equal(1.75m, grade.MidtermGrade);
+        Assert.Equal(2.0m, grade.FinalGrade);
+    }
+
+    [Fact]
+    public async Task AGradeAlreadyRecorded_IsNeverChangedByAnImport()
+    {
+        await RunOne("1.75", "2.0");
+        var result = await RunOne("3.0", "5.0");     // a later file disagrees
+
+        var grade = await _context.Grades.SingleAsync();
+        Assert.Equal(1.75m, grade.MidtermGrade);     // a correction request is the only way to change it
+        Assert.Equal(2.0m, grade.FinalGrade);
+        Assert.Equal(1, result.AlreadyImported);
+        Assert.Equal(0, result.GradesPassed);
+        Assert.Equal(0, result.GradesFailed);
+    }
+
+    [Fact]
+    public async Task ADryRunOfMidterms_CountsThem_AndSavesNothing()
+    {
+        var result = await RunOne("1.75", "", dryRun: true);
+
+        Assert.Equal(1, result.MidtermsRecorded);
+        Assert.Empty(await _context.Grades.ToListAsync());
+        Assert.Empty(await _context.StudyLoads.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ADroppedSubject_KeepsNoGrade_EvenWithAMidterm()
+    {
+        var result = await RunOne("1.75", "DR");
+
+        Assert.Empty(await _context.Grades.ToListAsync());
+        Assert.Equal(1, result.Dropped);
+        Assert.Equal(0, result.MidtermsRecorded);
+    }
+
+    [Fact]
+    public async Task ASubjectDroppedAfterTheMidterm_StillKeepsNoGrade()
+    {
+        await RunOne("", "DR");            // dropped, no grade row
+        var result = await RunOne("1.75", "DR");   // the same row again, now with a midterm
+
+        Assert.Empty(await _context.Grades.ToListAsync());
+        Assert.Equal(1, result.AlreadyImported);
+    }
+
+    [Fact]
+    public async Task TheSameSubjectTwiceInOneFile_IsADuplicate()
+    {
+        var file = Workbook(("1ST SEM_2025-2026", new[]
+        {
+            GradesHeader,
+            G("2.5060208E7", "DELA CRUZ", "BTVTEd /MT", "MT 101A", "1.75", ""),
+            G("2.5060208E7", "DELA CRUZ", "BTVTEd /MT", "MT 101A", "3.0", ""),
+        }));
+        var result = await new RecordsImportService(_context)
+            .ImportAsync(file, null, ["2025-2026"], false, true, _registrar);
+
+        var grade = await _context.Grades.SingleAsync();
+        Assert.Equal(1.75m, grade.MidtermGrade);     // the first row wins
+        Assert.Equal(1, result.AlreadyImported);
+    }
 }

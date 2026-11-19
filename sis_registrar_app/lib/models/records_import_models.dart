@@ -38,6 +38,9 @@ class RecordsImportResult {
   final int gradesFailed;
   final int dropped;
   final int noGradeYet;
+
+  /// Subjects whose midterm grade was saved while the final grade is still to come.
+  final int midtermsRecorded;
   final int alreadyImported;
   final List<String> termsCreated;
   final bool gradesReleased;
@@ -59,6 +62,7 @@ class RecordsImportResult {
     this.gradesFailed = 0,
     this.dropped = 0,
     this.noGradeYet = 0,
+    this.midtermsRecorded = 0,
     this.alreadyImported = 0,
     this.termsCreated = const [],
     this.gradesReleased = true,
@@ -89,6 +93,7 @@ class RecordsImportResult {
       gradesFailed: n('gradesFailed'),
       dropped: n('dropped'),
       noGradeYet: n('noGradeYet'),
+      midtermsRecorded: n('midtermsRecorded'),
       alreadyImported: n('alreadyImported'),
       termsCreated: strings('termsCreated'),
       gradesReleased: j['gradesReleased'] as bool? ?? true,
