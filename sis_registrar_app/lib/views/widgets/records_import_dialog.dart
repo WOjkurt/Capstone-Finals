@@ -134,6 +134,15 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
                 'Students are matched by Student ID, so importing again never makes duplicates.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
+              const SizedBox(height: 8),
+              // Midterm-only files are the common case mid-semester, and the one
+              // mistake that loses a whole sheet is deleting the empty FG column.
+              const Text(
+                'Midterms on their own: fill the MG column and leave FG empty, but keep the FG column header. '
+                'A sheet without an FG column is skipped. Those rows are counted as "without a final grade", '
+                'which is expected, and the final grade can be imported later onto the same row.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 14),
               _fileRow(
                 key: const ValueKey('choose_grades_file'),
@@ -281,6 +290,10 @@ class _RecordsImportDialogState extends State<RecordsImportDialog> {
           line('${p.gradesPassed} passed, ${p.gradesFailed} failed, ${p.dropped} dropped, ${p.noGradeYet} without a final grade'),
           if (p.midtermsRecorded > 0)
             line('${p.midtermsRecorded} midterm grade(s) kept while the final grade is still to come'),
+          // The same row is in both counts; say so, or the larger one reads as a failure.
+          if (p.midtermsRecorded > 0 && p.noGradeYet > 0)
+            line('Rows with a midterm but no final grade yet are counted on both lines above.',
+                color: AppColors.textSecondary),
           if (p.alreadyImported > 0) line('${p.alreadyImported} subject record(s) are already in the system and will be skipped'),
           if (p.termsCreated.isNotEmpty) line('Terms that will be added: ${p.termsCreated.join(', ')}'),
           if (p.totalProblems > 0) ...[
