@@ -58,7 +58,10 @@ void main() {
     expect(created.code, 'BTVTED-MT');
     expect(created.major, 'Mechanical Technology');
 
-    await tester.tap(find.byTooltip('Edit Program').last);
+    final editButton = find.widgetWithText(OutlinedButton, 'Edit').last;
+    await tester.ensureVisible(editButton);
+    await tester.pumpAndSettle();
+    await tester.tap(editButton);
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextFormField, 'Furniture Technology'), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('program_major_field')), '');

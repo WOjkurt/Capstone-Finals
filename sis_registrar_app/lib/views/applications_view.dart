@@ -378,48 +378,33 @@ class _ApplicationsViewState extends State<ApplicationsView> {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Review button
+                                // Review is the secondary action, so it is outlined.
                                 OutlinedButton(
                                   onPressed: () => _openReviewModal(
                                       context, app, programs, terms),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 6),
-                                    minimumSize: const Size(60, 32),
-                                  ),
-                                  child: const Text('Review',
-                                      style: TextStyle(fontSize: 12)),
+                                  child: const Text('Review'),
                                 ),
                                 if (app.status == 1) ...[
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 8),
                                   ElevatedButton(
                                     onPressed: () =>
                                         _openApproveDialog(context, app),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF10B981),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 6),
-                                      minimumSize: const Size(60, 32),
-                                      elevation: 0,
-                                    ),
-                                    child: const Text('Approve',
-                                        style: TextStyle(fontSize: 12)),
+                                    child: const Text('Approve'),
                                   ),
-                                  const SizedBox(width: 6),
-                                  ElevatedButton(
+                                  const SizedBox(width: 8),
+                                  // Rejecting cannot be undone, so it keeps a red label
+                                  // while matching every other button's size and shape.
+                                  OutlinedButton(
                                     onPressed: () =>
                                         _openRejectDialog(context, app),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFEF4444),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 6),
-                                      minimumSize: const Size(60, 32),
-                                      elevation: 0,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF991B1B),
+                                      side: BorderSide(
+                                        color: const Color(0xFF991B1B)
+                                            .withValues(alpha: 0.4),
+                                      ),
                                     ),
-                                    child: const Text('Reject',
-                                        style: TextStyle(fontSize: 12)),
+                                    child: const Text('Reject'),
                                   ),
                                 ],
                               ],

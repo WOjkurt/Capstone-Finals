@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// Top of every page: a title that matches the menu label, one line of help,
+/// Top of every page: a title that matches the menu label, an optional line of help,
 /// an optional main action, and an optional small refresh button.
 class PageHeader extends StatelessWidget {
   final String title;
-  final String subtitle;
+
+  /// One line of help under the title. Left out on pages whose title already says it all.
+  final String? subtitle;
   final Widget? action;
 
   /// Shows a small refresh icon button. Refreshing is a minor action, so it never
@@ -17,7 +19,7 @@ class PageHeader extends StatelessWidget {
   const PageHeader({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.action,
     this.onRefresh,
     this.onBack,
@@ -58,14 +60,16 @@ class PageHeader extends StatelessWidget {
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
+                if (subtitle != null && subtitle!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

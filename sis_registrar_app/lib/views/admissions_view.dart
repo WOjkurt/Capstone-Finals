@@ -70,12 +70,7 @@ class _AdmissionsViewState extends State<AdmissionsView>
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PageHeader(
-            title: 'Admissions',
-            subtitle:
-                'New students: form responses become applications, then approved applicants get a login.',
-            onRefresh: _refresh,
-          ),
+          PageHeader(title: 'Admissions', onRefresh: _refresh),
           Container(
             color: Colors.white,
             child: BlocBuilder<DashboardBloc, DashboardState>(

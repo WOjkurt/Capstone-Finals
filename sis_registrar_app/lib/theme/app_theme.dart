@@ -87,13 +87,61 @@ class AppTheme {
           color: Color(0xFF475569),
         ),
       ),
+      // One button look across the whole app: same height, same padding, same corner,
+      // same label size. Only the fill tells a main action from a secondary one.
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFCBD5E1),
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
+          padding: buttonPadding,
+          minimumSize: buttonMinimumSize,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          padding: buttonPadding,
+          minimumSize: buttonMinimumSize,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: Color(0xFFCBD5E1)),
+          padding: buttonPadding,
+          minimumSize: buttonMinimumSize,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          padding: buttonPadding,
+          minimumSize: buttonMinimumSize,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: buttonTextStyle,
         ),
       ),
     );
   }
+
+  /// The one size every button uses. Call sites set a colour at most, never a size,
+  /// so rows of buttons line up wherever they appear.
+  static const EdgeInsets buttonPadding =
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10);
+  static const Size buttonMinimumSize = Size(0, 40);
+  static const TextStyle buttonTextStyle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+  );
 }

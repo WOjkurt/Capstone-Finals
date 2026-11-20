@@ -62,7 +62,11 @@ void main() {
   testWidgets('editing a minor subject starts checked; unticking sends isMinor false', (tester) async {
     final bloc = await pumpSubjects(tester, [_subject('s1', 'THEO 101A', isMinor: true)]);
 
-    await tester.tap(find.byTooltip('Edit Subject'));
+    // The Actions column sits past the right edge of the table, so scroll to it first.
+    final editButton = find.widgetWithText(OutlinedButton, 'Edit');
+    await tester.ensureVisible(editButton);
+    await tester.pumpAndSettle();
+    await tester.tap(editButton);
     await tester.pumpAndSettle();
 
     final checkbox = find.byKey(const ValueKey('subject_is_minor_checkbox'));

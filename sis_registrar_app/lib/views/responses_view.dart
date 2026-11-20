@@ -336,22 +336,10 @@ class _ResponsesViewState extends State<ResponsesView> {
                             StatusBadge.pending(label: 'Unprocessed'),
                           ),
                           DataCell(
-                            ElevatedButton.icon(
+                            ElevatedButton(
                               onPressed: () => _openProcessDialog(
                                   context, r, programs, terms),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                elevation: 0,
-                              ),
-                              icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-                              label: const Text('Process into application',
-                                  style: TextStyle(fontSize: 12)),
+                              child: const Text('Process into application'),
                             ),
                           ),
                         ],

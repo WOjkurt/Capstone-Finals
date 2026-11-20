@@ -110,7 +110,10 @@ class ClearanceStateData extends ClearanceState {
 class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
   final UserSearchRepository _userRepo;
   final GradeClearanceRepository _clearanceRepo;
-  Timer? _debounceTimer;
+
+  /// Counts keystrokes. Each search remembers the number it was started with and gives up
+  /// as soon as a newer one exists, so a slow reply can never overwrite a newer search.
+  int _searchSeq = 0;
 
   ClearanceBloc(this._userRepo, this._clearanceRepo)
       : super(ClearanceStateData()) {
@@ -123,50 +126,51 @@ class ClearanceBloc extends Bloc<ClearanceEvent, ClearanceState> {
     on<StudentProgramShiftedEvent>(_onStudentProgramShifted);
   }
 
-  @override
-  Future<void> close() {
-    _debounceTimer?.cancel();
-    return super.close();
-  }
 
   Future<void> _onSearchStudents(
       SearchStudentsEvent event, Emitter<ClearanceState> emit) async {
-    final current = state is ClearanceStateData
+    final mine = ++_searchSeq;
+
+    // Wait out the typing: another keystroke within 300ms replaces this search before it starts.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (mine != _searchSeq || emit.isDone) return;
+
+    // Read the state now, not before the wait, so the selected student and filter are current.
+    var current = state is ClearanceStateData
         ? state as ClearanceStateData
         : ClearanceStateData();
 
-    final completer = Completer<void>();
-    _debounceTimer?.cancel();
-
-    // Debounce ~300ms
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+    emit(current.copyWith(
+      searchQuery: event.query,
+      isSearching: true,
+      clearMessages: true,
+    ));
+    try {
+      final results = await _userRepo.search(
+        query: event.query,
+        role: 5,
+        missingLrn: current.missingLrnOnly ? true : null,
+      );
+      if (mine != _searchSeq || emit.isDone) return;
+      current = state is ClearanceStateData
+          ? state as ClearanceStateData
+          : current;
       emit(current.copyWith(
         searchQuery: event.query,
-        isSearching: true,
-        clearMessages: true,
+        isSearching: false,
+        searchResults: results,
       ));
-      try {
-        final results = await _userRepo.search(
-          query: event.query,
-          role: 5,
-          missingLrn: current.missingLrnOnly ? true : null,
-        );
-        emit(current.copyWith(
-          searchQuery: event.query,
-          isSearching: false,
-          searchResults: results,
-        ));
-      } catch (e, st) {
-        emit(current.copyWith(
-          searchQuery: event.query,
-          isSearching: false,
-          errorMessage: getFriendlyErrorMessage(e, st),
-        ));
-      }
-      completer.complete();
-    });
-
-    await completer.future;
+    } catch (e, st) {
+      if (mine != _searchSeq || emit.isDone) return;
+      current = state is ClearanceStateData
+          ? state as ClearanceStateData
+          : current;
+      emit(current.copyWith(
+        searchQuery: event.query,
+        isSearching: false,
+        errorMessage: getFriendlyErrorMessage(e, st),
+      ));
+    }
   }
 
   Future<void> _onToggleMissingLrnFilter(

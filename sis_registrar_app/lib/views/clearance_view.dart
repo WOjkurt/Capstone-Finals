@@ -49,10 +49,9 @@ class _ClearanceViewState extends State<ClearanceView> {
       body: BlocConsumer<ClearanceBloc, ClearanceState>(
         listener: (context, state) {
           if (state is ClearanceStateData) {
-            // A search started elsewhere (the menu's quick search) shows up in this box too.
-            if (state.searchQuery != _searchController.text) {
-              _searchController.text = state.searchQuery;
-            }
+            // Nothing is written back into the search box here. The query in the state is the
+            // one that was sent to the server, so by the time results arrive it is a few letters
+            // behind what has been typed; copying it back used to wipe those letters.
             if (state.successMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -80,15 +79,13 @@ class _ClearanceViewState extends State<ClearanceView> {
             children: [
               PageHeader(
                 title: 'Students',
-                subtitle: 'Find a student to see their study load, grades, curriculum progress and history.',
                 // Used once a year, so it lives here instead of in the menu.
                 action: Wrap(spacing: 8, runSpacing: 8, children: [
                   MenuAnchor(
-                    builder: (context, menu, _) => OutlinedButton.icon(
+                    builder: (context, menu, _) => OutlinedButton(
                       key: const ValueKey('open_import_menu'),
-                      icon: const Icon(Icons.upload_file_outlined, size: 18),
-                      label: const Text('Import'),
                       onPressed: () => menu.isOpen ? menu.close() : menu.open(),
+                      child: const Text('Import'),
                     ),
                     menuChildren: [
                       MenuItemButton(
@@ -123,10 +120,8 @@ class _ClearanceViewState extends State<ClearanceView> {
                       ),
                     ],
                   ),
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     key: const ValueKey('open_records_check_button'),
-                    icon: const Icon(Icons.fact_check_outlined, size: 18),
-                    label: const Text('Records check'),
                     onPressed: () {
                       final bloc = context.read<ClearanceBloc>();
                       Navigator.of(context).push(MaterialPageRoute<void>(
@@ -139,14 +134,14 @@ class _ClearanceViewState extends State<ClearanceView> {
                         ),
                       ));
                     },
+                    child: const Text('Records check'),
                   ),
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     key: const ValueKey('open_promotion_button'),
-                    icon: const Icon(Icons.trending_up_rounded, size: 18),
-                    label: const Text('End-of-year promotion'),
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
                       builder: (routeContext) => PromotionView(onBack: () => Navigator.of(routeContext).pop()),
                     )),
+                    child: const Text('End-of-year promotion'),
                   ),
                 ]),
                 onRefresh: () {

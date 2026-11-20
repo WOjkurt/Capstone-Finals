@@ -334,12 +334,6 @@ class _LoginViewState extends State<LoginView> {
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Restricted to Registrar and Admin roles only.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                  ),
                 ],
               ),
             ),

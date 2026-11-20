@@ -31,6 +31,9 @@ class FakeAuthService implements AuthService {
 
 final _requests = <String>[];
 
+/// How long the fake server takes to answer a student search.
+var _searchDelay = Duration.zero;
+
 Future<http.Response> _api(http.Request req) async {
   final path = req.url.path;
   _requests.add('$path?${req.url.query}');
@@ -54,6 +57,7 @@ Future<http.Response> _api(http.Request req) async {
   if (path.endsWith('/api/activity-log'))
     body = {'items': [], 'page': 1, 'pageSize': 50, 'totalCount': 0};
   if (path.endsWith('/api/students/search')) {
+    if (_searchDelay > Duration.zero) await Future<void>.delayed(_searchDelay);
     body = [
       {
         'userId': 'u1',
@@ -117,7 +121,10 @@ Future<ClearanceBloc> _pumpApp(WidgetTester tester, {double width = 1440}) async
 }
 
 void main() {
-  setUp(_requests.clear);
+  setUp(() {
+    _requests.clear();
+    _searchDelay = Duration.zero;
+  });
 
   testWidgets('a calm menu: 7 page links and badges only; Ctrl+K jumps to the Students search', (tester) async {
     await http.runWithClient(() async {
@@ -238,5 +245,67 @@ void main() {
     expect(AuthenticatedState(email: 'r@x.com', role: 2, roleName: 'Registrar', userId: 'r1').displayName, 'r@x.com');
     expect(AuthenticatedState(email: 'r@x.com', role: 2, roleName: 'Registrar', userId: 'r1', fullName: '  ').displayName,
         'r@x.com');
+  });
+
+  testWidgets('typing is never cut off: a slow, out-of-date reply cannot rewrite the box', (tester) async {
+    await http.runWithClient(() async {
+      await _pumpApp(tester);
+      await tester.tap(find.byKey(const ValueKey('nav_Students')));
+      await tester.pumpAndSettle();
+      // Each search takes longer than the gap between keystrokes, so replies land
+      // after the person has already typed more.
+      _searchDelay = const Duration(milliseconds: 600);
+
+      final search = find
+          .descendant(of: find.byType(ClearanceView), matching: find.byType(TextField))
+          .first;
+      final field = tester.widget<TextField>(search).controller!;
+
+      // Every value the box ever holds, in order.
+      final seen = <String>[];
+      field.addListener(() => seen.add(field.text));
+
+      for (final typed in ['a', 'an', 'ana']) {
+        await tester.enterText(search, typed);
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      // The box only ever grows as the letters are typed. It used to snap back to an
+      // older query when a slow reply arrived, which ate whatever had been typed since.
+      var longest = '';
+      for (final value in seen) {
+        expect(value.length, greaterThanOrEqualTo(longest.length),
+            reason: 'the box went backwards from "$longest" to "$value": $seen');
+        longest = value;
+      }
+      expect(field.text, 'ana');
+    }, () => MockClient(_api));
+  });
+
+  testWidgets('a burst of typing sends one search, for the final text', (tester) async {
+    await http.runWithClient(() async {
+      await _pumpApp(tester);
+      await tester.tap(find.byKey(const ValueKey('nav_Students')));
+      await tester.pumpAndSettle();
+      _requests.clear();
+
+      final search = find
+          .descendant(of: find.byType(ClearanceView), matching: find.byType(TextField))
+          .first;
+
+      // Typing faster than the debounce: only the last one should reach the server.
+      for (final typed in ['a', 'an', 'ana']) {
+        await tester.enterText(search, typed);
+        await tester.pump(const Duration(milliseconds: 80));
+      }
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      final searches = _requests.where((r) => r.contains('/api/students/search')).toList();
+      expect(searches, hasLength(1));
+      expect(searches.single, contains('ana'));
+    }, () => MockClient(_api));
   });
 }

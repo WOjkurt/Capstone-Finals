@@ -244,7 +244,7 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
                             ),
                           ),
                           DataCell(
-                            ElevatedButton.icon(
+                            ElevatedButton(
                               onPressed: isLinking
                                   ? null
                                   : () {
@@ -265,28 +265,23 @@ class _LinkAccountsViewState extends State<LinkAccountsView> {
                                             ),
                                           );
                                     },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                elevation: 0,
-                              ),
-                              icon: isLinking
-                                  ? const SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
+                              child: isLinking
+                                  ? const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Linking...'),
+                                      ],
                                     )
-                                  : const Icon(Icons.link, size: 16),
-                              label: Text(isLinking ? 'Linking...' : 'Link Account',
-                                  style: const TextStyle(fontSize: 12)),
+                                  : const Text('Link Account'),
                             ),
                           ),
                         ],

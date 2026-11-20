@@ -10,10 +10,10 @@ import 'clearance_view.dart';
 import 'corrections_view.dart';
 import 'dashboard_view.dart';
 import 'pending_loads_view.dart';
+import 'profile_view.dart';
 import 'reports_view.dart';
 import 'setup_view.dart';
 import 'staff_management_view.dart';
-import 'widgets/password_reset.dart';
 
 class MainLayoutView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -117,6 +117,9 @@ class _MainLayoutViewState extends State<MainLayoutView> {
 
   void _onSelectTab(int index) => setState(() => _selectedIndex = index);
 
+  /// The Profile page sits after the menu pages: reachable, but not a menu item.
+  int get _profileIndex => _navItems.length;
+
   /// Opens a page by name. Names of tabs inside Admissions and Reports open that tab.
   void _openPage(String title) {
     const admissionsTabs = ['Form responses', 'Applications', 'Create logins'];
@@ -176,47 +179,10 @@ class _MainLayoutViewState extends State<MainLayoutView> {
     };
   }
 
-  /// Shows a confirmation dialog before signing out.
-  /// The [LogoutRequested] event is only dispatched if the user confirms.
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text(
-          "You'll need to sign in again to access the Registrar portal.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: const Color(0xFF991B1B),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      context.read<AuthBloc>().add(LogoutRequested());
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final navItems = _navItems;
-    final currentIndex = _selectedIndex < navItems.length ? _selectedIndex : 0;
+    final currentIndex = _selectedIndex <= navItems.length ? _selectedIndex : 0;
     final compact = MediaQuery.sizeOf(context).width < _compactBelow;
 
     return CurrentTermScope(
@@ -242,6 +208,7 @@ class _MainLayoutViewState extends State<MainLayoutView> {
                     children: [
                       for (final item in navItems)
                         _pageFor(item['title'] as String),
+                      ProfileView(auth: widget.auth),
                     ],
                   ),
                 ),
@@ -342,101 +309,79 @@ class _MainLayoutViewState extends State<MainLayoutView> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 0 : 20,
-              12,
-              compact ? 0 : 12,
-              18,
-            ),
-            child: compact
-                ? Column(
-                    children: [
-                      Tooltip(
-                        message:
-                            '${widget.auth.displayName} (${widget.auth.roleName})',
-                        child: CircleAvatar(
-                          radius: 17,
-                          backgroundColor: AppColors.sidebarBorder,
-                          foregroundColor: Colors.white,
-                          child: Text(
-                            initial,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      IconButton(
-                        key: const ValueKey('change_password_button'),
-                        tooltip: 'Change password',
-                        icon: const Icon(Icons.lock_reset_rounded, size: 20),
-                        color: AppColors.sidebarTextMuted,
-                        onPressed: () => confirmChangePassword(context, widget.auth.email),
-                      ),
-                      IconButton(
-                        key: const ValueKey('sign_out_button'),
-                        tooltip: 'Sign out',
-                        icon: const Icon(Icons.logout_rounded, size: 20),
-                        color: AppColors.sidebarTextMuted,
-                        onPressed: () => _confirmLogout(context),
-                      ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 17,
-                        backgroundColor: AppColors.sidebarBorder,
-                        foregroundColor: Colors.white,
-                        child: Text(
-                          initial,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.auth.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              widget.auth.roleName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.sidebarTextMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        key: const ValueKey('change_password_button'),
-                        tooltip: 'Change password',
-                        icon: const Icon(Icons.lock_reset_rounded, size: 20),
-                        color: AppColors.sidebarTextMuted,
-                        onPressed: () => confirmChangePassword(context, widget.auth.email),
-                      ),
-                      IconButton(
-                        key: const ValueKey('sign_out_button'),
-                        tooltip: 'Sign out',
-                        icon: const Icon(Icons.logout_rounded, size: 20),
-                        color: AppColors.sidebarTextMuted,
-                        onPressed: () => _confirmLogout(context),
-                      ),
-                    ],
-                  ),
+            padding: EdgeInsets.fromLTRB(compact ? 12 : 14, 12, compact ? 12 : 14, 18),
+            child: _profileTile(initial, compact, currentIndex == _profileIndex),
           ),
         ],
       ),
     );
+  }
+
+  /// Who is signed in, as a link to their own page. Changing the password and signing out
+  /// live there, in words, instead of as icons down here.
+  Widget _profileTile(String initial, bool compact, bool selected) {
+    final avatar = CircleAvatar(
+      radius: 17,
+      backgroundColor: selected ? Colors.white : AppColors.sidebarBorder,
+      foregroundColor: selected ? AppColors.primary : Colors.white,
+      child: Text(initial, style: const TextStyle(fontWeight: FontWeight.w700)),
+    );
+
+    final tile = InkWell(
+      key: const ValueKey('nav_Profile'),
+      onTap: () => _onSelectTab(_profileIndex),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: compact
+            ? Center(child: avatar)
+            : Row(
+                children: [
+                  avatar,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.auth.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Profile',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: selected
+                                ? Colors.white
+                                : AppColors.sidebarTextMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: selected ? Colors.white : AppColors.sidebarTextMuted,
+                  ),
+                ],
+              ),
+      ),
+    );
+
+    return compact
+        ? Tooltip(message: '${widget.auth.displayName} · Profile', child: tile)
+        : tile;
   }
 
   Widget _navItem(

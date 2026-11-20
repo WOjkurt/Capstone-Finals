@@ -34,7 +34,6 @@ class _DashboardViewState extends State<DashboardView> {
         children: [
           PageHeader(
             title: 'Dashboard',
-            subtitle: 'What needs your attention today. Click a card to open it.',
             onRefresh: () =>
                 context.read<DashboardBloc>().add(LoadDashboardData()),
           ),
@@ -132,8 +131,6 @@ class _DashboardViewState extends State<DashboardView> {
                               _buildMetricCard(
                                 title: 'New Responses',
                                 count: loaded.unprocessedResponsesCount,
-                                icon: Icons.mark_email_unread_outlined,
-                                color: AppColors.accentAmber,
                                 subtitle: 'To turn into applications',
                                 width: width,
                                 onTap: () => widget.onNavigate?.call('Form responses'),
@@ -141,8 +138,6 @@ class _DashboardViewState extends State<DashboardView> {
                               _buildMetricCard(
                                 title: 'Applications',
                                 count: loaded.pendingApplicationsCount,
-                                icon: Icons.pending_actions_rounded,
-                                color: AppColors.primary,
                                 subtitle: 'Waiting for your review',
                                 width: width,
                                 onTap: () => widget.onNavigate?.call('Applications'),
@@ -150,8 +145,6 @@ class _DashboardViewState extends State<DashboardView> {
                               _buildMetricCard(
                                 title: 'Need a Login',
                                 count: loaded.approvedApplicationsCount,
-                                icon: Icons.how_to_reg_rounded,
-                                color: AppColors.accentGreen,
                                 subtitle: 'Approved applicants',
                                 width: width,
                                 onTap: () => widget.onNavigate?.call('Create logins'),
@@ -159,8 +152,6 @@ class _DashboardViewState extends State<DashboardView> {
                               _buildMetricCard(
                                 title: 'Pending Loads',
                                 count: loaded.pendingLoadsCount,
-                                icon: Icons.fact_check_outlined,
-                                color: const Color(0xFF7C3AED),
                                 subtitle: 'Students to finalize',
                                 width: width,
                                 onTap: () => widget.onNavigate?.call('Pending loads'),
@@ -168,8 +159,6 @@ class _DashboardViewState extends State<DashboardView> {
                               _buildMetricCard(
                                 title: 'Grade Corrections',
                                 count: loaded.pendingCorrectionsCount,
-                                icon: Icons.assignment_late_outlined,
-                                color: const Color(0xFFEF4444), // Red
                                 subtitle: 'Teacher requests',
                                 width: width,
                                 onTap: () => widget.onNavigate?.call('Grade corrections'),
@@ -243,11 +232,11 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
+  /// One card per thing waiting: its name on top, then the count. Every card uses the
+  /// brand blue, so a big number stands out on its own instead of by colour.
   Widget _buildMetricCard({
     required String title,
     required int count,
-    required IconData icon,
-    required Color color,
     required String subtitle,
     required double width,
     VoidCallback? onTap,
@@ -274,40 +263,34 @@ class _DashboardViewState extends State<DashboardView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
+                Expanded(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
                   ),
-                  child: Icon(icon, color: color, size: 22),
                 ),
+                const SizedBox(width: 8),
                 Icon(Icons.arrow_forward_ios_rounded,
                     size: 14, color: Colors.grey.shade400),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Text(
               count.toString(),
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
-                color: color,
+                color: AppColors.primary,
                 letterSpacing: -1,
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(height: 2),
             Text(
               subtitle,
               style: const TextStyle(

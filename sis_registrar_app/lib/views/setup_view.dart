@@ -21,6 +21,18 @@ import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import '../services/current_term.dart';
 
+
+/// How wide the Subjects table's Title column may get. Without a cap the column grows to
+/// the longest title on the page and pushes the Actions column off the right edge. 240 is
+/// chosen so the whole table clears a 1600px screen with room to spare; 280 missed it by 11px.
+const double _subjectTitleWidth = 240;
+
+/// Destructive actions keep a red label while matching every other button's size and shape.
+final ButtonStyle _dangerButtonStyle = OutlinedButton.styleFrom(
+  foregroundColor: const Color(0xFF991B1B),
+  side: BorderSide(color: const Color(0xFF991B1B).withValues(alpha: 0.4)),
+);
+
 class SetupView extends StatefulWidget {
   const SetupView({super.key});
 
@@ -322,6 +334,8 @@ class _ProgramsTabState extends State<_ProgramsTab> {
                         headingRowColor:
                             WidgetStateProperty.all(const Color(0xFFF8FAFC)),
                         horizontalMargin: 24,
+                        // Tighter than the default 56, to make room for worded actions.
+                        columnSpacing: 24,
                         dataRowMinHeight: 56,
                         dataRowMaxHeight: 64,
                         columns: const [
@@ -365,16 +379,15 @@ class _ProgramsTabState extends State<_ProgramsTab> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined,
-                                          size: 18, color: AppColors.primaryHover),
-                                      tooltip: 'Edit Program',
+                                    OutlinedButton(
+                                      key: ValueKey('edit_program_${p.programId}'),
                                       onPressed: () => _openProgramModal(context, p),
+                                      child: const Text('Edit'),
                                     ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline,
-                                          size: 18, color: Color(0xFFDC2626)),
-                                      tooltip: 'Delete Program',
+                                    const SizedBox(width: 8),
+                                    OutlinedButton(
+                                      key: ValueKey('delete_program_${p.programId}'),
+                                      style: _dangerButtonStyle,
                                       onPressed: () => _confirmDelete(
                                         context,
                                         title: 'Delete Program',
@@ -384,6 +397,7 @@ class _ProgramsTabState extends State<_ProgramsTab> {
                                             .read<SetupBloc>()
                                             .add(DeleteProgramEvent(p.programId)),
                                       ),
+                                      child: const Text('Delete'),
                                     ),
                                   ],
                                 ),
@@ -635,45 +649,23 @@ class _TermsTab extends StatelessWidget {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (!t.isActive) ...[
-                                      OutlinedButton.icon(
-                                        icon: const Icon(
-                                            Icons.check_circle_outline,
-                                            size: 14),
-                                        label: const Text('Set Active'),
+                                      OutlinedButton(
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor:
-                                              const Color(0xFF16A34A),
+                                              const Color(0xFF15803D),
                                           side: const BorderSide(
                                               color: Color(0xFF86EFAC)),
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 6),
-                                          visualDensity:
-                                              VisualDensity.compact,
-                                          textStyle: const TextStyle(
-                                              fontFamily: AppTheme.fontFamily,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 12),
                                         ),
                                         onPressed: () =>
                                             _confirmActivateTerm(context, t),
+                                        child: const Text('Set Active'),
                                       ),
                                       const SizedBox(width: 8),
                                     ],
-                                    IconButton(
-                                      icon: const Icon(Icons.groups_outlined,
-                                          size: 18,
-                                          color: AppColors.primary),
-                                      tooltip: 'View Classes & Rosters',
-                                      onPressed: () => context
-                                          .read<SetupBloc>()
-                                          .add(SelectTermForClassesEvent(t.termId)),
-                                    ),
-                                    IconButton(
+                                    // The one action done every term gets a label; the rarer
+                                    // three sit in the menu, so the row still fits the table.
+                                    OutlinedButton(
                                       key: ValueKey('enrollment_dates_${t.termId}'),
-                                      icon: const Icon(Icons.event_available_outlined,
-                                          size: 18,
-                                          color: AppColors.primary),
-                                      tooltip: 'Set Enrollment Dates',
                                       onPressed: () async {
                                         final bloc = context.read<SetupBloc>();
                                         final choice = await showEnrollmentPeriodDialog(context, t);
@@ -681,28 +673,45 @@ class _TermsTab extends StatelessWidget {
                                           bloc.add(SetEnrollmentPeriodEvent(t.termId, choice.opensOn, choice.closesOn));
                                         }
                                       },
+                                      child: const Text('Enrollment dates'),
                                     ),
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined,
-                                          size: 18,
-                                          color: AppColors.primaryHover),
-                                      tooltip: 'Edit Term',
-                                      onPressed: () =>
-                                          _openTermModal(context, t),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline,
-                                          size: 18, color: Color(0xFFDC2626)),
-                                      tooltip: 'Delete Term',
-                                      onPressed: () => _confirmDelete(
-                                        context,
-                                        title: 'Delete Academic Term',
-                                        message:
-                                            'Are you sure you want to delete term ${t.label}?',
-                                        onConfirm: () => context
-                                            .read<SetupBloc>()
-                                            .add(DeleteTermEvent(t.termId)),
+                                    const SizedBox(width: 4),
+                                    MenuAnchor(
+                                      builder: (context, menu, _) => IconButton(
+                                        key: ValueKey('term_more_${t.termId}'),
+                                        icon: const Icon(Icons.more_horiz_rounded,
+                                            size: 20, color: AppColors.textSecondary),
+                                        tooltip: 'More actions',
+                                        onPressed: () => menu.isOpen ? menu.close() : menu.open(),
                                       ),
+                                      menuChildren: [
+                                        MenuItemButton(
+                                          key: ValueKey('term_classes_${t.termId}'),
+                                          onPressed: () => context
+                                              .read<SetupBloc>()
+                                              .add(SelectTermForClassesEvent(t.termId)),
+                                          child: const Text('Classes & rosters'),
+                                        ),
+                                        MenuItemButton(
+                                          key: ValueKey('term_edit_${t.termId}'),
+                                          onPressed: () => _openTermModal(context, t),
+                                          child: const Text('Edit term'),
+                                        ),
+                                        MenuItemButton(
+                                          key: ValueKey('term_delete_${t.termId}'),
+                                          onPressed: () => _confirmDelete(
+                                            context,
+                                            title: 'Delete Academic Term',
+                                            message:
+                                                'Are you sure you want to delete term ${t.label}?',
+                                            onConfirm: () => context
+                                                .read<SetupBloc>()
+                                                .add(DeleteTermEvent(t.termId)),
+                                          ),
+                                          child: const Text('Delete term',
+                                              style: TextStyle(color: Color(0xFFDC2626))),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -1022,7 +1031,6 @@ class _SubjectsTabState extends State<_SubjectsTab> {
         children: [
           // Left: Subjects Table
           Expanded(
-            flex: 6,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1079,7 +1087,10 @@ class _SubjectsTabState extends State<_SubjectsTab> {
                                   columnSpacing: 16,
                                   columns: const [
                                     DataColumn(label: Text('Code', style: TextStyle(fontWeight: FontWeight.w700))),
-                                    DataColumn(label: Text('Title', style: TextStyle(fontWeight: FontWeight.w700))),
+                                    DataColumn(
+                                        label: SizedBox(
+                                            width: _subjectTitleWidth,
+                                            child: Text('Title', style: TextStyle(fontWeight: FontWeight.w700)))),
                                     DataColumn(label: Text('Units (Lec/Lab)', style: TextStyle(fontWeight: FontWeight.w700))),
                                     DataColumn(label: Text('Prog / Year / Sem', style: TextStyle(fontWeight: FontWeight.w700))),
                                     DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.w700))),
@@ -1113,11 +1124,22 @@ class _SubjectsTabState extends State<_SubjectsTab> {
                                             ],
                                           ),
                                         ),
+                                        // Titles vary wildly in length and a long one used to
+                                        // stretch the whole table past the screen, taking the
+                                        // Actions column with it. Capped here; the full title
+                                        // is on hover and in the row's own dialogs.
                                         DataCell(
-                                          Text(
-                                            sub.subjectTitle,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                          Tooltip(
+                                            message: sub.subjectTitle,
+                                            waitDuration: const Duration(milliseconds: 400),
+                                            child: SizedBox(
+                                              width: _subjectTitleWidth,
+                                              child: Text(
+                                                sub.subjectTitle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                         DataCell(
@@ -1139,27 +1161,26 @@ class _SubjectsTabState extends State<_SubjectsTab> {
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.alt_route_rounded,
-                                                    size: 18, color: AppColors.primary),
-                                                tooltip: 'Manage Prerequisites',
+                                              OutlinedButton(
+                                                key: ValueKey('prereqs_subject_${sub.subjectId}'),
                                                 onPressed: () {
                                                   context
                                                       .read<SetupBloc>()
                                                       .add(SelectSubjectForPrereqs(sub));
                                                 },
+                                                child: const Text('Prerequisites'),
                                               ),
-                                              IconButton(
-                                                icon: const Icon(Icons.edit_outlined,
-                                                    size: 18, color: AppColors.primaryHover),
-                                                tooltip: 'Edit Subject',
+                                              const SizedBox(width: 8),
+                                              OutlinedButton(
+                                                key: ValueKey('edit_subject_${sub.subjectId}'),
                                                 onPressed: () =>
                                                     _openSubjectModal(context, sub),
+                                                child: const Text('Edit'),
                                               ),
-                                              IconButton(
-                                                icon: const Icon(Icons.delete_outline,
-                                                    size: 18, color: Color(0xFFDC2626)),
-                                                tooltip: 'Delete Subject',
+                                              const SizedBox(width: 8),
+                                              OutlinedButton(
+                                                key: ValueKey('delete_subject_${sub.subjectId}'),
+                                                style: _dangerButtonStyle,
                                                 onPressed: () => _confirmDelete(
                                                   context,
                                                   title: 'Delete Subject',
@@ -1169,6 +1190,7 @@ class _SubjectsTabState extends State<_SubjectsTab> {
                                                       .read<SetupBloc>()
                                                       .add(DeleteSubjectEvent(sub.subjectId)),
                                                 ),
+                                                child: const Text('Delete'),
                                               ),
                                             ],
                                           ),
@@ -1188,53 +1210,24 @@ class _SubjectsTabState extends State<_SubjectsTab> {
               ],
             ),
           ),
-          const SizedBox(width: 24),
-          // Right: Prerequisites Side Panel
-          Expanded(
-            flex: 4,
-            child: _buildPrerequisitesPanel(context, state),
-          ),
+          // The prerequisites panel only takes room once a subject is chosen, and then a
+          // fixed width rather than a share of the page. It used to hold 40% of the width
+          // at all times, which pushed the table's own Actions column off the screen.
+          if (state.selectedSubjectForPrereqs != null) ...[
+            const SizedBox(width: 24),
+            SizedBox(
+              width: 380,
+              child: _buildPrerequisitesPanel(context, state),
+            ),
+          ],
         ],
       ),
     );
   }
 
+  /// Only built once a subject is chosen, from that row's Prerequisites button. The panel's
+  /// own close button clears the choice and hands the width back to the table.
   Widget _buildPrerequisitesPanel(BuildContext context, SetupState state) {
-    if (state.selectedSubjectForPrereqs == null) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.alt_route_rounded,
-                  size: 56, color: Color(0xFFCBD5E1)),
-              SizedBox(height: 16),
-              Text(
-                'Prerequisites Inspector',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF334155),
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Select a subject from the table to view, add, or unlink its required prerequisite subjects.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF64748B)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     final subject = state.selectedSubjectForPrereqs!;
     // Candidate subjects to be prerequisites (excluding self)
     final candidateSubjects = state.subjects
