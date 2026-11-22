@@ -87,6 +87,14 @@ public class FirebaseAuthMiddleware
         string uid = decodedToken.Uid;
         string email = decodedToken.Claims.TryGetValue("email", out var rawEmailObj) ? rawEmailObj?.ToString() ?? string.Empty : string.Empty;
 
+        // Publish the verified token's identity BEFORE the first database query below.
+        // RlsConnectionInterceptor reads these on every connection open, and the Users lookup
+        // that resolves this token into a UserID is itself subject to row-level security: the
+        // Users bootstrap policy matches on firebase_uid/email precisely because user_id is not
+        // known yet. Setting these later would make every sign-in fail to find its own row.
+        context.Items["firebase_uid"] = uid;
+        context.Items["email"] = email;
+
         // ── Domain Validation (Executed BEFORE DB lookup) ────────────────
         string configuredDomain = SchoolEmailValidator.GetAllowedDomain(configuration);
         string emailDomain = SchoolEmailValidator.GetEmailDomain(email);

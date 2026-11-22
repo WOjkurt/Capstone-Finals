@@ -19,6 +19,13 @@ public class RequireWebhookSecretAttribute : Attribute, IAsyncResourceFilter
     public const string TimestampHeader = "X-Webhook-Timestamp";
     public const string SignatureHeader = "X-Webhook-Signature";
     public const string SecretHeader = "X-Webhook-Secret";
+
+    /// <summary>
+    /// The pseudo-role published to Postgres for a verified webhook call. Negative so it can
+    /// never collide with RoleUtils, where every real role is positive and 0 means anonymous.
+    /// Its only privilege is the EnrollmentResponses policy in the AddRowLevelSecurity migration.
+    /// </summary>
+    public const int WebhookRole = -1;
     public static readonly TimeSpan MaxAge = TimeSpan.FromMinutes(5);
 
     public async Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next)
@@ -38,6 +45,12 @@ public class RequireWebhookSecretAttribute : Attribute, IAsyncResourceFilter
             context.Result = new UnauthorizedObjectResult(new { message = "Invalid or missing webhook secret." });
             return;
         }
+
+        // Mark the request as a verified webhook so row-level security can tell it apart from an
+        // ordinary anonymous caller. The webhook has no signed-in user, but it does need to read
+        // and insert EnrollmentResponses, and a policy keyed on "staff" would refuse it. Only a
+        // caller that proved it knows the shared secret reaches this line.
+        http.Items["role"] = WebhookRole;
 
         await next();
     }

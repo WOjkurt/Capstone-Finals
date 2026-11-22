@@ -17,8 +17,12 @@ AppContext.SetSwitch("System.Net.DisableIPv6", true);
 var builder = WebApplication.CreateBuilder(args);
 
 // DbContext Registration
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// The RLS interceptor needs the current request to know who is asking.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<Api.Data.RlsConnectionInterceptor>();
+builder.Services.AddDbContext<AppDbContext>((sp, options) =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+           .AddInterceptors(sp.GetRequiredService<Api.Data.RlsConnectionInterceptor>()));
 
 // Repository Registrations (16 Repositories - matching project Repository Pattern)
 builder.Services.AddScoped<IAcademicProgramRepository, AcademicProgramRepository>();
