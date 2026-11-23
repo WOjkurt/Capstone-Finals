@@ -13,6 +13,7 @@ import 'repositories/grading_repository.dart';
 import 'repositories/activity_log_repository.dart';
 import 'repositories/report_repository.dart';
 import 'repositories/student_record_repository.dart';
+import 'repositories/accounting_repository.dart';
 import 'repositories/hold_repository.dart';
 import 'repositories/curriculum_repository.dart';
 import 'repositories/records_import_repository.dart';
@@ -55,6 +56,7 @@ void setupLocator() {
   getIt.registerLazySingleton<StudentRecordRepository>(
       () => StudentRecordRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<HoldRepository>(() => HoldRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<AccountingRepository>(() => AccountingRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<CurriculumRepository>(() => CurriculumRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<RecordsImportRepository>(() => RecordsImportRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<ActivityLogRepository>(

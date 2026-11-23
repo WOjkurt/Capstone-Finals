@@ -17,6 +17,7 @@ BEGIN;
 \set s2 '5a1f0000-0000-4000-8000-000000000002'
 \set tch '5a1f0000-0000-4000-8000-000000000003'
 \set reg '5a1f0000-0000-4000-8000-000000000004'
+\set acc '5a1f0000-0000-4000-8000-000000000007'
 \set cls 'dddddddd-0000-0000-0000-00000000beef'
 \set sl1 'eeeeeeee-0000-0000-0000-00000000bee1'
 \set sl2 'eeeeeeee-0000-0000-0000-00000000bee2'
@@ -28,7 +29,8 @@ INSERT INTO "Users" ("UserID","FirebaseUID","Email","Role","CreatedAt","IsActive
  (:'s1','rls-test-s1','rls-test-s1@dbtc-cebu.edu.ph',5,now(),true),
  (:'s2','rls-test-s2','rls-test-s2@dbtc-cebu.edu.ph',5,now(),true),
  (:'tch','rls-test-t','rls-test-t@dbtc-cebu.edu.ph',3,now(),true),
- (:'reg','rls-test-r','rls-test-r@dbtc-cebu.edu.ph',2,now(),true);
+ (:'reg','rls-test-r','rls-test-r@dbtc-cebu.edu.ph',2,now(),true),
+ (:'acc','rls-test-a','rls-test-a@dbtc-cebu.edu.ph',7,now(),true);
 
 -- Reuse whatever subject/term already exist so this works on a populated database.
 INSERT INTO "Classes" ("ClassID","SubjectID","UserID","TermID","ClassName","CreatedAt")
@@ -158,6 +160,28 @@ BEGIN
   SELECT count(*) INTO n FROM "EnrollmentHolds"
    WHERE "HoldID" = '5a1f0000-0000-4000-8000-0000000000a1';
   PERFORM pg_temp.check('student cannot see a peer hold', n, 0);
+
+  -- Accounting (role 7). Its whole job is holds; the point of giving it its own policies
+  -- rather than folding it into is_staff() is this pair of assertions.
+  PERFORM pg_temp.ctx('5a1f0000-0000-4000-8000-000000000007','7','rls-test-a');
+
+  SELECT count(*) INTO n FROM "EnrollmentHolds"
+   WHERE "HoldID" = '5a1f0000-0000-4000-8000-0000000000a1';
+  PERFORM pg_temp.check('accounting can read a hold', n, 1);
+
+  SELECT count(*) INTO n FROM "Users" WHERE "FirebaseUID" = 'rls-test-s1';
+  PERFORM pg_temp.check('accounting can find a student', n, 1);
+
+  -- The one that matters: the office that can withhold a grade cannot read one.
+  SELECT count(*) INTO n FROM "Grades"
+   WHERE "GradeID" IN ('ffffffff-0000-0000-0000-00000000bee1','ffffffff-0000-0000-0000-00000000bee2');
+  PERFORM pg_temp.check('accounting CANNOT read grades', n, 0);
+
+  SELECT count(*) INTO n FROM "StudyLoads";
+  PERFORM pg_temp.check('accounting cannot read study loads', n, 0);
+
+  SELECT count(*) INTO n FROM "StudentPersonalDetails";
+  PERFORM pg_temp.check('accounting cannot read personal details', n, 0);
 
   RAISE NOTICE 'RLS verification passed.';
 END $$;

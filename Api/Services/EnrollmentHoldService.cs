@@ -9,8 +9,8 @@ public interface IEnrollmentHoldService
 {
     /// <summary>All holds of a student, open ones first, then the newest.</summary>
     Task<List<EnrollmentHoldDto>> GetByStudentAsync(Guid studentId);
-    Task<EnrollmentHoldDto> AddAsync(Guid studentId, AddEnrollmentHoldDto dto, Guid actorId);
-    Task<EnrollmentHoldDto> RemoveAsync(Guid holdId, RemoveEnrollmentHoldDto dto, Guid actorId);
+    Task<EnrollmentHoldDto> AddAsync(Guid studentId, AddEnrollmentHoldDto dto, Guid actorId, int actorRole);
+    Task<EnrollmentHoldDto> RemoveAsync(Guid holdId, RemoveEnrollmentHoldDto dto, Guid actorId, int actorRole);
 }
 
 public class EnrollmentHoldService : IEnrollmentHoldService
@@ -35,8 +35,25 @@ public class EnrollmentHoldService : IEnrollmentHoldService
             .ToList();
     }
 
-    public async Task<EnrollmentHoldDto> AddAsync(Guid studentId, AddEnrollmentHoldDto dto, Guid actorId)
+    /// <summary>
+    /// Accounting may only raise or lift the one hold its office is responsible for. The role
+    /// filter decides who may call this; this decides what they may say. Without it, an
+    /// Accounting account could park an "Other" hold on a student for any reason at all, which
+    /// is the Registrar's call and nobody else's.
+    /// </summary>
+    private static void GuardReason(int actorRole, string reason)
     {
+        if (actorRole == RoleUtils.Accounting && reason != EnrollmentHoldReasons.UnpaidBalance)
+        {
+            throw new UnauthorizedAccessException(
+                "The Accounting Office can only raise or lift an unpaid balance hold.");
+        }
+    }
+
+    public async Task<EnrollmentHoldDto> AddAsync(Guid studentId, AddEnrollmentHoldDto dto, Guid actorId, int actorRole)
+    {
+        GuardReason(actorRole, dto.Reason);
+
         bool isStudent = await _context.Users.AnyAsync(u => u.UserID == studentId && u.Role == RoleUtils.Student);
         if (!isStudent) throw new KeyNotFoundException("Student not found.");
 
@@ -60,10 +77,16 @@ public class EnrollmentHoldService : IEnrollmentHoldService
         return ToDto(hold, await NamesAsync([actorId]));
     }
 
-    public async Task<EnrollmentHoldDto> RemoveAsync(Guid holdId, RemoveEnrollmentHoldDto dto, Guid actorId)
+    public async Task<EnrollmentHoldDto> RemoveAsync(Guid holdId, RemoveEnrollmentHoldDto dto, Guid actorId, int actorRole)
     {
         var hold = await _context.EnrollmentHolds.FirstOrDefaultAsync(h => h.HoldID == holdId)
             ?? throw new KeyNotFoundException("Hold not found.");
+
+        // Checked against the stored hold, not a caller-supplied reason: lifting is the side
+        // that matters, since an unrestricted Accounting account could otherwise clear a
+        // Registrar's hold and let a student straight through.
+        GuardReason(actorRole, hold.Reason);
+
         if (!hold.IsOpen) throw new InvalidOperationException("This hold was already removed.");
 
         hold.RemovedByUserID = actorId;

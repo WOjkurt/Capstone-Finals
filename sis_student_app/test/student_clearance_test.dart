@@ -11,6 +11,10 @@ import 'package:sis_student_app/views/clearance_status_view.dart';
 import 'package:sis_student_app/views/widgets/status_badge.dart';
 
 class MockStudentRepository implements StudentRepository {
+  /// Nothing withheld, so these tests see the ordinary "no grades yet" wording.
+  @override
+  Future<String?> getGradeVisibilityMessage() async => null;
+
   List<GradeClearanceModel> clearances = [];
   bool shouldThrow = false;
 

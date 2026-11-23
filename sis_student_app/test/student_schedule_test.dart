@@ -15,6 +15,10 @@ import 'package:sis_student_app/views/widgets/term_dropdown.dart';
 class FakeAuthService extends AuthService {}
 
 class FakeStudentRepository implements StudentRepository {
+  /// Nothing withheld, so these tests see the ordinary "no grades yet" wording.
+  @override
+  Future<String?> getGradeVisibilityMessage() async => null;
+
   AcademicTermModel? activeTerm;
   List<StudentScheduleItemModel> scheduleItems = [];
 

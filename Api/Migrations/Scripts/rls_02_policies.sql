@@ -9,6 +9,11 @@
 -- Writes are deliberately narrower than reads. The application decides who may write; these
 -- policies only stop a write aimed at someone else's row.
 
+-- Accounting (role 7) is granted exactly three things below: read Users and UserDetails so a
+-- student can be found and named, and read/write EnrollmentHolds. Everything else -- grades,
+-- study loads, personal details, enrolment paperwork -- is left out, so a compromised or
+-- mistaken Accounting account cannot read a single grade.
+
 -- ── Reference data ────────────────────────────────────────────────────────────
 -- School-wide and not sensitive: any signed-in user reads, only Admin/Registrar writes.
 DO $$
@@ -148,10 +153,13 @@ ALTER TABLE "EnrollmentHolds" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "EnrollmentHolds_staff" ON "EnrollmentHolds";
 DROP POLICY IF EXISTS "EnrollmentHolds_read" ON "EnrollmentHolds";
 CREATE POLICY "EnrollmentHolds_read" ON "EnrollmentHolds" FOR SELECT
-  USING (app.is_staff() OR app.owns("UserID"));
+  USING (app.is_staff() OR app.is_accounting() OR app.owns("UserID"));
 DROP POLICY IF EXISTS "EnrollmentHolds_write" ON "EnrollmentHolds";
+-- Accounting writes holds; the service, not this policy, confines it to the UnpaidBalance
+-- reason. A policy can gate the row, not the column value the caller is about to supply.
 CREATE POLICY "EnrollmentHolds_write" ON "EnrollmentHolds" FOR ALL
-  USING (app.is_staff()) WITH CHECK (app.is_staff());
+  USING (app.is_staff() OR app.is_accounting())
+  WITH CHECK (app.is_staff() OR app.is_accounting());
 
 ALTER TABLE "EnrollmentForms" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "EnrollmentForms_staff" ON "EnrollmentForms";
@@ -217,6 +225,7 @@ ALTER TABLE "Users" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users_read" ON "Users";
 CREATE POLICY "Users_read" ON "Users" FOR SELECT USING (
   app.is_staff()
+  OR app.is_accounting()
   OR app.owns("UserID")
   OR (app.firebase_uid() <> '' AND "FirebaseUID" = app.firebase_uid())
   OR (app.email() <> '' AND LOWER("Email") = app.email())
@@ -238,6 +247,7 @@ ALTER TABLE "UserDetails" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "UserDetails_read" ON "UserDetails";
 CREATE POLICY "UserDetails_read" ON "UserDetails" FOR SELECT USING (
   app.is_staff()
+  OR app.is_accounting()
   OR app.owns("UserID")
   OR EXISTS (SELECT 1 FROM "Users" u
              WHERE u."UserID" = "UserDetails"."UserID"

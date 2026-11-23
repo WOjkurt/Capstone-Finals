@@ -31,7 +31,7 @@ public class UserDetailsController : ControllerBase
 
     [HttpGet]
     [EnableRateLimiting("search")]
-    public async Task<IActionResult> Search([FromQuery, StringLength(100)] string? search, [FromQuery, Range(1, 6)] int? role)
+    public async Task<IActionResult> Search([FromQuery, StringLength(100)] string? search, [FromQuery, Range(1, 7)] int? role)
     {
         if (!HttpContext.Items.TryGetValue("role", out var roleObj) || roleObj is not int authRole)
         {
@@ -43,8 +43,13 @@ public class UserDetailsController : ControllerBase
         bool isTeachingRole = role == RoleUtils.Teacher || role == RoleUtils.ProgramHead;
         bool isProgramHeadSearchingTeachers = authRole == RoleUtils.ProgramHead && isTeachingRole;
         bool isCollegeHeadSearchingTeachers = authRole == RoleUtils.CollegeHead && isTeachingRole;
+        // The Accounting Office looks a student up to place or lift a hold, so it searches
+        // students and nothing else. This result carries name, program and year -- enough to
+        // be sure it is the right person -- and no grades or personal details.
+        bool isAccountingSearchingStudents = authRole == RoleUtils.Accounting && role == RoleUtils.Student;
 
-        if (!isRegistrarOrAdmin && !isProgramHeadSearchingTeachers && !isCollegeHeadSearchingTeachers)
+        if (!isRegistrarOrAdmin && !isProgramHeadSearchingTeachers && !isCollegeHeadSearchingTeachers
+            && !isAccountingSearchingStudents)
         {
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access denied. Registrar or Admin privileges required." });
         }

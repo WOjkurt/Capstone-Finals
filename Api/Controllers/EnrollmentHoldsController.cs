@@ -20,23 +20,27 @@ public class EnrollmentHoldsController : ControllerBase
     }
 
     [HttpGet("student/{userId:guid}")]
-    [RequireRegistrarCollegeHeadOrAdmin]
+    [RoleAuthorization(RoleUtils.Admin, RoleUtils.Registrar, RoleUtils.CollegeHead, RoleUtils.Accounting)]
     public async Task<IActionResult> GetByStudent(Guid userId) => Ok(await _service.GetByStudentAsync(userId));
 
     [HttpPost("student/{userId:guid}")]
-    [RequireRegistrarOrAdmin]
+    [RequireAccountingOrRegistrar]
     public async Task<IActionResult> Add(Guid userId, [FromBody] AddEnrollmentHoldDto dto)
     {
         if (this.CallerId() is not { } callerId) return Unauthorized(new { message = "Authentication required." });
         try
         {
-            var hold = await _service.AddAsync(userId, dto, callerId);
+            var hold = await _service.AddAsync(userId, dto, callerId, this.CallerRole() ?? 0);
             if (this.ActivityLog() is { } log)
             {
                 await log.LogAsync(callerId, ActivityActions.HoldAdded,
                     $"Enrollment hold added: {hold.ReasonLabel}" + (hold.Note != null ? $" ({hold.Note})" : ""), userId);
             }
             return Ok(hold);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {
@@ -49,13 +53,13 @@ public class EnrollmentHoldsController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/remove")]
-    [RequireRegistrarOrAdmin]
+    [RequireAccountingOrRegistrar]
     public async Task<IActionResult> Remove(Guid id, [FromBody] RemoveEnrollmentHoldDto dto)
     {
         if (this.CallerId() is not { } callerId) return Unauthorized(new { message = "Authentication required." });
         try
         {
-            var hold = await _service.RemoveAsync(id, dto, callerId);
+            var hold = await _service.RemoveAsync(id, dto, callerId, this.CallerRole() ?? 0);
             if (this.ActivityLog() is { } log)
             {
                 await log.LogAsync(callerId, ActivityActions.HoldRemoved,
@@ -63,6 +67,10 @@ public class EnrollmentHoldsController : ControllerBase
                     hold.UserId);
             }
             return Ok(hold);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {

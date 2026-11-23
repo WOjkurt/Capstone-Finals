@@ -15,7 +15,7 @@ public class MeControllerTests
     {
         var context = new TestAppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        var controller = new MeController(new UserDetailsRepository(context));
+        var controller = new MeController(new UserDetailsRepository(context), context);
         var http = new DefaultHttpContext();
         http.Items["user_id"] = userId;
         http.Items["email"] = "r@dbtc-cebu.edu.ph";

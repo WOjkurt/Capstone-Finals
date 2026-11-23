@@ -36,9 +36,17 @@ $$;
 -- Role numbers mirror Api/Auth/RoleUtils.cs: 1 Admin, 2 Registrar, 3 Teacher,
 -- 4 Program Head, 5 Student, 6 College Head. 0 means unauthenticated.
 
+-- Accounting (7) is deliberately NOT here. is_staff() is the broad read grant -- study loads,
+-- personal details, enrolment paperwork -- and the Accounting Office needs none of it. It gets
+-- its own narrow policies instead, so the office that can withhold a grade cannot read one.
 CREATE OR REPLACE FUNCTION app.is_staff() RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT app.role() IN (1, 2, 3, 4, 6)
+$$;
+
+CREATE OR REPLACE FUNCTION app.is_accounting() RETURNS boolean
+LANGUAGE sql STABLE AS $$
+  SELECT app.role() = 7
 $$;
 
 -- Admin and Registrar are the roles the application already lets edit records freely.

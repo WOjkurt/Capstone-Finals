@@ -222,5 +222,9 @@ public static class ActivityLogControllerExtensions
     public static Guid? CallerId(this ControllerBase controller) =>
         controller.HttpContext?.Items.TryGetValue("user_id", out var id) == true && id is Guid g ? g : null;
 
+    /// <summary>The signed-in caller's role, or null when there is no authenticated caller.</summary>
+    public static int? CallerRole(this ControllerBase controller) =>
+        controller.HttpContext?.Items.TryGetValue("role", out var r) == true && r is int role ? role : null;
+
     public static string LoadStatusText(int status) => StudyLoadStatus.GetDisplayText(status);
 }

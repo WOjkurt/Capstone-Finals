@@ -77,7 +77,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final userId = userInfo['userId'] as String? ?? '';
       final email = userInfo['email'] as String? ?? '';
 
-      if (role != 1 && role != 2) {
+      // 7 is the Accounting Office: it signs in here but gets its own single-page menu,
+      // built in MainLayoutView.buildNavItems. See [RoleUtils] on the API side.
+      if (role != 1 && role != 2 && role != 7) {
         await _authService.signOut();
         emit(AccessDeniedState(
             'Access denied. Your account role ($roleName) is not authorized to access the Registrar Portal.',
@@ -115,7 +117,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final email = userInfo['email'] as String? ?? event.email;
 
       // Role check: 1 = Admin, 2 = Registrar
-      if (role != 1 && role != 2) {
+      // 7 is the Accounting Office: it signs in here but gets its own single-page menu,
+      // built in MainLayoutView.buildNavItems. See [RoleUtils] on the API side.
+      if (role != 1 && role != 2 && role != 7) {
         await _authService.signOut();
         emit(AccessDeniedState(
             'Access denied. Your account role ($roleName) is not authorized to access the Registrar Portal.',

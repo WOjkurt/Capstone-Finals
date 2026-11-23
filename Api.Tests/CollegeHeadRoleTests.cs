@@ -137,7 +137,9 @@ public class CollegeHeadRoleTests : IDisposable
         Assert.True(RoleUtils.IsValidRole(RoleUtils.CollegeHead));
         Assert.Equal("College Head", RoleUtils.GetRoleName(RoleUtils.CollegeHead));
         Assert.False(RoleUtils.IsValidRole(0));
-        Assert.False(RoleUtils.IsValidRole(7));
+        // 7 is Accounting, added for the Accounting Office bridge; 8 is still nothing.
+        Assert.True(RoleUtils.IsValidRole(7));
+        Assert.False(RoleUtils.IsValidRole(8));
     }
 
     // ── 2. Staff Management for College Head ──────────────────────────────────────

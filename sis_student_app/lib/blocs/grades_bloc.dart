@@ -44,6 +44,11 @@ class GradesLoaded extends GradesState {
   final List<GradeModel> grades;
   final bool isTermGradesLoading;
 
+  /// Why this term's grades are withheld, when they are, in words meant for the student --
+  /// including which office to see. Null when nothing is withheld, or when the API could not
+  /// say; the page still renders either way.
+  final String? withheldMessage;
+
   GradesLoaded({
     required this.terms,
     required this.selectedTerm,
@@ -51,6 +56,7 @@ class GradesLoaded extends GradesState {
     required this.clearances,
     required this.grades,
     this.isTermGradesLoading = false,
+    this.withheldMessage,
   });
 
   /// Evaluates whether grades are withheld for the currently selected term.
@@ -86,6 +92,7 @@ class GradesLoaded extends GradesState {
     List<GradeClearanceModel>? clearances,
     List<GradeModel>? grades,
     bool? isTermGradesLoading,
+    String? withheldMessage,
   }) {
     return GradesLoaded(
       terms: terms ?? this.terms,
@@ -94,6 +101,7 @@ class GradesLoaded extends GradesState {
       clearances: clearances ?? this.clearances,
       grades: grades ?? this.grades,
       isTermGradesLoading: isTermGradesLoading ?? this.isTermGradesLoading,
+      withheldMessage: withheldMessage ?? this.withheldMessage,
     );
   }
 }
@@ -148,12 +156,17 @@ class GradesBloc extends Bloc<GradesEvent, GradesState> {
         grades = await _repository.getGrades(event.userId, selectedTerm.termId);
       }
 
+      // Asked for only when the list came back empty: that is the one case where the student
+      // cannot tell "nothing entered yet" from "withheld", and the one case worth a round trip.
+      final withheld = grades.isEmpty ? await _repository.getGradeVisibilityMessage() : null;
+
       emit(GradesLoaded(
         terms: terms,
         selectedTerm: selectedTerm,
         activeTerm: activeTerm,
         clearances: clearances,
         grades: grades,
+        withheldMessage: withheld,
       ));
     } catch (e, st) {
       emit(GradesError(getFriendlyErrorMessage(e, st)));

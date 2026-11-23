@@ -304,6 +304,11 @@ public class GradeService : IGradeService
                 throw new UnauthorizedAccessException(
                     "Your grades for this term are withheld pending clearance. Please contact the Registrar.");
             }
+
+            if (await WithheldForUnpaidBalanceAsync(authenticatedUserId, studyLoad.Class.TermID))
+            {
+                throw new UnauthorizedAccessException(UnpaidBalanceMessage);
+            }
         }
 
         var studentGrade = await _gradeRepository.GetByStudyLoadIdAsync(studyLoadId);
@@ -366,6 +371,32 @@ public class GradeService : IGradeService
         return result;
     }
 
+
+    /// <summary>
+    /// The Accounting Office's side of grade visibility. An open unpaid-balance hold withholds
+    /// the ACTIVE term's grades only -- a hold records a present debt, not a judgement on terms
+    /// the student already settled and was cleared for, so earlier results stay readable.
+    ///
+    /// This sits beside the Registrar's per-term clearance rather than replacing it: either one
+    /// can withhold a term independently, and the student is told which office to see.
+    /// </summary>
+    private async Task<bool> WithheldForUnpaidBalanceAsync(Guid studentId, Guid termId)
+    {
+        bool isActiveTerm = await _context.AcademicTerms
+            .AsNoTracking()
+            .AnyAsync(t => t.TermID == termId && t.IsActive);
+        if (!isActiveTerm) return false;
+
+        return await _context.EnrollmentHolds
+            .AsNoTracking()
+            .AnyAsync(h => h.UserID == studentId
+                        && h.Reason == EnrollmentHoldReasons.UnpaidBalance
+                        && h.RemovedAt == null);
+    }
+
+    private const string UnpaidBalanceMessage =
+        "Your grades for this term are on hold pending clearance from the Accounting Office.";
+
     public async Task<List<GradeResponseDto>> GetByStudentIdAsync(Guid userId, Guid? termId, Guid authenticatedUserId, int authenticatedUserRole)
     {
         bool isSelf = authenticatedUserId == userId;
@@ -423,6 +454,14 @@ public class GradeService : IGradeService
                 if (await _clearanceService.IsClearedAsync(userId, tId))
                 {
                     clearedTerms.Add(tId);
+                }
+            }
+
+            foreach (var tId in distinctTermIds.ToList())
+            {
+                if (clearedTerms.Contains(tId) && await WithheldForUnpaidBalanceAsync(userId, tId))
+                {
+                    clearedTerms.Remove(tId);
                 }
             }
 

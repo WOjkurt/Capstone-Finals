@@ -48,12 +48,12 @@ public class EnrollmentHoldTests : IDisposable
     [Fact]
     public async Task Add_ThenRemove_KeepsHistoryWithNames()
     {
-        var added = await _service.AddAsync(_student, Unpaid(), _registrar);
+        var added = await _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Registrar);
         Assert.True(added.IsOpen);
         Assert.Equal("Unpaid balance", added.ReasonLabel);
         Assert.Equal("Rita Reg", added.AddedByName);
 
-        var removed = await _service.RemoveAsync(added.HoldId, new RemoveEnrollmentHoldDto { Note = " Paid, OR #12345 " }, _registrar);
+        var removed = await _service.RemoveAsync(added.HoldId, new RemoveEnrollmentHoldDto { Note = " Paid, OR #12345 " }, _registrar, RoleUtils.Registrar);
         Assert.False(removed.IsOpen);
         Assert.Equal("Paid, OR #12345", removed.RemovalNote);
         Assert.Equal("Rita Reg", removed.RemovedByName);
@@ -66,9 +66,9 @@ public class EnrollmentHoldTests : IDisposable
     [Fact]
     public async Task OpenHoldsComeFirst()
     {
-        var old = await _service.AddAsync(_student, Unpaid(), _registrar);
-        await _service.RemoveAsync(old.HoldId, new RemoveEnrollmentHoldDto(), _registrar);
-        await _service.AddAsync(_student, new AddEnrollmentHoldDto { Reason = EnrollmentHoldReasons.Other, Note = "Missing Form 137" }, _registrar);
+        var old = await _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Registrar);
+        await _service.RemoveAsync(old.HoldId, new RemoveEnrollmentHoldDto(), _registrar, RoleUtils.Registrar);
+        await _service.AddAsync(_student, new AddEnrollmentHoldDto { Reason = EnrollmentHoldReasons.Other, Note = "Missing Form 137" }, _registrar, RoleUtils.Registrar);
 
         var all = await _service.GetByStudentAsync(_student);
         Assert.True(all[0].IsOpen);
@@ -78,27 +78,27 @@ public class EnrollmentHoldTests : IDisposable
     [Fact]
     public async Task SameOpenReasonTwice_IsRefused_ButAgainAfterRemovalIsAllowed()
     {
-        var first = await _service.AddAsync(_student, Unpaid(), _registrar);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddAsync(_student, Unpaid(), _registrar));
+        var first = await _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Registrar);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Registrar));
 
-        await _service.RemoveAsync(first.HoldId, new RemoveEnrollmentHoldDto(), _registrar);
-        var again = await _service.AddAsync(_student, Unpaid(), _registrar);
+        await _service.RemoveAsync(first.HoldId, new RemoveEnrollmentHoldDto(), _registrar, RoleUtils.Registrar);
+        var again = await _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Registrar);
         Assert.True(again.IsOpen);
     }
 
     [Fact]
     public async Task OnlyStudentsCanGetHolds()
     {
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.AddAsync(_teacher, Unpaid(), _registrar));
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.AddAsync(Guid.NewGuid(), Unpaid(), _registrar));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.AddAsync(_teacher, Unpaid(), _registrar, RoleUtils.Registrar));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.AddAsync(Guid.NewGuid(), Unpaid(), _registrar, RoleUtils.Registrar));
     }
 
     [Fact]
     public async Task RemovingTwice_IsRefused()
     {
-        var hold = await _service.AddAsync(_student, Unpaid(), _registrar);
-        await _service.RemoveAsync(hold.HoldId, new RemoveEnrollmentHoldDto(), _registrar);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.RemoveAsync(hold.HoldId, new RemoveEnrollmentHoldDto(), _registrar));
+        var hold = await _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Registrar);
+        await _service.RemoveAsync(hold.HoldId, new RemoveEnrollmentHoldDto(), _registrar, RoleUtils.Registrar);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.RemoveAsync(hold.HoldId, new RemoveEnrollmentHoldDto(), _registrar, RoleUtils.Registrar));
     }
 
     [Theory]
@@ -130,9 +130,44 @@ public class EnrollmentHoldTests : IDisposable
     }
 
     [Theory]
-    [InlineData(nameof(EnrollmentHoldsController.Add), typeof(RequireRegistrarOrAdminAttribute))]
-    [InlineData(nameof(EnrollmentHoldsController.Remove), typeof(RequireRegistrarOrAdminAttribute))]
-    [InlineData(nameof(EnrollmentHoldsController.GetByStudent), typeof(RequireRegistrarCollegeHeadOrAdminAttribute))]
+    [InlineData(nameof(EnrollmentHoldsController.Add), typeof(RequireAccountingOrRegistrarAttribute))]
+    [InlineData(nameof(EnrollmentHoldsController.Remove), typeof(RequireAccountingOrRegistrarAttribute))]
+    [InlineData(nameof(EnrollmentHoldsController.GetByStudent), typeof(RoleAuthorizationAttribute))]
     public void Endpoints_AreLimitedToStaff(string method, Type attribute) =>
         Assert.NotEmpty(typeof(EnrollmentHoldsController).GetMethod(method)!.GetCustomAttributes(attribute, false));
+
+    // ── Accounting is confined to the one reason its office is responsible for ──────
+
+    [Fact]
+    public async Task Accounting_CanRaiseAndLift_AnUnpaidBalanceHold()
+    {
+        var added = await _service.AddAsync(_student, Unpaid(), _registrar, RoleUtils.Accounting);
+        Assert.Equal(EnrollmentHoldReasons.UnpaidBalance, added.Reason);
+
+        var removed = await _service.RemoveAsync(added.HoldId, new RemoveEnrollmentHoldDto { Note = "Settled" },
+            _registrar, RoleUtils.Accounting);
+        Assert.False(removed.IsOpen);
+    }
+
+    [Fact]
+    public async Task Accounting_CannotRaise_AnOtherHold()
+    {
+        var other = new AddEnrollmentHoldDto { Reason = EnrollmentHoldReasons.Other, Note = "Missing Form 137" };
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.AddAsync(_student, other, _registrar, RoleUtils.Accounting));
+    }
+
+    /// <summary>
+    /// The side that matters. Raising the wrong hold is a nuisance; lifting a Registrar's hold
+    /// would let a student straight past a block the Registrar put there deliberately.
+    /// </summary>
+    [Fact]
+    public async Task Accounting_CannotLift_AHoldTheRegistrarRaised()
+    {
+        var other = new AddEnrollmentHoldDto { Reason = EnrollmentHoldReasons.Other, Note = "Missing Form 137" };
+        var raised = await _service.AddAsync(_student, other, _registrar, RoleUtils.Registrar);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.RemoveAsync(raised.HoldId, new RemoveEnrollmentHoldDto(), _registrar, RoleUtils.Accounting));
+    }
 }

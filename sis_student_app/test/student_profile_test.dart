@@ -10,6 +10,10 @@ import 'package:sis_student_app/repositories/student_repository.dart';
 import 'package:sis_student_app/views/profile_view.dart';
 
 class MockStudentRepository implements StudentRepository {
+  /// Nothing withheld, so these tests see the ordinary "no grades yet" wording.
+  @override
+  Future<String?> getGradeVisibilityMessage() async => null;
+
   StudentProfileModel? profileToReturn;
   bool shouldThrow = false;
 

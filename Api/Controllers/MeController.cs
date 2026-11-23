@@ -1,6 +1,9 @@
 using Api.Auth;
+using Api.Data;
+using Api.Domain.Enrollment;
 using Api.Repositories;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Api.Controllers;
 
@@ -9,10 +12,64 @@ namespace Api.Controllers;
 public class MeController : ControllerBase
 {
     private readonly IUserDetailsRepository _userDetails;
+    private readonly AppDbContext _context;
 
-    public MeController(IUserDetailsRepository userDetails)
+    public MeController(IUserDetailsRepository userDetails, AppDbContext context)
     {
         _userDetails = userDetails;
+        _context = context;
+    }
+
+    /// <summary>
+    /// Why this term's grades are not showing, when they are not.
+    ///
+    /// Without this the student app can only render an empty list, which is indistinguishable
+    /// from "no grades have been entered yet" -- so every withheld student reports a bug, and
+    /// the office that could actually help them never hears about it. Returning the reason lets
+    /// the app name the office to go and see.
+    /// </summary>
+    [HttpGet("grade-visibility")]
+    [RequireStudent]
+    public async Task<IActionResult> GetGradeVisibility()
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var idObj) || idObj is not Guid userId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        var activeTerm = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.IsActive);
+        if (activeTerm == null)
+        {
+            return Ok(new { withheld = false, reason = (string?)null, message = (string?)null });
+        }
+
+        bool unpaid = await _context.EnrollmentHolds.AsNoTracking()
+            .AnyAsync(h => h.UserID == userId
+                        && h.Reason == EnrollmentHoldReasons.UnpaidBalance
+                        && h.RemovedAt == null);
+        if (unpaid)
+        {
+            return Ok(new
+            {
+                withheld = true,
+                reason = EnrollmentHoldReasons.UnpaidBalance,
+                message = "Your grades for this term are on hold pending clearance from the Accounting Office."
+            });
+        }
+
+        bool cleared = await _context.GradeClearances.AsNoTracking()
+            .AnyAsync(c => c.UserID == userId && c.TermID == activeTerm.TermID && c.IsCleared);
+        if (!cleared)
+        {
+            return Ok(new
+            {
+                withheld = true,
+                reason = "NotCleared",
+                message = "Your grades for this term are withheld pending clearance. Please see the Registrar."
+            });
+        }
+
+        return Ok(new { withheld = false, reason = (string?)null, message = (string?)null });
     }
 
     [HttpGet]

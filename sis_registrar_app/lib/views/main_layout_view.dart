@@ -5,6 +5,7 @@ import '../blocs/auth_bloc.dart';
 import '../blocs/dashboard_bloc.dart';
 import '../services/current_term.dart';
 import '../theme/app_theme.dart';
+import 'accounting_view.dart';
 import 'admissions_view.dart';
 import 'clearance_view.dart';
 import 'corrections_view.dart';
@@ -27,6 +28,21 @@ class MainLayoutView extends StatefulWidget {
     required String roleName,
   }) {
     final isAdmin = role == 1 || roleName.toLowerCase() == 'admin';
+
+    // The Accounting Office signs in here but shares none of the Registrar's work. It gets one
+    // page and nothing else -- not a Registrar menu with items greyed out, because a menu full
+    // of things you may not touch invites people to try. The API and the row-level security
+    // policies refuse the rest regardless; this just stops it being offered.
+    if (role == 7) {
+      return [
+        {
+          'title': 'Student accounts',
+          'icon': Icons.account_balance_wallet_outlined,
+          'activeIcon': Icons.account_balance_wallet_rounded,
+        },
+      ];
+    }
+
     return [
       {
         'title': 'Dashboard',
@@ -161,6 +177,8 @@ class _MainLayoutViewState extends State<MainLayoutView> {
         return const SetupView();
       case 'Staff Management':
         return const StaffManagementView();
+      case 'Student accounts':
+        return const AccountingView();
     }
     return const SizedBox.shrink();
   }

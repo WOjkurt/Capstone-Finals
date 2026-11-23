@@ -355,9 +355,11 @@ class _GradesViewState extends State<GradesView> {
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'No Grades Submitted Yet',
-                style: TextStyle(
+              Text(
+                state.withheldMessage != null
+                    ? 'Grades On Hold'
+                    : 'No Grades Submitted Yet',
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -365,7 +367,10 @@ class _GradesViewState extends State<GradesView> {
               ),
               const SizedBox(height: 6),
               Text(
-                'No grades have been submitted yet by your instructors for ${state.selectedTerm?.label ?? 'this term'}.',
+                // An empty list means either "nothing entered yet" or "withheld", and only the
+                // API knows which. Saying the wrong one sends the student to the wrong office.
+                state.withheldMessage ??
+                    'No grades have been submitted yet by your instructors for ${state.selectedTerm?.label ?? 'this term'}.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 12,

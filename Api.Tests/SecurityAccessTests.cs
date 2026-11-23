@@ -182,7 +182,7 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
         var user = role == RoleUtils.Student ? SecurityApiFactory.Student : SecurityApiFactory.Teacher;
         var teacherOnly = new[] { "POST api/grades/submit", "POST api/grades/submit-batch" };
         // A student's own online enrollment; every other role (teachers included) must get 403 here.
-        var studentOnly = new[] { "GET api/me/reenrollment", "POST api/me/reenrollment" };
+        var studentOnly = new[] { "GET api/me/reenrollment", "POST api/me/reenrollment", "GET api/Me/grade-visibility" };
         var wrong = new List<string>();
         foreach (var (key, method, url) in AllEndpoints())
         {
