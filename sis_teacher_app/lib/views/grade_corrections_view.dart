@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/page_states.dart';
 import 'widgets/status_badge.dart';
+import '../utils/numbers.dart';
 
 class GradeCorrectionsView extends StatefulWidget {
   const GradeCorrectionsView({super.key});
@@ -348,7 +349,7 @@ class _CorrectionRow extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  c.oldGrade.toStringAsFixed(2),
+                  gradeText(c.oldGrade),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -363,7 +364,7 @@ class _CorrectionRow extends StatelessWidget {
                       size: 14, color: AppColors.primary),
                 ),
                 Text(
-                  c.newGrade.toStringAsFixed(2),
+                  gradeText(c.newGrade),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,

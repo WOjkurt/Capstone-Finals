@@ -6,6 +6,7 @@ import '../models/grading_models.dart';
 import '../models/class_models.dart';
 import '../models/record_models.dart';
 import 'study_load_pdf.dart' show pdfSafe;
+import 'numbers.dart';
 
 /// Who the printout is about, shown under the title.
 class RecordStudentInfo {
@@ -18,9 +19,9 @@ class RecordStudentInfo {
   const RecordStudentInfo({required this.name, this.lrn, this.programCode, this.programName, this.yearLevel});
 }
 
-String _num(double v) => v.toStringAsFixed(1);
+String _num(double v) => unitsText(v);
 
-String _hours(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+String _hours(double v) => unitsText(v);
 
 String _date(DateTime d) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -59,7 +60,7 @@ List<String> evaluationCells(EvaluationSubject s) => [
       s.corequisites ?? '',
       const {'Credited', 'CrossEnrolled', 'PartiallyCredited'}.contains(s.status)
           ? (s.creditedGrade ?? '')
-          : (s.finalGrade?.toStringAsFixed(2) ?? ''),
+          : gradeOrDash(s.finalGrade, dash: ''),
       s.status == 'PartiallyCredited'
           ? 'Partly credited (${_num(s.creditedUnits ?? 0)} of ${_num(s.units)})'
           : evaluationRemark(s.status),
@@ -87,8 +88,8 @@ List<String> gradeCells(StudentGradeModel g) => [
       g.subjectCode ?? '',
       g.subjectTitle ?? '',
       g.units != null ? _num(g.units!) : '',
-      g.midtermGrade?.toStringAsFixed(2) ?? '',
-      g.finalGrade?.toStringAsFixed(2) ?? '',
+      gradeOrDash(g.midtermGrade, dash: ''),
+      gradeOrDash(g.finalGrade, dash: ''),
       gradeRemark(g),
       g.teacherName ?? '',
     ];
@@ -99,7 +100,7 @@ List<String> gradeTotals(List<StudentGradeModel> rows) => [
       'GWA',
       _num(rows.where((g) => g.loadStatus == null || g.loadStatus == 1).fold(0.0, (s, g) => s + (g.units ?? 0))),
       '',
-      computeGwa(rows)?.toStringAsFixed(2) ?? '-',
+      gradeOrDash(computeGwa(rows)),
       '',
       '',
     ];
@@ -368,7 +369,7 @@ Future<Uint8List> buildResidencyPdf(
     padding: const pw.EdgeInsets.only(top: 12),
     child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
       pw.Text(
-        overall == null ? 'No final grades yet' : 'Overall GWA: ${overall.toStringAsFixed(2)}  (NSTP and PE not included)',
+        overall == null ? 'No final grades yet' : 'Overall GWA: ${averageText(overall)}  (NSTP and PE not included)',
         style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
       ),
     ]),

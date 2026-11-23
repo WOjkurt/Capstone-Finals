@@ -6,6 +6,7 @@ import 'widgets/page_header.dart';
 import 'widgets/status_badge.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../utils/numbers.dart';
 
 class CorrectionsView extends StatefulWidget {
   const CorrectionsView({super.key});
@@ -218,7 +219,7 @@ class _CorrectionsViewState extends State<CorrectionsView> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  c.oldGrade.toStringAsFixed(2),
+                                  gradeText(c.oldGrade),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF991B1B),
@@ -230,7 +231,7 @@ class _CorrectionsViewState extends State<CorrectionsView> {
                                     size: 14, color: Color(0xFF64748B)),
                                 const SizedBox(width: 6),
                                 Text(
-                                  c.newGrade.toStringAsFixed(2),
+                                  gradeText(c.newGrade),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     color: Color(0xFF065F46),
@@ -313,7 +314,7 @@ class _CorrectionsViewState extends State<CorrectionsView> {
         child: AlertDialog(
           title: const Text('Approve Grade Correction'),
           content: Text(
-            'Are you sure you want to approve the grade amendment for ${c.studentName ?? "Student"} in ${c.subjectCode ?? (c.subjectTitle ?? "Subject")}?\n\nGrade will change from ${c.oldGrade.toStringAsFixed(2)} to ${c.newGrade.toStringAsFixed(2)}.',
+            'Are you sure you want to approve the grade amendment for ${c.studentName ?? "Student"} in ${c.subjectCode ?? (c.subjectTitle ?? "Subject")}?\n\nGrade will change from ${gradeText(c.oldGrade)} to ${gradeText(c.newGrade)}.',
           ),
           actions: [
             TextButton(

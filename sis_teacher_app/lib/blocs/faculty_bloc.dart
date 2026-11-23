@@ -4,6 +4,7 @@ import '../models/grading_models.dart';
 import '../repositories/class_repository.dart';
 import '../repositories/grading_repository.dart';
 import '../utils/error_handler.dart';
+import '../utils/numbers.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ class FacultyMember {
 
   /// '0', '3' or '4.5' — trailing '.0' is noise in a workload column.
   String get unitsLabel =>
-      totalUnits.toStringAsFixed(totalUnits.truncateToDouble() == totalUnits ? 0 : 1);
+      unitsText(totalUnits);
 
   String get userId => teacher.userId;
   String get firstname => teacher.firstname;

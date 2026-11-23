@@ -7,6 +7,7 @@ import '../models/grading_models.dart';
 import '../models/record_models.dart';
 import 'study_load_pdf.dart' show pdfSafe;
 import 'transcript_pdf.dart' show kSchoolAddress;
+import 'numbers.dart';
 
 enum CertificateKind { enrollment, grades }
 
@@ -66,7 +67,7 @@ List<StudentGradeModel> certificateSubjects(CertificateData c) =>
 
 double certificateUnits(CertificateData c) => certificateSubjects(c).fold(0.0, (s, g) => s + (g.units ?? 0));
 
-String _units(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+String _units(double v) => unitsText(v);
 
 /// The main paragraph, e.g. "This is to certify that JUAN DELA CRUZ, Student ID 25060208, is officially enrolled ...".
 String certificateBody(CertificateData c) {
@@ -177,7 +178,7 @@ Future<Uint8List> buildCertificatePdf(CertificateData c, {Uint8List? logo, bool 
             pw.Padding(
               padding: const pw.EdgeInsets.only(top: 6),
               child: pw.Text(
-                gwa == null ? 'General weighted average: no final grades yet' : 'General weighted average: ${gwa.toStringAsFixed(2)}  (NSTP and PE not included)',
+                gwa == null ? 'General weighted average: no final grades yet' : 'General weighted average: ${averageText(gwa)}  (NSTP and PE not included)',
                 style: bold9,
               ),
             ),

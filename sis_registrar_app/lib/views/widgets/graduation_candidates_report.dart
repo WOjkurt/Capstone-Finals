@@ -11,6 +11,7 @@ import '../../utils/error_handler.dart';
 import '../../utils/file_download.dart';
 import '../../utils/report_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
+import '../../utils/numbers.dart';
 
 /// Reports → Graduation: students in the final year of their curriculum, and what each still needs, from the
 /// same checklist as the Evaluation tab. Printable for the Registrar and the College Head.
@@ -60,7 +61,7 @@ class _GraduationCandidatesReportState extends State<GraduationCandidatesReport>
   List<GraduationCandidate> get _visible =>
       [for (final r in _data?.rows ?? const <GraduationCandidate>[]) if (_status == null || r.status == _status) r];
 
-  static String _units(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+  static String _units(double v) => unitsText(v);
 
   static const _headers = ['Student', 'Student ID', 'Program', 'Year', 'Status', 'Units earned', 'Taking now', 'Lacking'];
 

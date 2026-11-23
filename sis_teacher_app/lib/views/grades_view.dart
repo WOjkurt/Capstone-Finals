@@ -13,6 +13,7 @@ import 'widgets/page_header.dart';
 import 'widgets/page_states.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/term_dropdown.dart';
+import '../utils/numbers.dart';
 
 class GradesView extends StatefulWidget {
   final AuthenticatedState auth;
@@ -489,7 +490,7 @@ class _GradesViewState extends State<GradesView> {
                               size: 14, color: Color(0xFF64748B)),
                           const SizedBox(width: 8),
                           Text(
-                            currentGrade.toStringAsFixed(2),
+                            gradeText(currentGrade),
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
@@ -868,8 +869,8 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
   void _initControllers() {
     for (final r in widget.roster.where((r) => r.isEnrolled)) {
       final g = widget.grades[r.studyLoadId];
-      final midtermVal = g?.midtermGrade?.toStringAsFixed(2) ?? '';
-      final finalVal = g?.finalGrade?.toStringAsFixed(2) ?? '';
+      final midtermVal = gradeOrDash(g?.midtermGrade, dash: '');
+      final finalVal = gradeOrDash(g?.finalGrade, dash: '');
 
       _midtermControllers.putIfAbsent(r.studyLoadId, () => TextEditingController(text: midtermVal));
       if (_midtermControllers[r.studyLoadId]!.text.isEmpty && midtermVal.isNotEmpty) {

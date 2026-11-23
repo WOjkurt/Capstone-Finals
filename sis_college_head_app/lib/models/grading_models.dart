@@ -1,3 +1,4 @@
+import '../utils/numbers.dart';
 
 
 class UserSearchResultModel {
@@ -123,7 +124,7 @@ class IrregularStudentModel {
   String get progressLabel {
     final passed = backMajorUnitsPassed;
     final text =
-        passed.toStringAsFixed(passed.truncateToDouble() == passed ? 0 : 1);
+        unitsText(passed);
     return '$text/${unitsToRegular.toStringAsFixed(0)} units';
   }
 

@@ -6,6 +6,7 @@ import '../models/setup_models.dart';
 import '../theme/app_theme.dart';
 import 'widgets/page_header.dart';
 import 'widgets/term_dropdown.dart';
+import '../utils/numbers.dart';
 
 class ScheduleView extends StatefulWidget {
   final String userId;
@@ -156,7 +157,7 @@ class _ScheduleViewState extends State<ScheduleView> {
                       const SizedBox(width: 5),
                       Flexible(
                         child: Text(
-                          '$enrolledCount ${enrolledCount == 1 ? 'Class' : 'Classes'} · ${totalUnits.toStringAsFixed(totalUnits.truncateToDouble() == totalUnits ? 0 : 1)} Units',
+                          '$enrolledCount ${enrolledCount == 1 ? 'Class' : 'Classes'} · ${unitsText(totalUnits)} Units',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

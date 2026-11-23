@@ -4,6 +4,7 @@ import '../../repositories/school_settings_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/formatters.dart';
+import '../../utils/numbers.dart';
 
 /// Setup → Limits & Rules: the summer unit limits and the Dean's list rules, which the Registrar can change at any time.
 class UnitLimitsTab extends StatefulWidget {
@@ -282,11 +283,6 @@ class _DeansListRulesSectionState extends State<DeansListRulesSection> {
   String? _error;
   bool _saving = false;
 
-  static String _grade(double v) {
-    final two = v.toStringAsFixed(2);
-    return two.endsWith('0') ? v.toStringAsFixed(1) : two;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -301,8 +297,8 @@ class _DeansListRulesSectionState extends State<DeansListRulesSection> {
   }
 
   void _show(DeansListRules r) {
-    _gwa.text = _grade(r.maxGwa);
-    _worst.text = _grade(r.worstGrade);
+    _gwa.text = gradeText(r.maxGwa);
+    _worst.text = gradeText(r.worstGrade);
     _saved = r;
   }
 
@@ -367,7 +363,7 @@ class _DeansListRulesSectionState extends State<DeansListRulesSection> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    final changed = _gwa.text.trim() != _grade(saved.maxGwa) || _worst.text.trim() != _grade(saved.worstGrade);
+    final changed = _gwa.text.trim() != gradeText(saved.maxGwa) || _worst.text.trim() != gradeText(saved.worstGrade);
     return SettingsCard(
       icon: Icons.workspace_premium_outlined,
       title: 'Dean\'s list rules',

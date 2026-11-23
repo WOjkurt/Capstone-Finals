@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../utils/numbers.dart';
 
-String _units(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+String _units(double v) => unitsText(v);
 
 /// Small "Overload" chip; the tooltip says who approved it and why.
 class OverloadBadge extends StatelessWidget {

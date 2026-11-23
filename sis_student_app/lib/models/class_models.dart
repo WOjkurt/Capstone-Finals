@@ -1,4 +1,5 @@
 import '../utils/formatters.dart';
+import '../utils/numbers.dart';
 
 class ClassScheduleModel {
   final String scheduleId;
@@ -237,7 +238,7 @@ class StudentScheduleItemModel {
 
   String get unitsLabel {
     final isWhole = units.truncateToDouble() == units;
-    final valStr = isWhole ? units.toInt().toString() : units.toStringAsFixed(1);
+    final valStr = unitsText(units);
     return '$valStr ${units == 1 ? 'Unit' : 'Units'}';
   }
 

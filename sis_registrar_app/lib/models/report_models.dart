@@ -1,3 +1,8 @@
+// `gradeText` used to live here. It now sits with the rest of the number formatting,
+// re-exported so the screens already importing it from this file keep working.
+import '../utils/numbers.dart';
+export '../utils/numbers.dart' show gradeText, averageText, unitsText, gradeOrDash;
+
 double _d(Object? v) => (v as num?)?.toDouble() ?? 0;
 int _i(Object? v) => (v as num?)?.toInt() ?? 0;
 
@@ -339,10 +344,4 @@ class DeansList {
 
   String get rules => 'GWA ${gradeText(maxGwa)} or better, no grade below ${gradeText(worstGrade)}, '
       'at least their regular study load, no failed, dropped or withdrawn subject';
-}
-
-/// 1.7 → "1.7", 1.75 → "1.75", 2 → "2.0".
-String gradeText(double v) {
-  final two = v.toStringAsFixed(2);
-  return two.endsWith('0') ? v.toStringAsFixed(1) : two;
 }

@@ -7,6 +7,7 @@ import '../../repositories/class_repository.dart';
 import '../../repositories/enrollment_repository.dart';
 import '../../theme/app_theme.dart';
 import 'reason_dialog.dart';
+import '../../utils/numbers.dart';
 
 class StudyLoadBuilderDialog extends StatefulWidget {
   final UserSearchResultModel student;
@@ -318,8 +319,8 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => _OverloadReasonDialog(
-        message: 'This load would be ${_projectedUnits.toStringAsFixed(1)} units, '
-            'above the limit of ${limit.maxUnits.toStringAsFixed(1)} units.\n\n${limit.rule}',
+        message: 'This load would be ${unitsText(_projectedUnits)} units, '
+            'above the limit of ${unitsText(limit.maxUnits)} units.\n\n${limit.rule}',
       ),
     );
   }
@@ -1138,7 +1139,7 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${item.units.toStringAsFixed(1)} units',
+                      '${unitsText(item.units)} units',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1167,7 +1168,7 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                                   AppColors.accentAmber.withValues(alpha: 0.4)),
                         ),
                         child: Text(
-                          'Last grade: ${item.lastGrade!.toStringAsFixed(1)}${item.lastGradeTerm != null ? ' (${item.lastGradeTerm})' : ''}',
+                          'Last grade: ${gradeText(item.lastGrade!)}${item.lastGradeTerm != null ? ' (${item.lastGradeTerm})' : ''}',
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -1404,8 +1405,8 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Over the unit limit: ${_projectedUnits.toStringAsFixed(1)} of '
-                    '${_unitLimit!.maxUnits.toStringAsFixed(1)} units. ${_unitLimit!.rule}',
+                    'Over the unit limit: ${unitsText(_projectedUnits)} of '
+                    '${unitsText(_unitLimit!.maxUnits)} units. ${_unitLimit!.rule}',
                     style: const TextStyle(
                         fontSize: 11,
                         color: Color(0xFF92400E),
@@ -1469,7 +1470,7 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Total: ${_selectedUnitsTotal.toStringAsFixed(1)} units',
+                        'Total: ${unitsText(_selectedUnitsTotal)} units',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -1479,9 +1480,9 @@ class _StudyLoadBuilderDialogState extends State<StudyLoadBuilderDialog> {
                       if (_unitLimit != null) ...[
                         const SizedBox(width: 12),
                         Text(
-                          '${_unitLimit!.currentUnits > 0 ? '${_unitLimit!.currentUnits.toStringAsFixed(1)} already in term · ' : ''}'
-                          'Limit ${_unitLimit!.maxUnits.toStringAsFixed(1)}'
-                          '${_unitLimit!.retakeUnits + _selectedRetakeUnits > 0 ? ' · ${(_unitLimit!.retakeUnits + _selectedRetakeUnits).toStringAsFixed(1)} retake units extra' : ''}',
+                          '${_unitLimit!.currentUnits > 0 ? '${unitsText(_unitLimit!.currentUnits)} already in term · ' : ''}'
+                          'Limit ${unitsText(_unitLimit!.maxUnits)}'
+                          '${_unitLimit!.retakeUnits + _selectedRetakeUnits > 0 ? ' · ${unitsText(_unitLimit!.retakeUnits + _selectedRetakeUnits)} retake units extra' : ''}',
                           key: const ValueKey('unit_limit_label'),
                           style: TextStyle(
                             fontSize: 12,

@@ -710,14 +710,14 @@ void main() {
 
       // Initial: only IT211 is pre-checked → 3.0 units
       expect(find.text('1 subjects selected'), findsOneWidget);
-      expect(find.text('Total: 3.0 units'), findsOneWidget);
+      expect(find.text('Total: 3 units'), findsOneWidget);
 
       // Check IT111 (retake)
       await tester.tap(find.byKey(const ValueKey('checkbox_IT111')));
       await tester.pumpAndSettle();
 
       expect(find.text('2 subjects selected'), findsOneWidget);
-      expect(find.text('Total: 6.0 units'), findsOneWidget);
+      expect(find.text('Total: 6 units'), findsOneWidget);
     });
 
     testWidgets('Enroll now sends asPending=false', (tester) async {
@@ -1357,7 +1357,7 @@ void main() {
         onEnroll: (_) => enrolled = true,
       ));
 
-      expect(find.text('Limit 21.0'), findsOneWidget);
+      expect(find.text('Limit 21'), findsOneWidget);
       expect(find.byKey(const ValueKey('unit_limit_warning')), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
@@ -1374,8 +1374,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('checkbox_IT111')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Total: 9.0 units'), findsOneWidget);
-      expect(find.text('Limit 6.0 · 3.0 retake units extra'), findsOneWidget);
+      expect(find.text('Total: 9 units'), findsOneWidget);
+      expect(find.text('Limit 6 · 3 retake units extra'), findsOneWidget);
       expect(find.byKey(const ValueKey('unit_limit_warning')), findsNothing);
     });
 
@@ -1388,7 +1388,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('checkbox_IT111')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Limit 6.0'), findsOneWidget);
+      expect(find.text('Limit 6'), findsOneWidget);
       expect(find.byKey(const ValueKey('unit_limit_warning')), findsOneWidget);
     });
 
@@ -1399,9 +1399,9 @@ void main() {
         onEnroll: (_) => enrolled = true,
       ));
 
-      expect(find.text('3.0 already in term · Limit 6.0'), findsOneWidget);
+      expect(find.text('3 already in term · Limit 6'), findsOneWidget);
       expect(find.byKey(const ValueKey('unit_limit_warning')), findsOneWidget);
-      expect(find.textContaining('Over the unit limit: 9.0 of 6.0 units'), findsOneWidget);
+      expect(find.textContaining('Over the unit limit: 9 of 6 units'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('save_as_pending_button')));
       await tester.pumpAndSettle();

@@ -8,6 +8,7 @@ import 'widgets/page_header.dart';
 import 'widgets/stat_strip.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/term_dropdown.dart';
+import '../utils/numbers.dart';
 
 class GradesView extends StatefulWidget {
   final String userId;
@@ -438,11 +439,11 @@ class _GradesViewState extends State<GradesView> {
   }
 
   static String _formatGrade(double? value) =>
-      value == null ? '—' : value.toStringAsFixed(2);
+      gradeOrDash(value, dash: '—');
 
   static String _formatUnits(double? value) => value == null
       ? '—'
-      : value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 1);
+      : unitsText(value);
 
   /// Plain wording for the phone rows, where a coloured pill would shout over
   /// the grades themselves.

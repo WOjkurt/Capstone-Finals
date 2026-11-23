@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/report_models.dart';
 import 'study_load_pdf.dart' show pdfSafe;
+import 'numbers.dart';
 
 /// A plain printed report: school header, title, one bordered table, page numbers.
 /// Wide tables ([landscape]) print sideways.
@@ -217,7 +218,7 @@ Future<Uint8List> buildClassListsPdf(
           pw.Expanded(child: pw.Column(children: [
             info('Subject', '${c.subjectCode} - ${c.subjectTitle}'),
             info('Section', c.className),
-            info('Units', c.units.toStringAsFixed(c.units.truncateToDouble() == c.units ? 0 : 1)),
+            info('Units', unitsText(c.units)),
           ])),
           pw.SizedBox(width: 16),
           pw.Expanded(child: pw.Column(children: [

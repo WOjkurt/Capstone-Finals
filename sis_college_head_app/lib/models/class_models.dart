@@ -1,4 +1,5 @@
 import '../utils/formatters.dart';
+import '../utils/numbers.dart';
 
 class ClassScheduleModel {
   final String scheduleId;
@@ -275,7 +276,7 @@ class PendingStudyLoadSummaryModel {
 
   /// '3' or '4.5' — a trailing '.0' is noise in a units column.
   static String formatUnits(double value) =>
-      value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 1);
+      unitsText(value);
 
   String get pendingUnitsLabel => formatUnits(pendingUnits);
 

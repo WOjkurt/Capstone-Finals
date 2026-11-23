@@ -10,6 +10,7 @@ import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import '../../utils/certificate_pdf.dart' show CertificateKind;
 import 'record_print_dialogs.dart';
 import 'record_table.dart';
+import '../../utils/numbers.dart';
 
 /// Read-only grade history of one student, grouped by term (newest first).
 /// Failed subjects that were never passed later are listed at the top as retake candidates.
@@ -313,7 +314,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
             ),
             child: Row(
               children: [
-                Text(gwa.toStringAsFixed(2),
+                Text(averageText(gwa),
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.w700)),
                 const SizedBox(width: 10),
@@ -397,7 +398,7 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
                           color: AppColors.primary)),
                 ),
                 if (!_failedOnly && computeGwa(term.value) != null)
-                  Text('GWA ${computeGwa(term.value)!.toStringAsFixed(2)}',
+                  Text('GWA ${averageText(computeGwa(term.value)!)}',
                       key: ValueKey('term_gwa_${term.key}'),
                       style: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700)),

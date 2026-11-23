@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/record_models.dart';
 import 'study_load_pdf.dart' show pdfSafe;
+import 'numbers.dart';
 
 /// What the Registrar fills in before printing a transcript. Empty names print as blank signature lines.
 class TranscriptPrintOptions {
@@ -38,7 +39,7 @@ String _date(DateTime d) {
   return '${months[d.month - 1]} ${d.day}, ${d.year}';
 }
 
-String _units(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+String _units(double v) => unitsText(v);
 
 // Column widths of the grades table, in points (letter width 612 - 2 × 30 margin = 552).
 const double _codeW = 78;

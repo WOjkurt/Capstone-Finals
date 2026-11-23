@@ -3,6 +3,7 @@ import '../../injection.dart';
 import '../../models/grading_models.dart';
 import '../../repositories/grades_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/numbers.dart';
 
 /// How a class is doing, derived from its grade rows.
 ///
@@ -33,7 +34,7 @@ class ClassGradeStats {
   int get total => passed + failed + ungraded;
 
   String get averageLabel =>
-      average == null ? '—' : average!.toStringAsFixed(2);
+      gradeOrDash(average, dash: '—');
 
   factory ClassGradeStats.from(List<GradeModel> grades) {
     var passed = 0;
@@ -207,9 +208,9 @@ class _ClassGradeSummaryState extends State<ClassGradeSummary> {
   String _atRiskLine(GradeModel g) {
     final name = g.studentName ?? 'Unknown student';
     if (g.finalGrade != null) {
-      return '$name — final ${g.finalGrade!.toStringAsFixed(2)}';
+      return '$name — final ${gradeText(g.finalGrade!)}';
     }
-    return '$name — midterm ${g.midtermGrade!.toStringAsFixed(2)}, no final yet';
+    return '$name — midterm ${gradeText(g.midtermGrade!)}, no final yet';
   }
 
   Widget _figure(String label, String value, Color color) {

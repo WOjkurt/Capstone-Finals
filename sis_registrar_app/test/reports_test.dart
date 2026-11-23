@@ -235,7 +235,8 @@ void main() {
       await tester.tap(find.text('Failed students'));
       await tester.pumpAndSettle();
       expect(find.text('Ana Cruz'), findsOneWidget);
-      expect(find.text('5.00'), findsOneWidget);
+      // "5.0", not "5.00": a trailing zero that says nothing is not shown.
+      expect(find.text('5.0'), findsOneWidget);
 
       await tester.tap(find.text('Class sizes'));
       await tester.pumpAndSettle();

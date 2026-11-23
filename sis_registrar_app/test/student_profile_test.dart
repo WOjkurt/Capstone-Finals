@@ -198,10 +198,11 @@ void main() {
     await tester.tap(tab('Grades'));
     await tester.pumpAndSettle();
 
-    // (3 × 1.5 + 1 × 3.5) / 4 = 2.00
-    expect(find.descendant(of: find.byKey(const ValueKey('overall_gwa')), matching: find.text('2.00')), findsOneWidget);
+    // (3 × 1.5 + 1 × 3.5) / 4 = 2, shown as "2.0" -- one decimal always, a second only when
+    // it carries information. A GWA of 1.8234 still prints as "1.82".
+    expect(find.descendant(of: find.byKey(const ValueKey('overall_gwa')), matching: find.text('2.0')), findsOneWidget);
     expect(find.byKey(const ValueKey('term_gwa_2025-2026 (2nd Sem)')), findsOneWidget);
-    expect(find.text('GWA 2.00'), findsOneWidget);
+    expect(find.text('GWA 2.0'), findsOneWidget);
   });
 
   testWidgets('Evaluation shows units earned and the checklist; "Left to take only" hides finished subjects', (tester) async {

@@ -44,7 +44,7 @@ void main() {
       ]);
 
       expect(stats.average, 2.5);
-      expect(stats.averageLabel, '2.50');
+      expect(stats.averageLabel, '2.5');
     });
 
     test('average is null when nothing has a final grade', () {

@@ -3,6 +3,7 @@ import '../../injection.dart';
 import '../../models/grading_models.dart';
 import '../../repositories/grades_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/numbers.dart';
 
 /// One term's worth of a student's grades, newest term first.
 class StudentGradeTerm {
@@ -224,7 +225,7 @@ class _StudentGradeHistoryDialogState extends State<StudentGradeHistoryDialog> {
         if (units > 0) ...[
           const SizedBox(width: 8),
           Text(
-            '${units.toStringAsFixed(units.truncateToDouble() == units ? 0 : 1)} units',
+            '${unitsText(units)} units',
             style: const TextStyle(
               fontSize: 11,
               color: AppColors.textSecondary,
@@ -319,7 +320,7 @@ class _StudentGradeHistoryDialogState extends State<StudentGradeHistoryDialog> {
               ),
             ),
             TextSpan(
-              text: value == null ? '—' : value.toStringAsFixed(2),
+              text: gradeOrDash(value, dash: '—'),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

@@ -9,6 +9,7 @@ import '../../repositories/grading_repository.dart';
 import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
+import '../../utils/numbers.dart';
 
 /// Subjects a transferee or shiftee passed at another school, credited to DBTC subjects.
 /// Credited subjects count as passed for prerequisites, the study load builder and year-level promotion.
@@ -122,7 +123,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   /// Credits for shiftees name DBTC itself, with the old program, so they need no accredited school.
   static const _dbtcName = 'Don Bosco Technical College - Cebu';
 
-  static String _fmtUnits(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+  static String _fmtUnits(double v) => unitsText(v);
 
   List<SubjectModel> get _available {
     final credited = (_credits ?? []).map((c) => c.subjectId).toSet();
@@ -323,7 +324,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
                             [
                               p.programCode,
                               '${_fmtUnits(p.units)} units',
-                              p.status == 'InProgress' ? 'in progress' : 'grade ${p.finalGrade?.toStringAsFixed(2) ?? '-'}',
+                              p.status == 'InProgress' ? 'in progress' : 'grade ${gradeOrDash(p.finalGrade)}',
                               p.termLabel,
                               p.suggestedSubjectCode != null ? 'matches ${p.suggestedSubjectCode}' : 'no match in the new curriculum',
                             ].join(' · '),
@@ -355,7 +356,7 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
       _formVersion++;
       _school.text = '$_dbtcName (${p.programCode})';
       _theirCode.text = p.subjectCode;
-      _grade.text = p.finalGrade?.toStringAsFixed(2) ?? '';
+      _grade.text = gradeOrDash(p.finalGrade, dash: '');
       _schoolYear.text = p.schoolYear;
       // Never more than the new subject has; the Registrar lowers it to match the time taken.
       final most = p.suggestedUnits ?? p.units;

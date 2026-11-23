@@ -20,6 +20,7 @@ import '../repositories/report_repository.dart';
 import '../utils/report_pdf.dart';
 import '../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import '../services/current_term.dart';
+import '../utils/numbers.dart';
 
 
 /// How wide the Subjects table's Title column may get. Without a cap the column grows to
@@ -1143,7 +1144,7 @@ class _SubjectsTabState extends State<_SubjectsTab> {
                                           ),
                                         ),
                                         DataCell(
-                                          Text('${sub.lecUnits.toStringAsFixed(1)} / ${sub.labUnits.toStringAsFixed(1)}'),
+                                          Text('${unitsText(sub.lecUnits)} / ${unitsText(sub.labUnits)}'),
                                         ),
                                         DataCell(
                                           Column(

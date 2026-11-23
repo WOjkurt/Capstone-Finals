@@ -346,7 +346,7 @@ void main() {
       expect(find.text('IT 311'), findsOneWidget);
       expect(find.text('Systems Integration and Architecture'), findsOneWidget);
       expect(find.text('1.75'), findsOneWidget);
-      expect(find.text('2.00'), findsOneWidget);
+      expect(find.text('2.0'), findsOneWidget);
       expect(find.textContaining('Prof. Rizal'), findsOneWidget);
 
       // Midterm-only row
@@ -397,7 +397,7 @@ void main() {
       expect(find.byType(DataTable), findsNothing);
       expect(find.textContaining('IT 311 ·'), findsOneWidget);
       expect(find.textContaining('Mid 1.75'), findsOneWidget);
-      expect(find.textContaining('Final 2.00'), findsOneWidget);
+      expect(find.textContaining('Final 2.0'), findsOneWidget);
       // The remark is plain text on phones, not a coloured badge.
       expect(find.byType(StatusBadge), findsNothing);
       expect(find.text('Passed'), findsWidgets);

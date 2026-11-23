@@ -17,6 +17,7 @@ import 'widgets/activity_log_browser.dart';
 import 'widgets/graduation_candidates_report.dart';
 import 'widgets/missing_sex_dialog.dart';
 import 'widgets/page_header.dart';
+import '../utils/numbers.dart';
 
 /// The four term reports. Each tab shows a table and can be downloaded as CSV (opens in Excel).
 enum ReportKind { enrollment, statistics, classSizes, failed, deansList, teacherLoads }
@@ -52,7 +53,7 @@ class ReportTable {
   const ReportTable(this.headers, this.rows, {this.note, this.missingSex = 0});
 }
 
-String _num(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+String _num(double v) => unitsText(v);
 
 class ReportsView extends StatefulWidget {
   static const termReportsTab = 0;
@@ -258,7 +259,7 @@ class _ReportsViewState extends State<ReportsView>
                 r.subjectCode,
                 r.subjectTitle,
                 r.className,
-                r.finalGrade?.toStringAsFixed(2) ?? '',
+                gradeOrDash(r.finalGrade, dash: ''),
                 r.teacherName ?? '',
               ],
           ],
@@ -282,8 +283,8 @@ class _ReportsViewState extends State<ReportsView>
                 r.yearLevel ?? '',
                 _num(r.units),
                 _num(r.requiredUnits),
-                r.gwa.toStringAsFixed(2),
-                r.lowestGrade.toStringAsFixed(2),
+                averageText(r.gwa),
+                gradeText(r.lowestGrade),
               ],
           ],
         );

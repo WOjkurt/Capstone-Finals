@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/class_models.dart';
+import 'numbers.dart';
 
 /// What goes on a printed study load.
 class StudyLoadPrintData {
@@ -37,7 +38,7 @@ String pdfSafe(String text) => text
     .replaceAll('’', "'")
     .replaceAll(RegExp(r'[^\x00-\xFF]'), '?');
 
-String _units(double v) => v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 1);
+String _units(double v) => unitsText(v);
 
 String _schedule(ClassRosterItemModel l) {
   if (l.schedules.isEmpty) return 'TBA';
