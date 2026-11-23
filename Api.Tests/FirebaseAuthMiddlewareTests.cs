@@ -53,18 +53,32 @@ public class FirebaseAuthMiddlewareTests : IClassFixture<WebApplicationFactory<P
     /// Returns a factory where Firebase is not initialized (Testing env, real verifier).
     /// Used to test the null-guard 503 path.
     /// </summary>
-    private WebApplicationFactory<Program> NullGuardFactory() =>
-        _factory.WithWebHostBuilder(builder =>
+    /// <summary>
+    /// A server whose verifier reports that Firebase never came up.
+    ///
+    /// This used to delete FirebaseApp.DefaultInstance and rely on the real verifier reading
+    /// that global back as null. FirebaseAuth.DefaultInstance is process-wide and Program.cs
+    /// re-creates it at startup, so any other test factory starting in parallel could put it
+    /// back between the delete and the request -- the server then answered as though Firebase
+    /// were healthy and the test failed, intermittently and with no connection to whatever
+    /// change happened to be in flight. A mock states the condition instead of arranging it.
+    /// </summary>
+    private WebApplicationFactory<Program> NullGuardFactory()
+    {
+        var verifier = new Mock<IFirebaseAuthVerifier>();
+        verifier.SetupGet(v => v.IsInitialized).Returns(false);
+        return _factory.WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                FirebaseApp.DefaultInstance?.Delete();
                 ReplaceDbWithInMemory(services, "NullGuard_" + Guid.NewGuid());
-                // Real FirebaseAuthVerifier — IsInitialized == false because
-                // appsettings.Testing.json has blank Firebase:ProjectId
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IFirebaseAuthVerifier));
+                if (descriptor != null) services.Remove(descriptor);
+                services.AddSingleton(verifier.Object);
             });
         });
+    }
 
     /// <summary>
     /// Returns a factory where the verifier is a <see cref="Mock{IFirebaseAuthVerifier}"/>

@@ -235,6 +235,125 @@ public class StudyLoadBuilderProposedBlockTests : IDisposable
         Assert.False(item.AlreadyPassed);
     }
 
+    /// <summary>
+    /// The bug a registrar actually reported: a student who had passed a subject was offered it
+    /// again as a back subject, and subjects she had already taken kept appearing in the builder.
+    ///
+    /// Subjects are stored per curriculum, so the same code is several rows. Her grade sat on
+    /// the row the Excel import picked -- a different curriculum's -- while the builder offers
+    /// rows from the curriculum she is on now and asked "has she passed THIS SubjectID?". The
+    /// answer was no for a subject she had passed.
+    /// </summary>
+    [Fact]
+    public async Task GetProposedBlock_SubjectPassedUnderAnotherCurriculum_IsNotOfferedAgain()
+    {
+        var oldCurriculum = new Curriculum
+        {
+            CurriculumID = Guid.NewGuid(), ProgramID = _program.ProgramID,
+            Name = "2019 curriculum", EffectiveFromYear = 2019, CreatedAt = DateTime.UtcNow
+        };
+        var newCurriculum = new Curriculum
+        {
+            CurriculumID = Guid.NewGuid(), ProgramID = _program.ProgramID,
+            Name = "2024 curriculum", EffectiveFromYear = 2024, CreatedAt = DateTime.UtcNow
+        };
+        _context.Curricula.AddRange(oldCurriculum, newCurriculum);
+        await _context.SaveChangesAsync();
+
+        var (student, details) = await CreateStudentAsync("pitogo_case@dbtc-cebu.edu.ph", yearLevel: 2);
+        details.CurriculumID = newCurriculum.CurriculumID;   // she is on the new curriculum
+        await _context.SaveChangesAsync();
+
+        var priorTerm = new AcademicTerm
+        {
+            TermID = Guid.NewGuid(), SchoolYear = "2025-2026", Semester = 1, IsActive = false
+        };
+        _context.AcademicTerms.Add(priorTerm);
+
+        // The same year-1 subject, written slightly differently, in both curricula.
+        var (oldRow, oldClass) = await CreateSubjectAndClassAsync("IT 101", "Intro to IT", yearLevel: 1, defaultSemester: 1, term: priorTerm);
+        oldRow.CurriculumID = oldCurriculum.CurriculumID;
+
+        var (newRow, _) = await CreateSubjectAndClassAsync("IT-101", "Intro to IT", yearLevel: 1, defaultSemester: 1, createClass: false);
+        newRow.CurriculumID = newCurriculum.CurriculumID;
+
+        // A year-2 subject in her curriculum, so the block is not empty either way.
+        var (y2Row, _) = await CreateSubjectAndClassAsync("IT 201", "Year 2 Subject", yearLevel: 2, defaultSemester: 1, term: _term);
+        y2Row.CurriculumID = newCurriculum.CurriculumID;
+        await _context.SaveChangesAsync();
+
+        // She passed it -- but against the OLD curriculum's row, as the import left it.
+        var passedLoad = new StudyLoad
+        {
+            StudyLoadID = Guid.NewGuid(), UserID = student.UserID, ClassID = oldClass.ClassID,
+            LoadStatus = StudyLoadStatus.Enrolled, CreatedAt = DateTime.UtcNow
+        };
+        _context.StudyLoads.Add(passedLoad);
+        _context.Grades.Add(new Grade
+        {
+            GradeID = Guid.NewGuid(), StudyLoadID = passedLoad.StudyLoadID, FinalGrade = 2.0m, Remarks = 1
+        });
+        await _context.SaveChangesAsync();
+
+        var block = await _studyLoadService.GetProposedBlockAsync(student.UserID, _term.TermID);
+
+        Assert.DoesNotContain(block, i => i.SubjectId == newRow.SubjectID);
+        Assert.DoesNotContain(block, i => i.Category == "back_subject");
+        Assert.Contains(block, i => i.SubjectId == y2Row.SubjectID && i.Category == "regular");
+    }
+
+    /// <summary>
+    /// The same code in a DIFFERENT program is a different subject, and must still be owed.
+    /// Without this, matching on code alone would quietly clear subjects nobody had taken.
+    /// </summary>
+    [Fact]
+    public async Task GetProposedBlock_SameCodeInAnotherProgram_IsStillOwed()
+    {
+        var otherProgram = new AcademicProgram { ProgramID = 11, ProgramCode = "BSME", ProgramName = "Mechanical Engineering" };
+        _context.AcademicPrograms.Add(otherProgram);
+        await _context.SaveChangesAsync();
+
+        var (student, _) = await CreateStudentAsync("cross_program@dbtc-cebu.edu.ph", yearLevel: 2);
+        var priorTerm = new AcademicTerm
+        {
+            TermID = Guid.NewGuid(), SchoolYear = "2025-2026", Semester = 1, IsActive = false
+        };
+        _context.AcademicTerms.Add(priorTerm);
+
+        // NSTP 01 in the student's own program: never taken, so still owed.
+        var (ownRow, _) = await CreateSubjectAndClassAsync("NSTP 01", "NSTP", yearLevel: 1, defaultSemester: 1, createClass: false);
+
+        // NSTP 01 in another program, passed there. Different subject; must not clear the above.
+        var otherSubject = new Subject
+        {
+            SubjectID = Guid.NewGuid(), SubjectCode = "NSTP 01", SubjectTitle = "NSTP",
+            ProgramID = otherProgram.ProgramID, YearLevel = 1, DefaultSemester = 1,
+            LecUnits = 3m, LabUnits = 0m
+        };
+        _context.Subjects.Add(otherSubject);
+        var otherClass = new Class
+        {
+            ClassID = Guid.NewGuid(), SubjectID = otherSubject.SubjectID, TermID = priorTerm.TermID,
+            ClassName = "NSTP-SEC1", CreatedAt = DateTime.UtcNow
+        };
+        _context.Classes.Add(otherClass);
+        var otherLoad = new StudyLoad
+        {
+            StudyLoadID = Guid.NewGuid(), UserID = student.UserID, ClassID = otherClass.ClassID,
+            LoadStatus = StudyLoadStatus.Enrolled, CreatedAt = DateTime.UtcNow
+        };
+        _context.StudyLoads.Add(otherLoad);
+        _context.Grades.Add(new Grade
+        {
+            GradeID = Guid.NewGuid(), StudyLoadID = otherLoad.StudyLoadID, FinalGrade = 2.0m, Remarks = 1
+        });
+        await _context.SaveChangesAsync();
+
+        var block = await _studyLoadService.GetProposedBlockAsync(student.UserID, _term.TermID);
+
+        Assert.Contains(block, i => i.SubjectId == ownRow.SubjectID && i.Category == "back_subject");
+    }
+
     [Fact]
     public async Task GetProposedBlock_FailedSubject_BecomesRetakeWithLastGrade_DisappearsOncePassed()
     {

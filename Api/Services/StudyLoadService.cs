@@ -961,7 +961,20 @@ public class StudyLoadService : IStudyLoadService
             .Where(c => c.UserID == userId && c.CreditedUnits >= c.Subject!.LecUnits + c.Subject.LabUnits)
             .Select(c => c.SubjectID).ToListAsync();
         passed.UnionWith(credited);
-        return attempts.Where(a => a.Remarks == 2 && !passed.Contains(a.SubjectID)).Select(a => a.SubjectID).ToHashSet();
+
+        // Expand to every row meaning the same subject. Callers test this set against the
+        // SubjectID of the load being enrolled now, which comes from the student's current
+        // curriculum, while the failure that makes it a retake was recorded against whichever
+        // row the import used. Without this a genuine retake is not recognised as one, and in
+        // summer it is charged against the unit cap instead of being exempt from it.
+        var expanded = new HashSet<Guid>();
+        foreach (var subjectId in attempts.Where(a => a.Remarks == 2).Select(a => a.SubjectID).Distinct())
+        {
+            var equivalents = await EquivalentSubjectIdsAsync(subjectId);
+            if (equivalents.Overlaps(passed)) continue;   // passed later under any curriculum
+            expanded.UnionWith(equivalents);
+        }
+        return expanded;
     }
 
     internal enum SubjectCompletionStatus
@@ -1149,10 +1162,58 @@ public class StudyLoadService : IStudyLoadService
         return SubjectCompletionStatus.NeverTaken;
     }
 
+    /// <summary>
+    /// Every Subject row that means the same subject as this one: same program, same code once
+    /// punctuation and spacing are stripped.
+    ///
+    /// Subjects are stored per curriculum, so "IT 101" in the 2019 curriculum and "IT 101" in
+    /// the 2024 one are two rows with different SubjectIDs. A student's grade is attached to
+    /// whichever row the Excel import resolved -- often not the row in the curriculum they are
+    /// on now -- while the study load builder only offers rows from their current curriculum.
+    /// Asking "has she passed THIS SubjectID?" therefore answered no for a subject she had
+    /// passed, and the builder offered it again as a back subject.
+    ///
+    /// Scoped to the program on purpose. Two programs may both use a code like "NSTP 01" for
+    /// genuinely different subjects, and merging those would hide a subject a student still
+    /// owes. Within one program the same code is the same subject.
+    ///
+    /// Built once per request and kept: the proposed-block builder calls this for every subject
+    /// in the curriculum, and the service is registered scoped.
+    /// </summary>
+    private Dictionary<Guid, HashSet<Guid>>? _equivalentSubjectIds;
+
+    private async Task<HashSet<Guid>> EquivalentSubjectIdsAsync(Guid subjectId)
+    {
+        if (_equivalentSubjectIds is null)
+        {
+            var all = await _context.Subjects
+                .AsNoTracking()
+                .Select(s => new { s.SubjectID, s.ProgramID, s.SubjectCode })
+                .ToListAsync();
+
+            var byProgramAndCode = all
+                .GroupBy(s => (s.ProgramID, Code: SubjectCodes.Key(s.SubjectCode)))
+                .ToDictionary(g => g.Key, g => g.Select(s => s.SubjectID).ToHashSet());
+
+            _equivalentSubjectIds = all.ToDictionary(
+                s => s.SubjectID,
+                s => byProgramAndCode[(s.ProgramID, SubjectCodes.Key(s.SubjectCode))]);
+        }
+
+        // A subject that is somehow not in the table still answers for itself, so a missing
+        // row degrades to the old behaviour rather than matching nothing at all.
+        return _equivalentSubjectIds.TryGetValue(subjectId, out var set)
+            ? set
+            : new HashSet<Guid> { subjectId };
+    }
+
     private async Task<SubjectSatisfactionResult> HasSatisfiedSubjectAsync(Guid userId, Guid subjectId)
     {
+        // Match the subject by what it IS, not by which curriculum's row was asked about.
+        var subjectIds = await EquivalentSubjectIdsAsync(subjectId);
+
         // A subject credited from another school with its full units counts as passed; a partial credit does not.
-        if (await _context.CreditedSubjects.AnyAsync(c => c.UserID == userId && c.SubjectID == subjectId &&
+        if (await _context.CreditedSubjects.AnyAsync(c => c.UserID == userId && subjectIds.Contains(c.SubjectID) &&
                                                           c.CreditedUnits >= c.Subject!.LecUnits + c.Subject.LabUnits))
         {
             return new SubjectSatisfactionResult { Status = SubjectCompletionStatus.Passed };
@@ -1162,7 +1223,7 @@ public class StudyLoadService : IStudyLoadService
             .AsNoTracking()
             .Include(sl => sl.Class)
                 .ThenInclude(c => c!.Term)
-            .Where(sl => sl.UserID == userId && sl.Class != null && sl.Class.SubjectID == subjectId)
+            .Where(sl => sl.UserID == userId && sl.Class != null && subjectIds.Contains(sl.Class.SubjectID))
             .ToListAsync();
 
         if (loads.Count == 0)

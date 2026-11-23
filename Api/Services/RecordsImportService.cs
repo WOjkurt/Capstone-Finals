@@ -75,8 +75,13 @@ public partial class RecordsImportService : IRecordsImportService
     }
 
     /// <summary>Only letters and digits, upper case: "GEC 112B ELEC3" and "GEC 112B-Elec 3" are the same subject.</summary>
-    public static string CodeKey(string code) =>
-        new string(code.ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
+    /// <remarks>
+    /// Delegates to <see cref="SubjectCodes.Key"/>, which the study load builder uses too. The
+    /// two must agree: the importer decides which Subject row a grade lands on, and the builder
+    /// decides whether that row counts as the subject it is about to offer. When they disagreed,
+    /// a passed subject came back as a back subject.
+    /// </remarks>
+    public static string CodeKey(string code) => SubjectCodes.Key(code);
 
     /// <summary>The registrar's many spellings of a course, e.g. "BTVTEd /MT", "BSTE-MT", "BTVTED - MT" → BTVTED-MT.</summary>
     public static string? ProgramCodeOf(string course)
