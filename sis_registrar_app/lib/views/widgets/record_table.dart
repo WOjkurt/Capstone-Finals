@@ -61,15 +61,22 @@ class RecordTable extends StatelessWidget {
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
               columnWidths: {for (final (i, c) in columns.indexed) i: FlexColumnWidth(c.flex)},
               children: [
+                // Column labels read as headings, not as faint grey text the eye slides past.
+                // The Registrar scans these tables all day and asked for them to stand out:
+                // darker ground, near-black text, a touch larger, and letter-spaced.
                 TableRow(
-                  decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                  decoration: const BoxDecoration(color: Color(0xFFDDE5EE)),
                   children: [
                     for (final c in columns)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
                         child: Text(c.label,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: .2)),
                       ),
                   ],
                 ),

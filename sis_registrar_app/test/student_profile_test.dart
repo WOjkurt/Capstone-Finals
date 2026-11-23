@@ -205,14 +205,47 @@ void main() {
     expect(find.text('GWA 2.0'), findsOneWidget);
   });
 
+  testWidgets('Evaluation: the summary folds away and the checklist zooms', (tester) async {
+    await pump(tester);
+    await tester.tap(tab('Evaluation'));
+    await tester.pumpAndSettle();
+
+    // Collapsing hands the screen to the table: the standing card and the stats go, and a
+    // one-line total takes their place.
+    expect(find.byKey(const ValueKey('evaluation_summary')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('evaluation_summary_collapse')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('evaluation_summary')), findsNothing);
+    expect(find.byKey(const ValueKey('standing_card')), findsNothing);
+    expect(find.byKey(const ValueKey('evaluation_summary_collapsed')), findsOneWidget);
+    expect(find.text('6 of 9 units'), findsOneWidget);
+
+    // And back again.
+    await tester.tap(find.byKey(const ValueKey('evaluation_summary_collapsed')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('evaluation_summary')), findsOneWidget);
+
+    // Zoom, for reading a dense table without changing the browser's zoom.
+    expect(find.byKey(const ValueKey('evaluation_zoom_level')), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('evaluation_zoom_in')));
+    await tester.pumpAndSettle();
+    expect(find.text('110%'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('evaluation_zoom_out')));
+    await tester.tap(find.byKey(const ValueKey('evaluation_zoom_out')));
+    await tester.pumpAndSettle();
+    expect(find.text('90%'), findsOneWidget);
+  });
+
   testWidgets('Evaluation shows units earned and the checklist; "Left to take only" hides finished subjects', (tester) async {
     await pump(tester);
     await tester.tap(tab('Evaluation'));
     await tester.pumpAndSettle();
 
     expect(find.descendant(of: find.byKey(const ValueKey('evaluation_earned')), matching: find.text('6')), findsOneWidget);
-    expect(find.text('units earned of 9'), findsOneWidget);
-    expect(find.text('67% of the curriculum done'), findsOneWidget);
+    // Shorter labels: the summary was folded onto fewer lines to give the checklist room.
+    expect(find.text('earned of 9'), findsOneWidget);
+    expect(find.text('67% done'), findsOneWidget);
     expect(find.text('FIRST YEAR FIRST SEMESTER'), findsOneWidget);
     expect(find.text('Credited - USC'), findsOneWidget);
     for (final c in ['IT 101', 'GE 1']) {

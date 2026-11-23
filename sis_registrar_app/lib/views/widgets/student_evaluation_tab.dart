@@ -1,9 +1,12 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../injection.dart';
 import '../../models/record_models.dart';
 import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
+import '../../utils/numbers.dart';
 import '../../utils/student_record_pdf.dart';
 import '../../utils/study_load_pdf.dart' show loadSchoolLogo, printPdf;
 import 'record_table.dart';
@@ -75,7 +78,23 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
     }
   }
 
-  static String _units(double u) => u.toStringAsFixed(u % 1 == 0 ? 0 : 1);
+  static String _units(double u) => unitsText(u);
+
+  /// How much of the screen the summary is allowed to take.
+  ///
+  /// The Registrar's complaint was that the checklist -- the part she actually reads -- was a
+  /// sliver at the bottom while the standing and summary cards filled the screen. Collapsing
+  /// folds both into a single line and hands the rest to the table. It stays collapsed per
+  /// session once she chooses, because she reopens this tab all day.
+  bool _summaryCollapsed = false;
+
+  /// Ctrl + scroll zoom, for reading a dense table without changing the browser's own zoom.
+  double _zoom = 1.0;
+  static const _minZoom = 0.8;
+  static const _maxZoom = 2.0;
+
+  void _zoomBy(double delta) =>
+      setState(() => _zoom = (_zoom + delta).clamp(_minZoom, _maxZoom));
 
   static const _columns = [
     RecordColumn('Course Code', 1.1),
@@ -131,9 +150,13 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        StandingCard(key: ValueKey('standing_${widget.userId}'), userId: widget.userId),
-        _buildSummary(data),
-        const SizedBox(height: 12),
+        if (_summaryCollapsed)
+          _buildCollapsedSummary(data)
+        else ...[
+          StandingCard(key: ValueKey('standing_${widget.userId}'), userId: widget.userId),
+          _buildSummary(data),
+        ],
+        const SizedBox(height: 8),
         Row(
           children: [
             FilterChip(
@@ -143,6 +166,8 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
               onSelected: (v) => setState(() => _leftOnly = v),
             ),
             const Spacer(),
+            _zoomControls(),
+            const SizedBox(width: 8),
             OutlinedButton.icon(
               key: const ValueKey('print_evaluation_button'),
               icon: const Icon(Icons.print_outlined, size: 18),
@@ -153,62 +178,148 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
             IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh, size: 20), onPressed: _load),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Expanded(
           child: shown.isEmpty
               ? const Center(
                   child: Text('All curriculum subjects are passed or credited.',
                       style: TextStyle(color: AppColors.textSecondary)))
-              : ListView(
-                  children: [
-                    const RecordLegend(items: {
-                      'Taken': RecordColors.taken,
-                      'In progress': RecordColors.inProgress,
-                      'Partly credited': RecordColors.partial,
-                      'Not yet taken': RecordColors.notTaken,
-                      'Dropped or withdrawn': RecordColors.droppedOrWithdrawn,
-                      'Failed': RecordColors.failed,
-                    }),
-                    for (final g in groups.entries) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 14, bottom: 6),
-                        child: Text(g.key,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                      ),
-                      RecordTable(
-                        minWidth: 740,
-                        columns: _columns,
-                        rows: [
-                          for (final s in g.value)
-                            RecordRow(evaluationCells(s),
-                                color: _rowColor(s.status), key: ValueKey('evaluation_row_${s.subjectCode}')),
+              // Ctrl + wheel zooms the checklist rather than the whole page, so the summary
+              // and the menu stay put while the table gets bigger.
+              : Listener(
+                  onPointerSignal: (event) {
+                    if (event is! PointerScrollEvent) return;
+                    if (!HardwareKeyboard.instance.isControlPressed &&
+                        !HardwareKeyboard.instance.isMetaPressed) {
+                      return;
+                    }
+                    _zoomBy(event.scrollDelta.dy > 0 ? -0.1 : 0.1);
+                  },
+                  child: MediaQuery.withClampedTextScaling(
+                    minScaleFactor: _zoom,
+                    maxScaleFactor: _zoom,
+                    child: ListView(
+                      children: [
+                        const RecordLegend(items: {
+                          'Taken': RecordColors.taken,
+                          'In progress': RecordColors.inProgress,
+                          'Partly credited': RecordColors.partial,
+                          'Not yet taken': RecordColors.notTaken,
+                          'Dropped or withdrawn': RecordColors.droppedOrWithdrawn,
+                          'Failed': RecordColors.failed,
+                        }),
+                        for (final g in groups.entries) ...[
+                          // The year/semester heading reads as a band rather than small blue
+                          // text, so the eye can find where one block ends and the next starts.
+                          Container(
+                            margin: const EdgeInsets.only(top: 12, bottom: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(g.key,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primaryDark,
+                                    letterSpacing: .2)),
+                          ),
+                          RecordTable(
+                            minWidth: 740,
+                            columns: _columns,
+                            rows: [
+                              for (final s in g.value)
+                                RecordRow(evaluationCells(s),
+                                    color: _rowColor(s.status), key: ValueKey('evaluation_row_${s.subjectCode}')),
+                            ],
+                            totals: evaluationTotals(g.value),
+                          ),
                         ],
-                        totals: evaluationTotals(g.value),
-                      ),
-                    ],
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
         ),
       ],
     );
   }
 
+  Widget _zoomControls() => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            key: const ValueKey('evaluation_zoom_out'),
+            tooltip: 'Smaller (Ctrl and scroll down)',
+            icon: const Icon(Icons.zoom_out, size: 20),
+            onPressed: _zoom <= _minZoom ? null : () => _zoomBy(-0.1),
+          ),
+          SizedBox(
+            width: 42,
+            child: Text('${(_zoom * 100).round()}%',
+                key: const ValueKey('evaluation_zoom_level'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ),
+          IconButton(
+            key: const ValueKey('evaluation_zoom_in'),
+            tooltip: 'Bigger (Ctrl and scroll up)',
+            icon: const Icon(Icons.zoom_in, size: 20),
+            onPressed: _zoom >= _maxZoom ? null : () => _zoomBy(0.1),
+          ),
+        ],
+      );
+
+  /// The summary folded to one line, so the checklist gets the screen.
+  Widget _buildCollapsedSummary(StudentEvaluation d) => InkWell(
+        key: const ValueKey('evaluation_summary_collapsed'),
+        onTap: () => setState(() => _summaryCollapsed = false),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.scaffoldBg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Text('${_units(d.earnedUnits)} of ${_units(d.totalUnits)} units',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accentGreenDark)),
+              const SizedBox(width: 10),
+              Text('${_units(d.remainingUnits)} left',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              const Spacer(),
+              const Icon(Icons.expand_more, size: 18, color: AppColors.textSecondary),
+            ],
+          ),
+        ),
+      );
+
   Widget _buildSummary(StudentEvaluation d) {
     final progress = d.totalUnits == 0 ? 0.0 : (d.earnedUnits / d.totalUnits).clamp(0.0, 1.0);
+    // The numbers sit on one line with their labels beside them rather than stacked under
+    // headline figures. Same information, roughly half the height.
     Widget stat(String key, String label, String value, Color color) => Expanded(
-          child: Column(
+          child: Row(
             key: ValueKey(key),
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
-              Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text(value, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: color)),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis),
+              ),
             ],
           ),
         );
     return Container(
       key: const ValueKey('evaluation_summary'),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 10),
       decoration: BoxDecoration(
         color: AppColors.scaffoldBg,
         borderRadius: BorderRadius.circular(10),
@@ -217,29 +328,42 @@ class _StudentEvaluationTabState extends State<StudentEvaluationTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('${d.programCode} — ${d.programName}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 10),
           Row(
             children: [
-              stat('evaluation_earned', 'units earned of ${_units(d.totalUnits)}', _units(d.earnedUnits), AppColors.accentGreenDark),
-              stat('evaluation_in_progress', 'units in progress', _units(d.inProgressUnits), AppColors.primary),
+              Expanded(
+                child: Text('${d.programCode} — ${d.programName}',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              Text('${(progress * 100).round()}% done',
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+              IconButton(
+                key: const ValueKey('evaluation_summary_collapse'),
+                tooltip: 'Hide the summary and give the checklist more room',
+                icon: const Icon(Icons.expand_less, size: 20),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() => _summaryCollapsed = true),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              stat('evaluation_earned', 'earned of ${_units(d.totalUnits)}', _units(d.earnedUnits), AppColors.accentGreenDark),
+              stat('evaluation_in_progress', 'in progress', _units(d.inProgressUnits), AppColors.primary),
               stat('evaluation_remaining', 'units left', _units(d.remainingUnits), AppColors.textPrimary),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 8,
+              minHeight: 6,
               backgroundColor: AppColors.border,
               color: AppColors.accentGreen,
             ),
           ),
-          const SizedBox(height: 4),
-          Text('${(progress * 100).round()}% of the curriculum done',
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
         ],
       ),
     );
