@@ -332,6 +332,12 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(g => g.SubmittedByUserID)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Optional: most grades were never changed after they were submitted.
+            entity.HasOne(g => g.ModifiedByUser)
+                .WithMany()
+                .HasForeignKey(g => g.ModifiedByUserID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ── GradeCorrection ─────────────────────────────────────────

@@ -9,4 +9,8 @@ public interface IGradeService
     Task<GradeResponseDto?> GetByStudyLoadIdAsync(Guid studyLoadId, Guid authenticatedUserId, int authenticatedUserRole);
     Task<List<GradeResponseDto>> GetByClassIdAsync(Guid classId, Guid authenticatedUserId, int authenticatedUserRole);
     Task<List<GradeResponseDto>> GetByStudentIdAsync(Guid userId, Guid? termId, Guid authenticatedUserId, int authenticatedUserRole);
+
+    /// <summary>Registrar changing a recorded grade. Returns the saved grade and what it was before.</summary>
+    Task<(GradeResponseDto Grade, decimal? WasMidterm, decimal? WasFinal)> ModifyAsync(
+        Guid gradeId, ModifyGradeDto dto, Guid callerId);
 }

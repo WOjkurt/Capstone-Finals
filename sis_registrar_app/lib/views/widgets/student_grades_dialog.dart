@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../injection.dart';
 import '../../models/grading_models.dart';
 import '../../models/record_models.dart';
@@ -14,6 +15,8 @@ import '../../utils/numbers.dart';
 
 /// Read-only grade history of one student, grouped by term (newest first).
 /// Failed subjects that were never passed later are listed at the top as retake candidates.
+final _day = DateFormat('MMM d, yyyy');
+
 class StudentGradesDialog extends StatefulWidget {
   final String userId;
   final String studentName;
@@ -407,12 +410,55 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
           ),
           RecordTable(
             columns: _columns,
-            rows: [for (final g in term.value) RecordRow(gradeCells(g), color: _rowColor(g))],
-            totals: _failedOnly ? null : gradeTotals(term.value),
+            rows: [
+              for (final g in term.value)
+                RecordRow(
+                  // The last cell is screen-only: the printed record has no buttons in it.
+                  [...gradeCells(g), ''],
+                  color: _rowColor(g),
+                  widgets: {gradeCells(g).length: _rowActions(g)},
+                ),
+            ],
+            // The screen-only actions column needs a cell here too, or the table has a hole.
+            totals: _failedOnly ? null : [...gradeTotals(term.value), ''],
           ),
         ],
       ],
     );
+  }
+
+  /// A pencil where the mark can still be changed, and a mark of its own where one already was.
+  Widget _rowActions(StudentGradeModel g) => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (g.modifiedAt != null)
+            Tooltip(
+              key: ValueKey('grade_changed_${g.gradeId}'),
+              message: 'Changed by the Registrar on ${_day.format(g.modifiedAt!.toLocal())}',
+              child: const Icon(Icons.history_rounded, size: 15, color: AppColors.textMuted),
+            ),
+          if (g.canModify)
+            IconButton(
+              key: ValueKey('edit_grade_${g.gradeId}'),
+              icon: const Icon(Icons.edit_outlined, size: 15),
+              tooltip: 'Change this grade',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.only(left: 2),
+              onPressed: () => _editGrade(g),
+            ),
+        ],
+      );
+
+  /// Changing a recorded mark. The reason is required because it is the only thing separating
+  /// a correction from a quiet rewrite of somebody's record.
+  Future<void> _editGrade(StudentGradeModel g) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditGradeDialog(grade: g, studentName: widget.studentName),
+    );
+    if (saved == true && mounted) await _load();
   }
 
   static const _columns = [
@@ -423,6 +469,8 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     RecordColumn('Final Grade', .8, center: true),
     RecordColumn('Remarks', 1.1),
     RecordColumn('Instructor', 1.6),
+    // Screen only. gradeCells() still returns the seven the printout uses.
+    RecordColumn('', .85, center: true),
   ];
 
   static Color _rowColor(StudentGradeModel g) => g.loadStatus == 2 || g.loadStatus == 3
@@ -432,4 +480,162 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
           : g.isPassed
               ? RecordColors.taken
               : RecordColors.inProgress;
+}
+
+
+/// Changing one recorded grade.
+///
+/// Replaces the correction request, which asked somebody to approve what the Registrar was
+/// going to do anyway — with almost no class having a teacher, there was nobody else in it.
+/// What the request did carry was a reason and a trail, and both are kept here.
+class _EditGradeDialog extends StatefulWidget {
+  final StudentGradeModel grade;
+  final String studentName;
+
+  const _EditGradeDialog({required this.grade, required this.studentName});
+
+  @override
+  State<_EditGradeDialog> createState() => _EditGradeDialogState();
+}
+
+class _EditGradeDialogState extends State<_EditGradeDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _midterm =
+      TextEditingController(text: widget.grade.midtermGrade?.toStringAsFixed(2) ?? '');
+  late final TextEditingController _finalGrade =
+      TextEditingController(text: widget.grade.finalGrade?.toStringAsFixed(2) ?? '');
+  final _reason = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _midterm.dispose();
+    _finalGrade.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  /// The same scale the server enforces: 1.0 to 5.0, in tenths or quarters.
+  static String? _gradeProblem(String? raw) {
+    final text = (raw ?? '').trim();
+    if (text.isEmpty) return null;
+    final value = double.tryParse(text);
+    if (value == null) return 'Numbers only';
+    if (value < 1.0 || value > 5.0) return '1.00 to 5.00';
+    final hundredths = (value * 100).round();
+    if (hundredths % 10 != 0 && hundredths % 25 != 0) return 'Steps of 0.1, or .25 / .75';
+    return null;
+  }
+
+  static double? _value(TextEditingController c) =>
+      c.text.trim().isEmpty ? null : double.tryParse(c.text.trim());
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_value(_midterm) == null && _value(_finalGrade) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Give a midterm grade, a final grade, or both.'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await getIt<StudentGradeRepository>().modifyGrade(
+        gradeId: widget.grade.gradeId,
+        midtermGrade: _value(_midterm),
+        finalGrade: _value(_finalGrade),
+        reason: _reason.text.trim(),
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e, st) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(getFriendlyErrorMessage(e, st)),
+        backgroundColor: AppColors.error,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = widget.grade;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: Text('Change grade — ${g.subjectCode ?? ''}',
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+      content: SizedBox(
+        width: 460,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${widget.studentName} · ${g.subjectTitle ?? ''} · ${g.termLabel ?? ''}',
+                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      key: const ValueKey('edit_grade_midterm'),
+                      controller: _midterm,
+                      decoration: const InputDecoration(labelText: 'Midterm', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      validator: _gradeProblem,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      key: const ValueKey('edit_grade_final'),
+                      controller: _finalGrade,
+                      decoration: const InputDecoration(labelText: 'Final', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      validator: _gradeProblem,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text('Leave a box empty to keep the mark that is there. Changing the final '
+                  'decides passed or failed again.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              const SizedBox(height: 14),
+              TextFormField(
+                key: const ValueKey('edit_grade_reason'),
+                controller: _reason,
+                decoration: const InputDecoration(
+                  labelText: 'Why is it being changed? *',
+                  hintText: 'e.g. encoded from the wrong column of the sheet',
+                  border: OutlineInputBorder(),
+                ),
+                maxLength: 300,
+                maxLines: 2,
+                validator: (v) =>
+                    (v ?? '').trim().isEmpty ? 'Say why the grade is being changed' : null,
+              ),
+              const Text('This is kept on the activity log with the old and new marks. The '
+                  'student is shown that the grade changed, but not this note.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const ValueKey('edit_grade_save'),
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Saving…' : 'Save change'),
+        ),
+      ],
+    );
+  }
 }

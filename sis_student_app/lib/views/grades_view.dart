@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../blocs/grades_bloc.dart';
 import '../models/grading_models.dart';
 import '../models/setup_models.dart';
@@ -9,6 +10,8 @@ import 'widgets/stat_strip.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/term_dropdown.dart';
 import '../utils/numbers.dart';
+
+final _changedOn = DateFormat('MMM d, yyyy');
 
 class GradesView extends StatefulWidget {
   final String userId;
@@ -559,6 +562,31 @@ class _GradesViewState extends State<GradesView> {
                     ],
                   ],
                 ),
+                // Said plainly rather than left for them to notice the number has moved.
+                // Why it changed is an internal note and stays with the Registrar.
+                if (grade.modifiedAt != null) ...[
+                  const SizedBox(height: 3),
+                  Row(
+                    key: ValueKey('grade_changed_${grade.gradeId}'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.history_rounded, size: 12, color: Color(0xFFB45309)),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'Corrected by the Registrar on '
+                          '${_changedOn.format(grade.modifiedAt!.toLocal())}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (grade.teacherName != null &&
                     grade.teacherName!.isNotEmpty) ...[
                   const SizedBox(height: 2),

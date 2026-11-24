@@ -19,16 +19,35 @@ class FakeAuthService implements AuthService {
 
 class FakeStudentGradeRepository implements StudentGradeRepository {
   List<StudentGradeModel> grades = [];
+  Map<String, dynamic>? lastModify;
+  Object? modifyThrows;
 
   @override
   Future<List<StudentGradeModel>> getStudentGrades(String userId) async => grades;
+
+  @override
+  Future<void> modifyGrade({
+    required String gradeId,
+    double? midtermGrade,
+    double? finalGrade,
+    required String reason,
+  }) async {
+    if (modifyThrows != null) throw modifyThrows!;
+    lastModify = {
+      'gradeId': gradeId,
+      'midtermGrade': midtermGrade,
+      'finalGrade': finalGrade,
+      'reason': reason,
+    };
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 StudentGradeModel _g(String code, int? remarks,
-        {String year = '2025-2026', int sem = 1, double? fin, int loadStatus = 1}) =>
+        {String year = '2025-2026', int sem = 1, double? fin, int loadStatus = 1,
+        bool canModify = false, DateTime? modifiedAt}) =>
     StudentGradeModel(
       gradeId: '$code-$year-$sem',
       subjectCode: code,
@@ -40,6 +59,8 @@ StudentGradeModel _g(String code, int? remarks,
       semester: sem,
       termLabel: '$year (Sem $sem)',
       loadStatus: loadStatus,
+      canModify: canModify,
+      modifiedAt: modifiedAt,
     );
 
 void main() {
@@ -115,6 +136,81 @@ void main() {
       ));
       await tester.pumpAndSettle();
     }
+
+    testWidgets('only an active-term grade offers an edit, and a changed one says so',
+        (tester) async {
+      repo.grades = [
+        _g('IT 101', 1, canModify: true),
+        _g('IT 100', 1, year: '2024-2025', modifiedAt: DateTime.utc(2026, 11, 20)),
+      ];
+
+      await pump(tester);
+
+      // The server decides which can change; the screen never offers one it would refuse.
+      expect(find.byKey(const ValueKey('edit_grade_IT 101-2025-2026-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('edit_grade_IT 100-2024-2025-1')), findsNothing);
+      expect(find.byKey(const ValueKey('grade_changed_IT 100-2024-2025-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('grade_changed_IT 101-2025-2026-1')), findsNothing);
+    });
+
+    testWidgets('changing a grade sends the new marks and the reason', (tester) async {
+      repo.grades = [_g('IT 101', 2, fin: 5.0, canModify: true)];
+      await pump(tester);
+
+      final edit = find.byKey(const ValueKey('edit_grade_IT 101-2025-2026-1'));
+      await tester.ensureVisible(edit);
+      await tester.pumpAndSettle();
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('edit_grade_final')), '2.25');
+      await tester.enterText(
+          find.byKey(const ValueKey('edit_grade_reason')), 'Encoded from the wrong column');
+      await tester.tap(find.byKey(const ValueKey('edit_grade_save')));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastModify, {
+        'gradeId': 'IT 101-2025-2026-1',
+        'midtermGrade': null,
+        'finalGrade': 2.25,
+        'reason': 'Encoded from the wrong column',
+      });
+    });
+
+    testWidgets('a change without a reason is not sent', (tester) async {
+      repo.grades = [_g('IT 101', 1, canModify: true)];
+      await pump(tester);
+
+      final edit = find.byKey(const ValueKey('edit_grade_IT 101-2025-2026-1'));
+      await tester.ensureVisible(edit);
+      await tester.pumpAndSettle();
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('edit_grade_final')), '2.00');
+      await tester.tap(find.byKey(const ValueKey('edit_grade_save')));
+      await tester.pumpAndSettle();
+
+      // The reason is the only thing separating a correction from a quiet rewrite.
+      expect(repo.lastModify, isNull);
+      expect(find.text('Say why the grade is being changed'), findsOneWidget);
+    });
+
+    testWidgets('a grade off the scale is refused before it reaches the server', (tester) async {
+      repo.grades = [_g('IT 101', 1, canModify: true)];
+      await pump(tester);
+
+      final edit = find.byKey(const ValueKey('edit_grade_IT 101-2025-2026-1'));
+      await tester.ensureVisible(edit);
+      await tester.pumpAndSettle();
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('edit_grade_final')), '2.33');
+      await tester.enterText(find.byKey(const ValueKey('edit_grade_reason')), 'typo');
+      await tester.tap(find.byKey(const ValueKey('edit_grade_save')));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastModify, isNull);
+      expect(find.textContaining('Steps of 0.1'), findsOneWidget);
+    });
 
     testWidgets('groups by term newest first and shows retake summary', (tester) async {
       repo.grades = [

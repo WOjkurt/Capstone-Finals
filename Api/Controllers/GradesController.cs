@@ -112,6 +112,61 @@ public class GradesController : ControllerBase
         return parts.Count == 0 ? "no grade" : string.Join(", ", parts);
     }
 
+    /// <summary>
+    /// Changes a grade that is already recorded — what the correction request used to do, minus
+    /// the request. Registrar only, active term only, and never without a reason.
+    /// </summary>
+    [HttpPatch("{gradeId:guid}")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Modify(Guid gradeId, [FromBody] ModifyGradeDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new { message = Api.Common.ValidationMessage.First(ModelState) });
+        }
+
+        if (!HttpContext.Items.TryGetValue("user_id", out var idObj) || idObj is not Guid callerId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var (grade, wasMidterm, wasFinal) = await _gradeService.ModifyAsync(gradeId, dto, callerId);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                var changes = new List<string>();
+                void Changed(string what, decimal? was, decimal? now)
+                {
+                    if (was != now) changes.Add($"{what} {Mark(was)} → {Mark(now)}");
+                }
+                Changed("midterm", wasMidterm, grade.MidtermGrade);
+                Changed("final", wasFinal, grade.FinalGrade);
+
+                // A save that changed no number still had a reason typed into it, so it is
+                // recorded rather than dropped: somebody meant to do something.
+                var what = changes.Count > 0 ? string.Join("; ", changes) : "no change to either mark";
+                await log.LogAsync(callerId, ActivityActions.GradeModified,
+                    $"{grade.SubjectCode} for {grade.StudentName}: {what} — {dto.Reason.Trim()}",
+                    grade.StudentUserId, grade.TermId);
+            }
+
+            return Ok(grade);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static string Mark(decimal? grade) => grade.HasValue ? $"{grade.Value:0.00}" : "none";
+
     [HttpGet("studyload/{studyLoadId:guid}")]
     public async Task<IActionResult> GetByStudyLoad(Guid studyLoadId)
     {

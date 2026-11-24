@@ -994,6 +994,16 @@ namespace Api.Migrations
                     b.Property<decimal?>("MidtermGrade")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("ModificationReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModifiedByUserID")
+                        .HasColumnType("uuid");
+
                     b.Property<int?>("Remarks")
                         .HasColumnType("integer");
 
@@ -1004,6 +1014,8 @@ namespace Api.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("GradeID");
+
+                    b.HasIndex("ModifiedByUserID");
 
                     b.HasIndex("StudyLoadID")
                         .IsUnique()
@@ -1516,6 +1528,11 @@ namespace Api.Migrations
 
             modelBuilder.Entity("Api.Domain.Grading.Grade", b =>
                 {
+                    b.HasOne("Api.Domain.IdentityAccess.User", "ModifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("ModifiedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Api.Domain.Enrollment.StudyLoad", "StudyLoad")
                         .WithMany()
                         .HasForeignKey("StudyLoadID")
@@ -1527,6 +1544,8 @@ namespace Api.Migrations
                         .HasForeignKey("SubmittedByUserID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("ModifiedByUser");
 
                     b.Navigation("StudyLoad");
 

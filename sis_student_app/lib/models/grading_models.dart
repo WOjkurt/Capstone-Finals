@@ -154,6 +154,11 @@ class GradeModel {
   final String studyLoadId;
   final double? midtermGrade;
   final double? finalGrade;
+
+  /// When the Registrar changed this mark after it was first recorded, or null if nobody did.
+  /// Shown to the student: a grade that was corrected is not the same as one that was right
+  /// the first time, and noticing the number has quietly moved is worse than being told.
+  final DateTime? modifiedAt;
   final int? remarks;
   final String? remarksLabel;
   final String? submittedByUserID;
@@ -171,6 +176,7 @@ class GradeModel {
     required this.studyLoadId,
     this.midtermGrade,
     this.finalGrade,
+    this.modifiedAt,
     this.remarks,
     this.remarksLabel,
     this.submittedByUserID,
@@ -190,6 +196,7 @@ class GradeModel {
       studyLoadId: json['studyLoadId'] as String? ?? json['studyLoadID'] as String? ?? '',
       midtermGrade: (json['midtermGrade'] as num?)?.toDouble(),
       finalGrade: (json['finalGrade'] as num?)?.toDouble(),
+      modifiedAt: DateTime.tryParse(json['modifiedAt']?.toString() ?? ''),
       remarks: (json['remarks'] as num?)?.toInt(),
       remarksLabel: json['remarksLabel'] as String?,
       submittedByUserID: json['submittedByUserID'] as String? ?? json['submittedByUserId'] as String?,

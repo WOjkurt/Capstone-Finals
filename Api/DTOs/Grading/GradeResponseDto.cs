@@ -21,5 +21,20 @@ public class GradeResponseDto
     public string? SchoolYear { get; set; }
     public int? Semester { get; set; }
     public string? TermLabel { get; set; }
+
+    /// <summary>
+    /// When the Registrar last changed this grade, or null if nobody has. Sent to the student
+    /// too: a mark that was corrected is not the same as one that was right the first time, and
+    /// they should not have to notice the number quietly differing from what they wrote down.
+    /// The reason behind it is an internal note and stays out of this.
+    /// </summary>
+    public DateTime? ModifiedAt { get; set; }
+
+    /// <summary>
+    /// Whether the Registrar may still change this one — true only in the term that is active.
+    /// Decided here rather than in the app so the two cannot disagree: an Edit button that leads
+    /// to a refusal is worse than no Edit button.
+    /// </summary>
+    public bool CanModify { get; set; }
     public int? LoadStatus { get; set; }
 }

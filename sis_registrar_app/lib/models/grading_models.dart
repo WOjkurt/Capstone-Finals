@@ -270,6 +270,12 @@ class StudentGradeModel {
   final int? loadStatus; // 1 Enrolled, 2 Dropped, 3 Withdrawn, 4 Pending, 5 Rejected
   final String? teacherName;
 
+  /// When the Registrar last changed this mark, or null if nobody has.
+  final DateTime? modifiedAt;
+
+  /// Only the active term's marks can be changed. The server decides this, not the screen.
+  final bool canModify;
+
   const StudentGradeModel({
     required this.gradeId,
     this.subjectCode,
@@ -285,6 +291,8 @@ class StudentGradeModel {
     this.termLabel,
     this.loadStatus,
     this.teacherName,
+    this.modifiedAt,
+    this.canModify = false,
   });
 
   bool get isPassed => remarks == 1;
@@ -306,6 +314,8 @@ class StudentGradeModel {
       termLabel: json['termLabel'] as String?,
       loadStatus: (json['loadStatus'] as num?)?.toInt(),
       teacherName: json['teacherName'] as String?,
+      modifiedAt: DateTime.tryParse(json['modifiedAt']?.toString() ?? ''),
+      canModify: json['canModify'] == true,
     );
   }
 }

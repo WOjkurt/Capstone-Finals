@@ -82,12 +82,19 @@ public static class ActivityActions
     /// </summary>
     public const string ApplicantNotified = "APPLICANT_NOTIFIED";
 
+    /// <summary>
+    /// The Registrar changed a grade that was already recorded. GradeCorrectionApproved and
+    /// GradeCorrectionRejected stay defined even once that workflow is gone, because log rows
+    /// written under them are still in the table and would otherwise render as raw codes.
+    /// </summary>
+    public const string GradeModified = "GRADE_MODIFIED";
+
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditEdited, CreditRemoved, CreditsImported, FormsImported, EmailsImported, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
         PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged, RecordsImported, SchoolEmailSet,
         GradeSubmitted, StaffCreated, RoleChanged, AccountDisabled, AccountReactivated, ApplicationApproved, ApplicationRejected, AccountLinked,
-        SignInBlocked, AccessDenied, ApplicantNotified
+        SignInBlocked, AccessDenied, ApplicantNotified, GradeModified
     };
 }

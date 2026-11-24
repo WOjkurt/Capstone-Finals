@@ -240,4 +240,13 @@ public class StudentGradeRowDto
     /// <summary>1 Enrolled, 2 Dropped, 3 Withdrawn.</summary>
     public int LoadStatus { get; set; }
     public string? TeacherName { get; set; }
+
+    /// <summary>When the Registrar last changed this mark, or null if nobody has.</summary>
+    public DateTime? ModifiedAt { get; set; }
+
+    /// <summary>
+    /// Whether it can still be changed — only in the active term. Decided here so the screen
+    /// never offers an Edit that the server would refuse.
+    /// </summary>
+    public bool CanModify { get; set; }
 }

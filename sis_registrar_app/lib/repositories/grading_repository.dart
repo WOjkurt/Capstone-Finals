@@ -241,6 +241,29 @@ class StudentGradeRepository {
       : _client = client ?? http.Client();
 
   /// Every subject one student took, every term, with or without a grade.
+  /// Changes a recorded grade. The server refuses anything outside the active term, anything
+  /// off the scale, and anything without a reason, so this does not second-guess it.
+  Future<void> modifyGrade({
+    required String gradeId,
+    double? midtermGrade,
+    double? finalGrade,
+    required String reason,
+  }) async {
+    final headers = {...await _auth.getAuthHeaders(), 'Content-Type': 'application/json'};
+    final res = await _client.patch(
+      Uri.parse('$baseUrl/api/grades/$gradeId'),
+      headers: headers,
+      body: jsonEncode({
+        if (midtermGrade != null) 'midtermGrade': midtermGrade,
+        if (finalGrade != null) 'finalGrade': finalGrade,
+        'reason': reason,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+  }
+
   Future<List<StudentGradeModel>> getStudentGrades(String userId) async {
     final headers = await _auth.getAuthHeaders();
     final res = await _client.get(

@@ -249,6 +249,61 @@ void main() {
       );
     }
 
+    testWidgets('a grade the Registrar corrected says so, with the date', (tester) async {
+      repo.clearances = [
+        const GradeClearanceModel(
+          clearanceId: 'c-2', userId: 'user-1', termId: 'term-2', isCleared: true),
+      ];
+      repo.gradesByTerm['term-2'] = [
+        GradeModel(
+          gradeId: 'g-1',
+          studyLoadId: 'sl-1',
+          midtermGrade: 1.75,
+          finalGrade: 2.00,
+          remarks: 1,
+          remarksLabel: 'Passed',
+          subjectCode: 'IT 311',
+          subjectTitle: 'Systems Integration',
+          className: 'BSIT-3A',
+          modifiedAt: DateTime.utc(2026, 11, 20, 2),
+        ),
+      ];
+      await tester.pumpWidget(createWidgetUnderTest(GradesBloc(repo)));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('grade_changed_g-1')), findsOneWidget);
+      expect(find.textContaining('Corrected by the Registrar'), findsOneWidget);
+      expect(find.textContaining('Nov 20, 2026'), findsOneWidget);
+    });
+
+    testWidgets('a grade nobody changed says nothing about corrections', (tester) async {
+      repo.clearances = [
+        const GradeClearanceModel(
+          clearanceId: 'c-2', userId: 'user-1', termId: 'term-2', isCleared: true),
+      ];
+      repo.gradesByTerm['term-2'] = [
+        const GradeModel(
+          gradeId: 'g-1',
+          studyLoadId: 'sl-1',
+          midtermGrade: 1.75,
+          finalGrade: 2.00,
+          remarks: 1,
+          remarksLabel: 'Passed',
+          subjectCode: 'IT 311',
+          subjectTitle: 'Systems Integration',
+          className: 'BSIT-3A',
+        ),
+      ];
+
+      await tester.pumpWidget(createWidgetUnderTest(GradesBloc(repo)));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('grade_changed_g-1')), findsNothing);
+      expect(find.textContaining('Corrected by the Registrar'), findsNothing);
+    });
+
     testWidgets('shows clearance withheld banner when term is not cleared', (tester) async {
       repo.clearances = [
         const GradeClearanceModel(

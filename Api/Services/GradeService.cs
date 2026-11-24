@@ -480,6 +480,60 @@ public class GradeService : IGradeService
     }
 
     // ── Helper Methods ─────────────────────────────────────────────────
+    /// <summary>
+    /// Changes a grade that is already recorded. Only in the term that is active: reopening a
+    /// mark from three years ago is a different act from fixing last week's, and a record that
+    /// has been signed off, reported on and used for a transcript should not move quietly.
+    /// </summary>
+    public async Task<(GradeResponseDto Grade, decimal? WasMidterm, decimal? WasFinal)> ModifyAsync(
+        Guid gradeId, ModifyGradeDto dto, Guid callerId)
+    {
+        var grade = await _gradeRepository.GetByIdAsync(gradeId)
+            ?? throw new KeyNotFoundException("That grade was not found.");
+
+        if (string.IsNullOrWhiteSpace(dto.Reason))
+        {
+            throw new InvalidOperationException("Say why the grade is being changed.");
+        }
+
+        if (!dto.MidtermGrade.HasValue && !dto.FinalGrade.HasValue)
+        {
+            throw new InvalidOperationException("Give a midterm grade, a final grade, or both.");
+        }
+
+        GradeScale.EnsureValid(dto.MidtermGrade);
+        GradeScale.EnsureValid(dto.FinalGrade);
+
+        var term = grade.StudyLoad?.Class?.Term;
+        if (term == null || !term.IsActive)
+        {
+            throw new InvalidOperationException(
+                "Only grades in the term that is currently active can be changed. For an earlier term, "
+                + "the record has to be corrected through the Registrar's own process.");
+        }
+
+        var wasMidterm = grade.MidtermGrade;
+        var wasFinal = grade.FinalGrade;
+
+        if (dto.MidtermGrade.HasValue) grade.MidtermGrade = dto.MidtermGrade;
+        if (dto.FinalGrade.HasValue)
+        {
+            grade.FinalGrade = dto.FinalGrade;
+            grade.Remarks = GradeScale.Remarks(dto.FinalGrade.Value);
+        }
+
+        // DateSubmitted is left where it was. It records when the grade was first given, and
+        // moving it would erase the fact that anything was changed at all.
+        grade.ModifiedAt = DateTime.UtcNow;
+        grade.ModifiedByUserID = callerId;
+        grade.ModificationReason = dto.Reason.Trim();
+
+        await _gradeRepository.UpdateAsync(grade);
+
+        var saved = await _gradeRepository.GetByIdAsync(gradeId) ?? grade;
+        return (await MapToDtoAsync(saved), wasMidterm, wasFinal);
+    }
+
     private async Task<GradeResponseDto> MapToDtoAsync(Grade g)
     {
         string? teacherName = await ResolveUserNameAsync(g.SubmittedByUserID);
@@ -497,6 +551,8 @@ public class GradeService : IGradeService
         {
             GradeId = g.GradeID,
             StudyLoadId = g.StudyLoadID,
+            ModifiedAt = g.ModifiedAt,
+            CanModify = term?.IsActive == true,
             MidtermGrade = g.MidtermGrade,
             FinalGrade = g.FinalGrade,
             Remarks = g.Remarks,
