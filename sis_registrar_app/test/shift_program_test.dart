@@ -142,6 +142,6 @@ void main() {
 
     await tester.enterText(find.byKey(const ValueKey('credit_units_field')), '2');
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('partial_credit_note')), findsOneWidget);
+    expect(find.byKey(const ValueKey('credit_partial_note')), findsOneWidget);
   });
 }

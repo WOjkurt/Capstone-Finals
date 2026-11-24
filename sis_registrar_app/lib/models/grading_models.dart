@@ -347,6 +347,7 @@ class CreditedSubjectModel {
 
   /// 1 = from a previous school, 2 = cross-enrolled during a DBTC term.
   final int kind;
+  final String? termId;
   final String? termLabel;
 
   bool get isCrossEnrollment => kind == 2;
@@ -368,6 +369,7 @@ class CreditedSubjectModel {
     this.recordedBy,
     double? creditedUnits,
     this.kind = 1,
+    this.termId,
     this.termLabel,
   }) : creditedUnits = creditedUnits ?? units;
 
@@ -385,6 +387,7 @@ class CreditedSubjectModel {
       schoolYear: json['schoolYear'] as String?,
       recordedBy: json['recordedBy'] as String?,
       creditedUnits: (json['creditedUnits'] as num?)?.toDouble(),
+      termId: json['termId']?.toString(),
       kind: (json['kind'] as num?)?.toInt() ?? 1,
       termLabel: json['termLabel'] as String?,
     );

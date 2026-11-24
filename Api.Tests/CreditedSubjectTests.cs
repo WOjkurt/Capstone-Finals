@@ -174,6 +174,190 @@ public class CreditedSubjectTests : IDisposable
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _credits.DeleteAsync(dto.CreditedSubjectId));
     }
 
+    private UpdateCreditedSubjectDto Edit(CreditedSubjectDto from, string? subject = null, string? school = null,
+        string? theirCode = null, string? grade = null, string? schoolYear = null, decimal? units = null,
+        int? kind = null, Guid? termId = null) =>
+        new()
+        {
+            SubjectId = subject == null ? from.SubjectId : _s[subject].SubjectID,
+            SourceSchool = school ?? from.SourceSchool,
+            SourceSubjectCode = theirCode ?? from.SourceSubjectCode,
+            Grade = grade ?? from.Grade,
+            SchoolYear = schoolYear ?? from.SchoolYear,
+            CreditedUnits = units ?? from.CreditedUnits,
+            Kind = kind ?? from.Kind,
+            TermId = termId ?? from.TermId
+        };
+
+    [Fact]
+    public async Task Update_CorrectsEveryDetail_AndKeepsTheStudentAndRecorder()
+    {
+        var dto = await Credit("IT 101", "Cebu Tecnological University"); // typo
+
+        var fixedUp = await _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto,
+            school: "  Cebu Technological University  ", theirCode: "CS 101", grade: "2.00",
+            schoolYear: "2024-2025", units: 1.5m));
+
+        Assert.Equal("Cebu Technological University", fixedUp.SourceSchool);
+        Assert.Equal(("CS 101", "2.00", "2024-2025"), (fixedUp.SourceSubjectCode, fixedUp.Grade, fixedUp.SchoolYear));
+        Assert.Equal((1.5m, 3m, true), (fixedUp.CreditedUnits, fixedUp.Units, fixedUp.IsPartial));
+        // Whose credit it is, and who recorded it, are not up for correction.
+        Assert.Equal((_studentId, "Rita Registrar"), (fixedUp.UserId, fixedUp.RecordedBy));
+        Assert.Equal(1.5m, (await _credits.GetByStudentAsync(_studentId)).Single().CreditedUnits);
+    }
+
+    [Fact]
+    public async Task Update_MovesTheCreditToAnotherSubject()
+    {
+        var dto = await Credit("IT 101");
+
+        var moved = await _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, subject: "GEC 101"));
+
+        Assert.Equal("GEC 101", moved.SubjectCode);
+        Assert.Equal("GEC 101", (await _credits.GetByStudentAsync(_studentId)).Single().SubjectCode);
+        // The subject it was moved off is open to be credited again.
+        Assert.Equal("IT 101", (await Credit("IT 101")).SubjectCode);
+    }
+
+    [Fact]
+    public async Task Update_ChecksTheNewSubjectTheWayRecordingDoes()
+    {
+        var dto = await Credit("IT 101");
+
+        var otherProgram = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, subject: "ME 101")));
+        Assert.Contains("not in the student's program", otherProgram.Message);
+
+        await Took("GEC 101", StudyLoadStatus.Enrolled, 1);
+        var passedHere = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, subject: "GEC 101")));
+        Assert.Contains("already passed GEC 101", passedHere.Message);
+
+        await Credit("IT 201");
+        var dup = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, subject: "IT 201")));
+        Assert.Contains("already credited", dup.Message);
+
+        // All refused, so the credit is untouched.
+        Assert.Equal("IT 101", (await _credits.GetByIdAsync(dto.CreditedSubjectId))!.SubjectCode);
+    }
+
+    [Fact]
+    public async Task Update_TurnsACreditIntoACrossEnrollment_AndBack()
+    {
+        var dto = await Credit("IT 101");
+
+        var crossEnrolled = await _credits.UpdateAsync(dto.CreditedSubjectId,
+            Edit(dto, kind: CreditKinds.CrossEnrollment, termId: _termId));
+        // A cross-enrollment's school year is the term's, whatever was typed.
+        Assert.Equal((CreditKinds.CrossEnrollment, "2026-2027", "2026-2027 (2nd Sem)"),
+            (crossEnrolled.Kind, crossEnrolled.SchoolYear, crossEnrolled.TermLabel));
+
+        var noTerm = await Assert.ThrowsAsync<InvalidOperationException>(() => _credits.UpdateAsync(
+            dto.CreditedSubjectId, new UpdateCreditedSubjectDto
+            {
+                SubjectId = dto.SubjectId, SourceSchool = "Cebu Tech", CreditedUnits = 3, Kind = CreditKinds.CrossEnrollment
+            }));
+        Assert.Contains("Choose the DBTC term", noTerm.Message);
+
+        var back = await _credits.UpdateAsync(dto.CreditedSubjectId, new UpdateCreditedSubjectDto
+        {
+            SubjectId = dto.SubjectId, SourceSchool = "Cebu Tech", SchoolYear = "2025-2026",
+            CreditedUnits = 3, Kind = CreditKinds.Transfer
+        });
+        Assert.Equal((CreditKinds.Transfer, "2025-2026", null), (back.Kind, back.SchoolYear, back.TermLabel));
+        Assert.Null(back.TermId);
+    }
+
+    [Fact]
+    public async Task Update_RejectsABlankSchool_BadUnits_AndAnUnknownCredit()
+    {
+        var dto = await Credit("IT 101");
+
+        var blank = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, school: "   ")));
+        Assert.Contains("Enter the name of the school", blank.Message);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, units: 0)));
+        var tooMany = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, units: 4)));
+        Assert.Contains("only 3 units", tooMany.Message);
+
+        Assert.Equal("Cebu Tech", (await _credits.GetByStudentAsync(_studentId)).Single().SourceSchool);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _credits.UpdateAsync(
+            Guid.NewGuid(), new UpdateCreditedSubjectDto { SourceSchool = "Cebu Tech", CreditedUnits = 3 }));
+    }
+
+    [Fact]
+    public async Task Update_UsesTheAccreditedListsSpelling_AndClearsBlankDetails()
+    {
+        _context.AccreditedSchools.Add(new AccreditedSchool
+            { SchoolID = Guid.NewGuid(), Name = "University of San Carlos", CreatedAt = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
+        var dto = await Credit("IT 101");
+
+        var fixedUp = await _credits.UpdateAsync(dto.CreditedSubjectId, new UpdateCreditedSubjectDto
+        {
+            SubjectId = dto.SubjectId, SourceSchool = "university of  san carlos",
+            SourceSubjectCode = "   ", Grade = "", SchoolYear = " ", CreditedUnits = 3
+        });
+
+        Assert.Equal("University of San Carlos", fixedUp.SourceSchool);
+        Assert.Null(fixedUp.SourceSubjectCode);
+        Assert.Null(fixedUp.Grade);
+        Assert.Null(fixedUp.SchoolYear);
+    }
+
+    /// <summary>
+    /// A correction that leaves the subject alone must not attach a second copy of that subject to the
+    /// context. EF refuses to save when it does, and because the clash surfaces as an
+    /// <see cref="InvalidOperationException"/> the controller turns it into "400 Bad Request" on what is
+    /// only a typo fix. Checked with the subject already tracked by the context, which is what made the
+    /// clash happen, and through the controller, which is where it was visible.
+    /// </summary>
+    [Fact]
+    public async Task Update_WithoutChangingTheSubject_DoesNotClashWithTheTrackedSubject()
+    {
+        var dto = await Credit("IT 101");
+        // Something else in the same request already has the subject loaded and tracked.
+        var tracked = await _context.Subjects.FirstAsync(s => s.SubjectID == dto.SubjectId);
+        Assert.Equal(EntityState.Unchanged, _context.Entry(tracked).State);
+
+        var controller = new CreditedSubjectsController(_credits);
+        var http = new DefaultHttpContext();
+        http.Items["user_id"] = _registrarId;
+        controller.ControllerContext = new ControllerContext { HttpContext = http };
+
+        var ok = Assert.IsType<OkObjectResult>(
+            await controller.Update(dto.CreditedSubjectId, Edit(dto, grade: "2.00", theirCode: "CS 101")));
+
+        var corrected = (CreditedSubjectDto)ok.Value!;
+        Assert.Equal(("IT 101", "2.00", "CS 101"), (corrected.SubjectCode, corrected.Grade, corrected.SourceSubjectCode));
+        // No second copy of the subject was put in the context's way, and the credit still points at it.
+        Assert.Same(tracked, _context.ChangeTracker.Entries<Subject>().Single(e => e.Entity.SubjectID == dto.SubjectId).Entity);
+        Assert.Equal(dto.SubjectId, (await _credits.GetByStudentAsync(_studentId)).Single().SubjectId);
+    }
+
+    /// <summary>
+    /// A correction that leaves the subject alone must not be trapped by something that changed since
+    /// the credit was recorded — here a program shift and a DBTC load opened afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Update_OfTheDetailsOnly_SurvivesAProgramShiftAndALaterDbtcLoad()
+    {
+        var dto = await Credit("IT 101");
+        await Took("IT 101", StudyLoadStatus.Pending, null);
+        var student = await _context.UserDetails.FirstAsync(ud => ud.UserID == _studentId);
+        student.ProgramID = 2;
+        await _context.SaveChangesAsync();
+
+        var fixedUp = await _credits.UpdateAsync(dto.CreditedSubjectId, Edit(dto, grade: "2.25"));
+
+        Assert.Equal(("2.25", "IT 101"), (fixedUp.Grade, fixedUp.SubjectCode));
+    }
+
     [Fact]
     public async Task Controller_MapsErrors_AndUsesCallerAsRecorder()
     {
@@ -187,6 +371,14 @@ public class CreditedSubjectTests : IDisposable
         Assert.IsType<BadRequestObjectResult>(await controller.Create(new CreateCreditedSubjectDto { UserId = _studentId, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", CreditedUnits = 3 }));
         Assert.IsType<NotFoundObjectResult>(await controller.Create(new CreateCreditedSubjectDto { UserId = Guid.NewGuid(), SubjectId = _s["IT 101"].SubjectID, SourceSchool = "X", CreditedUnits = 3 }));
         Assert.IsType<NotFoundObjectResult>(await controller.Delete(Guid.NewGuid()));
+
+        var credit = (CreditedSubjectDto)((OkObjectResult)ok).Value!;
+        Assert.IsType<OkObjectResult>(await controller.Update(credit.CreditedSubjectId,
+            Edit(credit, school: "Cebu Technological University")));
+        Assert.IsType<BadRequestObjectResult>(await controller.Update(credit.CreditedSubjectId, Edit(credit, school: " ")));
+        Assert.IsType<NotFoundObjectResult>(await controller.Update(Guid.NewGuid(), Edit(credit)));
+        Assert.IsType<NotFoundObjectResult>(await controller.Update(credit.CreditedSubjectId,
+            new UpdateCreditedSubjectDto { SubjectId = Guid.NewGuid(), SourceSchool = "Cebu Tech", CreditedUnits = 3 }));
     }
 
     [Fact]
@@ -195,6 +387,7 @@ public class CreditedSubjectTests : IDisposable
         var t = typeof(CreditedSubjectsController);
         Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.GetByStudent))!.GetCustomAttributes(typeof(RequireRegistrarCollegeHeadOrAdminAttribute), false));
         Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.Create))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
+        Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.Update))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
         Assert.NotEmpty(t.GetMethod(nameof(CreditedSubjectsController.Delete))!.GetCustomAttributes(typeof(RequireRegistrarOrAdminAttribute), false));
     }
 

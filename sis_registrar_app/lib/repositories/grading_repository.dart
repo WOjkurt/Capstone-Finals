@@ -313,6 +313,41 @@ class CreditedSubjectRepository {
     return CreditedSubjectModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// Corrects a credit already recorded. Every detail can change except the student it belongs to.
+  Future<CreditedSubjectModel> update({
+    required String creditedSubjectId,
+    required String subjectId,
+    required String sourceSchool,
+    String? sourceSubjectCode,
+    String? grade,
+    String? schoolYear,
+    required double creditedUnits,
+    bool crossEnrollment = false,
+    String? termId,
+  }) async {
+    final headers = await _auth.getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+    final res = await _client.put(
+      Uri.parse('$baseUrl/api/credited-subjects/$creditedSubjectId'),
+      headers: headers,
+      body: jsonEncode({
+        'subjectId': subjectId,
+        'sourceSchool': sourceSchool,
+        'sourceSubjectCode': sourceSubjectCode,
+        'grade': grade,
+        'schoolYear': schoolYear,
+        'creditedUnits': creditedUnits,
+        'kind': crossEnrollment ? 2 : 1,
+        if (termId != null) 'termId': termId,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(
+          statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return CreditedSubjectModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<void> delete(String creditedSubjectId) async {
     final headers = await _auth.getAuthHeaders();
     final res = await _client.delete(

@@ -216,11 +216,42 @@ public class ActivityLogTests : IDisposable
         {
             UserId = _student, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", Grade = "1.5", CreditedUnits = 3
         }));
-        await controller.Delete(((CreditedSubjectDto)ok.Value!).CreditedSubjectId);
+        var id = ((CreditedSubjectDto)ok.Value!).CreditedSubjectId;
+        await controller.Update(id, new UpdateCreditedSubjectDto
+        {
+            SubjectId = _s["IT 102"].SubjectID, SourceSchool = "Cebu Technological University",
+            SourceSubjectCode = "CS 101", Grade = "1.5", CreditedUnits = 1.5m, Kind = CreditKinds.Transfer
+        });
+        await controller.Delete(id);
 
         var entries = await Entries();
         Assert.Equal("Credited IT 101 (3 of 3 units) from Cebu Tech (grade 1.5)", entries[0].Summary);
-        Assert.Equal("Removed credit for IT 101 from Cebu Tech", entries[1].Summary);
+        Assert.Equal(
+            "Credit for IT 102 corrected — subject: IT 101 → IT 102; " +
+            "school: Cebu Tech → Cebu Technological University; " +
+            "their subject code: not set → CS 101; units credited: 3 → 1.5",
+            entries[1].Summary);
+        Assert.Equal(ActivityActions.CreditEdited, entries[1].Action);
+        Assert.Equal("Removed credit for IT 102 from Cebu Technological University", entries[2].Summary);
+    }
+
+    [Fact]
+    public async Task Credits_EditThatChangesNothing_IsNotLogged()
+    {
+        var controller = WithLog(new CreditedSubjectsController(new CreditedSubjectService(_context)));
+        var ok = Assert.IsType<OkObjectResult>(await controller.Create(new CreateCreditedSubjectDto
+        {
+            UserId = _student, SubjectId = _s["IT 101"].SubjectID, SourceSchool = "Cebu Tech", SourceSubjectCode = "CS 101", CreditedUnits = 3
+        }));
+
+        var credit = (CreditedSubjectDto)ok.Value!;
+        await controller.Update(credit.CreditedSubjectId, new UpdateCreditedSubjectDto
+        {
+            SubjectId = credit.SubjectId, SourceSchool = "Cebu Tech", SourceSubjectCode = "CS 101",
+            CreditedUnits = 3, Kind = CreditKinds.Transfer
+        });
+
+        Assert.Single(await Entries());
     }
 
     [Fact]

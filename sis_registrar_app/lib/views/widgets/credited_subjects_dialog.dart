@@ -11,6 +11,9 @@ import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/numbers.dart';
 
+/// Credits for shiftees name DBTC itself, with the old program, so they need no accredited school.
+const _dbtcName = 'Don Bosco Technical College - Cebu';
+
 /// Subjects a transferee or shiftee passed at another school, credited to DBTC subjects.
 /// Credited subjects count as passed for prerequisites, the study load builder and year-level promotion.
 class CreditedSubjectsDialog extends StatefulWidget {
@@ -120,9 +123,6 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
     return s == null ? null : s.lecUnits + s.labUnits;
   }
 
-  /// Credits for shiftees name DBTC itself, with the old program, so they need no accredited school.
-  static const _dbtcName = 'Don Bosco Technical College - Cebu';
-
   static String _fmtUnits(double v) => unitsText(v);
 
   List<SubjectModel> get _available {
@@ -180,6 +180,63 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
       if (mounted) setState(() => _formError = _message(e));
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Corrects a credit already recorded, rather than removing it and typing it again.
+  Future<void> _editCredit(CreditedSubjectModel c) async {
+    // Every subject in the program except those another credit already covers; the credit's own
+    // subject stays on the list so it can be left alone, even if the student has since shifted
+    // program and it is no longer among the subjects loaded for the current one.
+    final covered = (_credits ?? [])
+        .where((x) => x.creditedSubjectId != c.creditedSubjectId)
+        .map((x) => x.subjectId)
+        .toSet();
+    final choices = _subjects.where((s) => !covered.contains(s.subjectId)).toList();
+    if (!choices.any((s) => s.subjectId == c.subjectId)) {
+      choices.insert(
+        0,
+        SubjectModel(
+          subjectId: c.subjectId,
+          subjectCode: c.subjectCode,
+          subjectTitle: c.subjectTitle,
+          lecUnits: c.units,
+          labUnits: 0,
+          lecHours: 0,
+          labHours: 0,
+          programId: widget.student.programId ?? 0,
+          yearLevel: c.yearLevel,
+          defaultSemester: 1,
+        ),
+      );
+    }
+
+    final edit = await showDialog<CreditEdit>(
+      context: context,
+      builder: (_) => _EditCreditDialog(
+        credit: c,
+        subjects: choices,
+        schoolNames: _schoolNames,
+        terms: _terms,
+      ),
+    );
+    if (edit == null) return;
+    try {
+      await getIt<CreditedSubjectRepository>().update(
+        creditedSubjectId: c.creditedSubjectId,
+        subjectId: edit.subjectId,
+        sourceSchool: edit.school,
+        sourceSubjectCode: edit.theirCode,
+        grade: edit.grade,
+        schoolYear: edit.schoolYear,
+        creditedUnits: edit.units,
+        crossEnrollment: edit.crossEnrollment,
+        termId: edit.termId,
+      );
+      if (mounted) setState(() => _formError = null);
+      await _load();
+    } catch (e) {
+      if (mounted) setState(() => _formError = _message(e));
     }
   }
 
@@ -400,6 +457,12 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
             ),
           ),
           IconButton(
+            key: ValueKey('edit_credit_${c.subjectCode}'),
+            icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
+            tooltip: 'Correct this credit',
+            onPressed: () => _editCredit(c),
+          ),
+          IconButton(
             key: ValueKey('remove_credit_${c.subjectCode}'),
             icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFDC2626)),
             tooltip: 'Remove credit',
@@ -411,165 +474,40 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
   }
 
   Widget _buildForm() {
-    final available = _available;
-    InputDecoration deco(String label) => InputDecoration(
-          labelText: label,
-          isDense: true,
-          border: const OutlineInputBorder(),
-        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Add a credited subject',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
-        SegmentedButton<bool>(
-          key: const ValueKey('credit_kind'),
-          segments: const [
-            ButtonSegment(value: false, label: Text('From a previous school'), icon: Icon(Icons.history_edu_outlined)),
-            ButtonSegment(value: true, label: Text('Cross-enrolled while at DBTC'), icon: Icon(Icons.compare_arrows_rounded)),
-          ],
-          selected: {_cross},
-          onSelectionChanged: (v) => setState(() => _cross = v.first),
-        ),
-        const SizedBox(height: 10),
         if (widget.student.programId == null)
-          const Text('Set the student\'s program first.',
-              style: TextStyle(color: Color(0xFFDC2626)))
+          const Text('Set the student\'s program first.', style: TextStyle(color: Color(0xFFDC2626)))
         else
-          KeyedSubtree(
-            key: ValueKey('credit_form_$_formVersion'),
-            child: DropdownButtonFormField<String>(
-            key: const ValueKey('credit_subject_dropdown'),
-            initialValue: _subjectId,
-            isExpanded: true,
-            decoration: deco('DBTC subject *'),
-            items: [
-              for (final s in available)
-                DropdownMenuItem(
-                  value: s.subjectId,
-                  child: Text('Y${s.yearLevel} · ${s.subjectCode} — ${s.subjectTitle}',
-                      overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: (v) => setState(() {
+          CreditFields(
+            keyPrefix: 'credit',
+            formVersion: _formVersion,
+            subjects: _available,
+            subjectId: _subjectId,
+            onSubjectChanged: (v) => setState(() {
               _subjectId = v;
               // Start from the full units; the Registrar lowers it when only part of the class was taken.
               final u = _subjectUnits;
               _units.text = u == null ? '' : _fmtUnits(u);
             }),
-            ),
-          ),
-        const SizedBox(height: 10),
-        // Picks from Setup → Accredited schools; a school not on the list can still be typed.
-        RawAutocomplete<String>(
-          textEditingController: _school,
-          focusNode: _schoolFocus,
-          optionsBuilder: (value) {
-            final q = value.text.trim().toLowerCase();
-            return q.isEmpty ? _schoolNames : _schoolNames.where((n) => n.toLowerCase().contains(q));
-          },
-          fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
-            key: const ValueKey('credit_school_field'),
-            controller: controller,
-            focusNode: focusNode,
-            decoration: deco('School where it was taken *').copyWith(
-              helperText: _schoolNames.isEmpty
-                  ? 'Tip: add schools in Setup → Accredited Schools to pick them here.'
-                  : (_school.text.trim().isNotEmpty && !_school.text.startsWith(_dbtcName) &&
-                          !_schoolNames.any((n) => n.toLowerCase() == _school.text.trim().toLowerCase()))
-                      ? 'Not on the accredited list. Check the spelling, or add it in Setup.'
-                      : null,
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          optionsViewBuilder: (context, onSelected, options) => Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(8),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 240, maxWidth: 520),
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  shrinkWrap: true,
-                  children: [
-                    for (final o in options)
-                      ListTile(
-                        key: ValueKey('school_option_$o'),
-                        dense: true,
-                        leading: const Icon(Icons.account_balance_outlined, size: 18),
-                        title: Text(o),
-                        onTap: () => onSelected(o),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          onSelected: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                key: const ValueKey('credit_their_code_field'),
-                controller: _theirCode,
-                decoration: deco('Their subject code'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                key: const ValueKey('credit_grade_field'),
-                controller: _grade,
-                decoration: deco('Grade (as written)'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            if (!_cross)
-              Expanded(
-                child: TextField(
-                  key: const ValueKey('credit_school_year_field'),
-                  controller: _schoolYear,
-                  decoration: deco('School year'),
-                ),
-              ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                key: const ValueKey('credit_units_field'),
-                controller: _units,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: deco('Units credited *').copyWith(
-                  suffixText: _subjectUnits == null ? null : 'of ${_fmtUnits(_subjectUnits!)}',
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-          ],
-        ),
-        if (_cross) ...[
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            key: const ValueKey('credit_term_dropdown'),
-            initialValue: _termId,
-            isExpanded: true,
-            decoration: deco('DBTC term it was taken during *'),
-            items: [for (final t in _terms) DropdownMenuItem(value: t.termId, child: Text(t.label))],
-            onChanged: (v) => setState(() => _termId = v),
-          ),
-        ],
-        if (_subjectUnits != null && (double.tryParse(_units.text.trim()) ?? _subjectUnits!) < _subjectUnits!)
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Text(
-              'Partial credit: the units count toward units earned, but the subject is still left to take '
-              '(prerequisites and promotion need the full units).',
-              key: ValueKey('partial_credit_note'),
-              style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
-            ),
+            cross: _cross,
+            onCrossChanged: (v) => setState(() => _cross = v),
+            school: _school,
+            schoolFocus: _schoolFocus,
+            schoolNames: _schoolNames,
+            theirCode: _theirCode,
+            grade: _grade,
+            schoolYear: _schoolYear,
+            units: _units,
+            subjectUnits: _subjectUnits,
+            terms: _terms,
+            termId: _termId,
+            onTermChanged: (v) => setState(() => _termId = v),
+            onAnyChanged: () => setState(() {}),
           ),
         if (_formError != null) ...[
           const SizedBox(height: 8),
@@ -587,6 +525,439 @@ class _CreditedSubjectsDialogState extends State<CreditedSubjectsDialog> {
             label: const Text('Add credit'),
             onPressed: _saving || widget.student.programId == null ? null : _add,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Every field of a credit, shared by the "Add a credited subject" form and the correction dialog so
+/// the two always offer and check the same things. The state lives with whoever shows the fields;
+/// [keyPrefix] keeps the two sets of widget keys apart.
+class CreditFields extends StatelessWidget {
+  final String keyPrefix;
+
+  /// Bumped by the add form after each save, so the subject dropdown starts empty again.
+  final int formVersion;
+
+  final List<SubjectModel> subjects;
+  final String? subjectId;
+  final ValueChanged<String?> onSubjectChanged;
+
+  /// Cross-enrolled during a DBTC term, rather than taken before DBTC.
+  final bool cross;
+  final ValueChanged<bool> onCrossChanged;
+
+  final TextEditingController school;
+  final FocusNode schoolFocus;
+  final List<String> schoolNames;
+
+  final TextEditingController theirCode;
+  final TextEditingController grade;
+  final TextEditingController schoolYear;
+  final TextEditingController units;
+
+  /// The picked DBTC subject's full units, which the credited units cannot exceed.
+  final double? subjectUnits;
+
+  final List<AcademicTermModel> terms;
+  final String? termId;
+  final ValueChanged<String?> onTermChanged;
+
+  /// Called when typing or picking changes what the rest of the fields should show.
+  final VoidCallback onAnyChanged;
+
+  const CreditFields({
+    super.key,
+    required this.keyPrefix,
+    this.formVersion = 0,
+    required this.subjects,
+    required this.subjectId,
+    required this.onSubjectChanged,
+    required this.cross,
+    required this.onCrossChanged,
+    required this.school,
+    required this.schoolFocus,
+    required this.schoolNames,
+    required this.theirCode,
+    required this.grade,
+    required this.schoolYear,
+    required this.units,
+    required this.subjectUnits,
+    required this.terms,
+    required this.termId,
+    required this.onTermChanged,
+    required this.onAnyChanged,
+  });
+
+  static String _fmtUnits(double v) => unitsText(v);
+
+  @override
+  Widget build(BuildContext context) {
+    InputDecoration deco(String label) => InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<bool>(
+          key: ValueKey('${keyPrefix}_kind'),
+          segments: const [
+            ButtonSegment(value: false, label: Text('From a previous school'), icon: Icon(Icons.history_edu_outlined)),
+            ButtonSegment(value: true, label: Text('Cross-enrolled while at DBTC'), icon: Icon(Icons.compare_arrows_rounded)),
+          ],
+          selected: {cross},
+          onSelectionChanged: (v) => onCrossChanged(v.first),
+        ),
+        const SizedBox(height: 10),
+        KeyedSubtree(
+          key: ValueKey('${keyPrefix}_form_$formVersion'),
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('${keyPrefix}_subject_dropdown'),
+            initialValue: subjectId,
+            isExpanded: true,
+            decoration: deco('DBTC subject *'),
+            items: [
+              for (final s in subjects)
+                DropdownMenuItem(
+                  value: s.subjectId,
+                  child: Text('Y${s.yearLevel} · ${s.subjectCode} — ${s.subjectTitle}',
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: onSubjectChanged,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SchoolAutocompleteField(
+          controller: school,
+          focusNode: schoolFocus,
+          schoolNames: schoolNames,
+          fieldKey: ValueKey('${keyPrefix}_school_field'),
+          onChanged: onAnyChanged,
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                key: ValueKey('${keyPrefix}_their_code_field'),
+                controller: theirCode,
+                decoration: deco('Their subject code'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                key: ValueKey('${keyPrefix}_grade_field'),
+                controller: grade,
+                decoration: deco('Grade (as written)'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (!cross)
+              Expanded(
+                child: TextField(
+                  key: ValueKey('${keyPrefix}_school_year_field'),
+                  controller: schoolYear,
+                  decoration: deco('School year'),
+                ),
+              ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                key: ValueKey('${keyPrefix}_units_field'),
+                controller: units,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: deco('Units credited *').copyWith(
+                  suffixText: subjectUnits == null ? null : 'of ${_fmtUnits(subjectUnits!)}',
+                ),
+                onChanged: (_) => onAnyChanged(),
+              ),
+            ),
+          ],
+        ),
+        if (cross) ...[
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('${keyPrefix}_term_dropdown'),
+            initialValue: termId,
+            isExpanded: true,
+            decoration: deco('DBTC term it was taken during *'),
+            items: [for (final t in terms) DropdownMenuItem(value: t.termId, child: Text(t.label))],
+            onChanged: onTermChanged,
+          ),
+        ],
+        if (subjectUnits != null && (double.tryParse(units.text.trim()) ?? subjectUnits!) < subjectUnits!)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Partial credit: the units count toward units earned, but the subject is still left to take '
+              '(prerequisites and promotion need the full units).',
+              key: ValueKey('${keyPrefix}_partial_note'),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The "school where it was taken" field: free text, suggesting the schools on
+/// Setup → Accredited schools so the same school is spelled one way on every record. A school that is
+/// not on the list can still be typed — it then shows up there as an unlisted school to add.
+class SchoolAutocompleteField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final List<String> schoolNames;
+  final Key fieldKey;
+
+  /// Called on every keystroke and pick, so the caller can redraw its helper text.
+  final VoidCallback onChanged;
+
+  const SchoolAutocompleteField({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.schoolNames,
+    required this.fieldKey,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final typed = controller.text.trim();
+    final helper = schoolNames.isEmpty
+        ? 'Tip: add schools in Setup → Accredited Schools to pick them here.'
+        : (typed.isNotEmpty &&
+                !controller.text.startsWith(_dbtcName) &&
+                !schoolNames.any((n) => n.toLowerCase() == typed.toLowerCase()))
+            ? 'Not on the accredited list. Check the spelling, or add it in Setup.'
+            : null;
+    return RawAutocomplete<String>(
+      textEditingController: controller,
+      focusNode: focusNode,
+      optionsBuilder: (value) {
+        final q = value.text.trim().toLowerCase();
+        return q.isEmpty ? schoolNames : schoolNames.where((n) => n.toLowerCase().contains(q));
+      },
+      fieldViewBuilder: (context, textController, node, onSubmit) => TextField(
+        key: fieldKey,
+        controller: textController,
+        focusNode: node,
+        decoration: InputDecoration(
+          labelText: 'School where it was taken *',
+          isDense: true,
+          border: const OutlineInputBorder(),
+          helperText: helper,
+        ),
+        onChanged: (_) => onChanged(),
+      ),
+      optionsViewBuilder: (context, onSelected, options) => Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240, maxWidth: 520),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              children: [
+                for (final o in options)
+                  ListTile(
+                    key: ValueKey('school_option_$o'),
+                    dense: true,
+                    leading: const Icon(Icons.account_balance_outlined, size: 18),
+                    title: Text(o),
+                    onTap: () => onSelected(o),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      onSelected: (_) => onChanged(),
+    );
+  }
+}
+
+/// What the Registrar entered in the correction dialog.
+class CreditEdit {
+  final String subjectId;
+  final String school;
+  final String? theirCode;
+  final String? grade;
+  final String? schoolYear;
+  final double units;
+  final bool crossEnrollment;
+  final String? termId;
+
+  const CreditEdit({
+    required this.subjectId,
+    required this.school,
+    this.theirCode,
+    this.grade,
+    this.schoolYear,
+    required this.units,
+    required this.crossEnrollment,
+    this.termId,
+  });
+}
+
+/// Corrects a credit already recorded. Every detail can be changed — a credit recorded against the
+/// wrong subject, with the wrong units or on the wrong side of a cross-enrollment is put right here
+/// instead of being removed and typed again. The server checks a correction the way it checks a new
+/// credit, so the record cannot end up in a state this form would have refused.
+class _EditCreditDialog extends StatefulWidget {
+  final CreditedSubjectModel credit;
+  final List<SubjectModel> subjects;
+  final List<String> schoolNames;
+  final List<AcademicTermModel> terms;
+
+  const _EditCreditDialog({
+    required this.credit,
+    required this.subjects,
+    required this.schoolNames,
+    required this.terms,
+  });
+
+  @override
+  State<_EditCreditDialog> createState() => _EditCreditDialogState();
+}
+
+class _EditCreditDialogState extends State<_EditCreditDialog> {
+  late String? _subjectId = widget.credit.subjectId;
+  late bool _cross = widget.credit.isCrossEnrollment;
+  late String? _termId = widget.credit.termId;
+
+  late final _school = TextEditingController(text: widget.credit.sourceSchool);
+  late final _theirCode = TextEditingController(text: widget.credit.sourceSubjectCode ?? '');
+  late final _grade = TextEditingController(text: widget.credit.grade ?? '');
+  late final _schoolYear = TextEditingController(text: widget.credit.schoolYear ?? '');
+  late final _units = TextEditingController(text: unitsText(widget.credit.creditedUnits));
+  final _schoolFocus = FocusNode();
+  String? _error;
+
+  @override
+  void dispose() {
+    _school.dispose();
+    _theirCode.dispose();
+    _grade.dispose();
+    _schoolYear.dispose();
+    _units.dispose();
+    _schoolFocus.dispose();
+    super.dispose();
+  }
+
+  double? get _subjectUnits {
+    final s = widget.subjects.where((s) => s.subjectId == _subjectId).firstOrNull;
+    return s == null ? null : s.lecUnits + s.labUnits;
+  }
+
+  void _save() {
+    if (_subjectId == null) {
+      setState(() => _error = 'Choose the DBTC subject.');
+      return;
+    }
+    if (_school.text.trim().isEmpty) {
+      setState(() => _error = 'Enter the school where it was taken.');
+      return;
+    }
+    final subjectUnits = _subjectUnits ?? 0;
+    final units = double.tryParse(_units.text.trim());
+    if (units == null || units <= 0) {
+      setState(() => _error = 'Enter the units to credit.');
+      return;
+    }
+    if (units > subjectUnits) {
+      setState(() => _error = 'This subject has only ${unitsText(subjectUnits)} units.');
+      return;
+    }
+    if (_cross && _termId == null) {
+      setState(() => _error = 'Choose the DBTC term it was cross-enrolled in.');
+      return;
+    }
+    final theirCode = _theirCode.text.trim();
+    final grade = _grade.text.trim();
+    final schoolYear = _schoolYear.text.trim();
+    Navigator.pop(
+      context,
+      CreditEdit(
+        subjectId: _subjectId!,
+        school: _school.text.trim(),
+        theirCode: theirCode.isEmpty ? null : theirCode,
+        grade: grade.isEmpty ? null : grade,
+        // A cross-enrollment takes its school year from the DBTC term.
+        schoolYear: _cross || schoolYear.isEmpty ? null : schoolYear,
+        units: units,
+        crossEnrollment: _cross,
+        termId: _cross ? _termId : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.credit;
+    return AlertDialog(
+      title: const Text('Correct this credit'),
+      content: SizedBox(
+        width: 720,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Recorded as ${c.subjectCode}'
+                '${c.recordedBy != null ? ' by ${c.recordedBy}' : ''}. '
+                'Changing the subject or the units changes what this credit counts for.',
+                key: const ValueKey('edit_credit_note'),
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              CreditFields(
+                keyPrefix: 'edit_credit',
+                subjects: widget.subjects,
+                subjectId: _subjectId,
+                onSubjectChanged: (v) => setState(() {
+                  _subjectId = v;
+                  // A different subject brings its own units; the Registrar lowers them for a partial credit.
+                  final u = _subjectUnits;
+                  _units.text = u == null ? '' : unitsText(u);
+                }),
+                cross: _cross,
+                onCrossChanged: (v) => setState(() => _cross = v),
+                school: _school,
+                schoolFocus: _schoolFocus,
+                schoolNames: widget.schoolNames,
+                theirCode: _theirCode,
+                grade: _grade,
+                schoolYear: _schoolYear,
+                units: _units,
+                subjectUnits: _subjectUnits,
+                terms: widget.terms,
+                termId: _termId,
+                onTermChanged: (v) => setState(() => _termId = v),
+                onAnyChanged: () => setState(() {}),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          key: const ValueKey('save_credit_edit_button'),
+          onPressed: _save,
+          child: const Text('Save'),
         ),
       ],
     );

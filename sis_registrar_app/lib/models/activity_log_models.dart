@@ -9,6 +9,7 @@ const Map<String, String> kActivityActionLabels = {
   'OVERLOAD_APPROVED': 'Overload approved',
   'YEAR_LEVEL_CHANGED': 'Year level changed',
   'CREDIT_ADDED': 'Credit added',
+  'CREDIT_EDITED': 'Credit corrected',
   'CREDIT_REMOVED': 'Credit removed',
   'CREDITS_IMPORTED': 'Credits imported',
   'FORMS_IMPORTED': 'Enrollment forms imported',

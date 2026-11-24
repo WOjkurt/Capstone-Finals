@@ -59,6 +59,63 @@ public class CreditedSubjectsController : ControllerBase
         }
     }
 
+    /// <summary>Corrects a credit already recorded; every detail the Registrar entered can be changed.</summary>
+    [HttpPut("{id:guid}")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCreditedSubjectDto dto)
+    {
+        try
+        {
+            var before = await _service.GetByIdAsync(id);
+            var credit = await _service.UpdateAsync(id, dto);
+
+            var log = this.ActivityLog();
+            if (log != null && before != null)
+            {
+                var changes = Changes(before, credit);
+                if (changes.Count > 0)
+                {
+                    await log.LogAsync(this.CallerId(), ActivityActions.CreditEdited,
+                        $"Credit for {credit.SubjectCode} corrected — {string.Join("; ", changes)}", credit.UserId);
+                }
+            }
+            return Ok(credit);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Every detail that changed, so the activity log says what was corrected and from what.</summary>
+    private static List<string> Changes(CreditedSubjectDto before, CreditedSubjectDto after)
+    {
+        var changes = new List<string>();
+        void Changed(string what, string? was, string? now)
+        {
+            if (was != now) changes.Add($"{what}: {Shown(was)} → {Shown(now)}");
+        }
+
+        Changed("subject", before.SubjectCode, after.SubjectCode);
+        Changed("school", before.SourceSchool, after.SourceSchool);
+        Changed("their subject code", before.SourceSubjectCode, after.SourceSubjectCode);
+        Changed("grade", before.Grade, after.Grade);
+        Changed("school year", before.SchoolYear, after.SchoolYear);
+        Changed("units credited", $"{before.CreditedUnits:0.#}", $"{after.CreditedUnits:0.#}");
+        Changed("taken", KindText(before.Kind), KindText(after.Kind));
+        Changed("DBTC term", before.TermLabel, after.TermLabel);
+        return changes;
+    }
+
+    private static string KindText(int kind) =>
+        kind == CreditKinds.CrossEnrollment ? "cross-enrolled while at DBTC" : "at a previous school";
+
+    private static string Shown(string? value) => string.IsNullOrEmpty(value) ? "not set" : value;
+
     [HttpDelete("{id:guid}")]
     [RequireRegistrarOrAdmin]
     public async Task<IActionResult> Delete(Guid id)

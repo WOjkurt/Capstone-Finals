@@ -26,6 +26,7 @@ class FakeAuthService implements AuthService {
 class FakeCreditRepo implements CreditedSubjectRepository {
   final List<CreditedSubjectModel> credits = [];
   Map<String, String?>? lastCreate;
+  Map<String, String?>? lastUpdate;
   String? deletedId;
   String? failWith;
 
@@ -53,6 +54,44 @@ class FakeCreditRepo implements CreditedSubjectRepository {
         creditedSubjectId: 'c-$subjectId', subjectId: subjectId, subjectCode: 'IT 101', subjectTitle: 'Intro', sourceSchool: sourceSchool, grade: grade);
     credits.add(c);
     return c;
+  }
+
+  @override
+  Future<CreditedSubjectModel> update({
+    required String creditedSubjectId,
+    required String subjectId,
+    required String sourceSchool,
+    String? sourceSubjectCode,
+    String? grade,
+    String? schoolYear,
+    required double creditedUnits,
+    bool crossEnrollment = false,
+    String? termId,
+  }) async {
+    if (failWith != null) throw Exception(failWith);
+    lastUpdate = {
+      'id': creditedSubjectId, 'subjectId': subjectId, 'school': sourceSchool, 'code': sourceSubjectCode,
+      'grade': grade, 'sy': schoolYear, 'units': '$creditedUnits', 'cross': '$crossEnrollment', 'termId': termId,
+    };
+    final i = credits.indexWhere((c) => c.creditedSubjectId == creditedSubjectId);
+    final old = credits[i];
+    final updated = CreditedSubjectModel(
+      creditedSubjectId: old.creditedSubjectId,
+      subjectId: subjectId,
+      subjectCode: subjectId == 's1' ? 'IT 101' : 'GEC 101',
+      subjectTitle: subjectId == 's1' ? 'Intro' : 'Self',
+      units: 3,
+      sourceSchool: sourceSchool,
+      sourceSubjectCode: sourceSubjectCode,
+      grade: grade,
+      schoolYear: schoolYear,
+      creditedUnits: creditedUnits,
+      kind: crossEnrollment ? 2 : 1,
+      termId: termId,
+      termLabel: termId == null ? null : '2026-2027 (1st Sem)',
+    );
+    credits[i] = updated;
+    return updated;
   }
 
   @override
@@ -116,6 +155,20 @@ void main() {
         expect(body['sourceSchool'], 'Cebu Tech');
         return http.Response(jsonEncode({'creditedSubjectId': 'c2', 'subjectId': body['subjectId'], 'subjectCode': 'GEC 101', 'subjectTitle': 'Self', 'sourceSchool': 'Cebu Tech'}), 200);
       }
+      if (req.method == 'PUT') {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        expect(body, {
+          'subjectId': 's2',
+          'sourceSchool': 'Cebu Technological University',
+          'sourceSubjectCode': 'CS 101',
+          'grade': '2.0',
+          'schoolYear': null,
+          'creditedUnits': 1.5,
+          'kind': 2,
+          'termId': 't1',
+        });
+        return http.Response(jsonEncode({'creditedSubjectId': 'c1', 'subjectId': 's2', 'subjectCode': 'GEC 101', 'subjectTitle': 'Self', 'units': 3, 'creditedUnits': 1.5, 'sourceSchool': body['sourceSchool'], 'kind': 2, 'termId': 't1'}), 200);
+      }
       return http.Response('', 204);
     });
     final repo = CreditedSubjectRepository(FakeAuthService(), client: client);
@@ -123,9 +176,24 @@ void main() {
     final list = await repo.getForStudent('u1');
     expect(list.single.grade, '1.75');
     expect((await repo.create(userId: 'u1', subjectId: 's2', sourceSchool: 'Cebu Tech', creditedUnits: 3)).subjectCode, 'GEC 101');
+    final fixedUp = await repo.update(
+        creditedSubjectId: 'c1',
+        subjectId: 's2',
+        sourceSchool: 'Cebu Technological University',
+        sourceSubjectCode: 'CS 101',
+        grade: '2.0',
+        creditedUnits: 1.5,
+        crossEnrollment: true,
+        termId: 't1');
+    expect((fixedUp.subjectCode, fixedUp.creditedUnits, fixedUp.isPartial, fixedUp.termId), ('GEC 101', 1.5, true, 't1'));
     await repo.delete('c1');
 
-    expect(calls, ['GET /api/credited-subjects/student/u1', 'POST /api/credited-subjects', 'DELETE /api/credited-subjects/c1']);
+    expect(calls, [
+      'GET /api/credited-subjects/student/u1',
+      'POST /api/credited-subjects',
+      'PUT /api/credited-subjects/c1',
+      'DELETE /api/credited-subjects/c1',
+    ]);
   });
 
   test('a credit resolves an earlier failure', () {
@@ -218,7 +286,7 @@ void main() {
 
       await tester.enterText(find.byKey(const ValueKey('credit_units_field')), '2');
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('partial_credit_note')), findsOneWidget);
+      expect(find.byKey(const ValueKey('credit_partial_note')), findsOneWidget);
       await tester.enterText(find.byKey(const ValueKey('credit_units_field')), '4');
       await tester.enterText(find.byKey(const ValueKey('credit_school_field')), 'USC');
       await tester.tap(find.byKey(const ValueKey('add_credit_button')));
@@ -255,6 +323,130 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('already passed IT 101'), findsOneWidget);
+    });
+
+    testWidgets('every detail of a recorded credit can be corrected', (tester) async {
+      getIt.registerSingleton<AccreditedSchoolRepository>(FakeSchoolRepo());
+      credits.credits.add(const CreditedSubjectModel(
+          creditedSubjectId: 'c1', subjectId: 's1', subjectCode: 'IT 101', subjectTitle: 'Intro',
+          units: 3, sourceSchool: 'Cebu Tecnological Univerity', sourceSubjectCode: 'CS 1O1',
+          grade: '1.75', schoolYear: '2025-2026'));
+      await pump(tester, const CreditedSubjectsDialog(student: _student));
+      expect(find.textContaining('From Cebu Tecnological Univerity'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('edit_credit_IT 101')));
+      await tester.pumpAndSettle();
+      // Opens on what was recorded.
+      String fieldText(String key) =>
+          tester.widget<TextField>(find.byKey(ValueKey(key))).controller!.text;
+      expect(fieldText('edit_credit_school_field'), 'Cebu Tecnological Univerity');
+      expect(fieldText('edit_credit_their_code_field'), 'CS 1O1');
+      expect(fieldText('edit_credit_grade_field'), '1.75');
+      expect(fieldText('edit_credit_school_year_field'), '2025-2026');
+      expect(fieldText('edit_credit_units_field'), '3');
+      expect(find.text('Y1 · IT 101 — Intro'), findsOneWidget);
+
+      // The accredited list suggests the right spelling here too.
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_school_field')), 'Cebu Tech');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('school_option_Cebu Technological University')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_their_code_field')), 'CS 101');
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_grade_field')), '2.00');
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_units_field')), '1.5');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('edit_credit_partial_note')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pumpAndSettle();
+
+      expect(credits.lastUpdate, {
+        'id': 'c1', 'subjectId': 's1', 'school': 'Cebu Technological University', 'code': 'CS 101',
+        'grade': '2.00', 'sy': '2025-2026', 'units': '1.5', 'cross': 'false', 'termId': null,
+      });
+      expect(find.textContaining('From Cebu Technological University · as CS 101 · grade 2.00'), findsOneWidget);
+      expect(find.textContaining('1.5 of 3 units (partial, still to take)'), findsOneWidget);
+    });
+
+    testWidgets('a credit can be moved to another subject and turned into a cross-enrollment', (tester) async {
+      credits.credits.add(const CreditedSubjectModel(
+          creditedSubjectId: 'c1', subjectId: 's1', subjectCode: 'IT 101', subjectTitle: 'Intro',
+          units: 3, sourceSchool: 'USC', schoolYear: '2025-2026'));
+      await pump(tester, const CreditedSubjectsDialog(student: _student));
+
+      await tester.tap(find.byKey(const ValueKey('edit_credit_IT 101')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('edit_credit_subject_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('GEC 101 — Self').last);
+      await tester.pumpAndSettle();
+      // The new subject brings its own units.
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('edit_credit_units_field'))).controller!.text, '3');
+
+      await tester.tap(find.descendant(
+          of: find.byKey(const ValueKey('edit_credit_kind')), matching: find.text('Cross-enrolled while at DBTC')));
+      await tester.pumpAndSettle();
+      // A cross-enrollment takes its school year from the term, so that field goes away.
+      expect(find.byKey(const ValueKey('edit_credit_school_year_field')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pump();
+      expect(find.text('Choose the DBTC term it was cross-enrolled in.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('edit_credit_term_dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2026-2027 (1st Sem)').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pumpAndSettle();
+
+      expect(credits.lastUpdate!['subjectId'], 's2');
+      expect(credits.lastUpdate!['cross'], 'true');
+      expect(credits.lastUpdate!['termId'], 't1');
+      expect(credits.lastUpdate!['sy'], isNull);
+      expect(find.textContaining('Cross-enrolled at USC in 2026-2027 (1st Sem)'), findsOneWidget);
+    });
+
+    testWidgets('the correction dialog checks the fields before saving', (tester) async {
+      credits.credits.add(const CreditedSubjectModel(
+          creditedSubjectId: 'c1', subjectId: 's1', subjectCode: 'IT 101', subjectTitle: 'Intro',
+          units: 3, sourceSchool: 'Cebu Tech'));
+      await pump(tester, const CreditedSubjectsDialog(student: _student));
+
+      await tester.tap(find.byKey(const ValueKey('edit_credit_IT 101')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_school_field')), '   ');
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pump();
+      expect(find.text('Enter the school where it was taken.'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_school_field')), 'Cebu Tech');
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_units_field')), '4');
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pump();
+      expect(find.text('This subject has only 3 units.'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_units_field')), '0');
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pump();
+      expect(find.text('Enter the units to credit.'), findsOneWidget);
+      expect(credits.lastUpdate, isNull);
+    });
+
+    testWidgets('a correction the server refuses is reported and the credit is left as it was', (tester) async {
+      credits.credits.add(const CreditedSubjectModel(
+          creditedSubjectId: 'c1', subjectId: 's1', subjectCode: 'IT 101', subjectTitle: 'Intro',
+          units: 3, sourceSchool: 'Cebu Tech'));
+      await pump(tester, const CreditedSubjectsDialog(student: _student));
+      credits.failWith = 'The student already passed GEC 101 at DBTC.';
+
+      await tester.tap(find.byKey(const ValueKey('edit_credit_IT 101')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('edit_credit_school_field')), 'USC');
+      await tester.tap(find.byKey(const ValueKey('save_credit_edit_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('already passed GEC 101'), findsOneWidget);
+      expect(find.textContaining('From Cebu Tech'), findsOneWidget);
     });
 
     testWidgets('remove asks first, then deletes', (tester) async {

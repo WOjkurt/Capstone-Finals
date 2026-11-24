@@ -29,6 +29,37 @@ public class CreateCreditedSubjectDto
     public Guid? TermId { get; set; }
 }
 
+/// <summary>
+/// Correcting a credit already recorded. Everything the Registrar entered can be changed, and is
+/// checked the same way as when the credit was recorded. The student it belongs to is not part of
+/// this: a credit put on the wrong student is removed and recorded on the right one.
+/// </summary>
+public class UpdateCreditedSubjectDto
+{
+    public Guid SubjectId { get; set; }
+
+    [Required, MaxLength(200)]
+    public string SourceSchool { get; set; } = string.Empty;
+
+    [MaxLength(50)]
+    public string? SourceSubjectCode { get; set; }
+
+    [MaxLength(20)]
+    public string? Grade { get; set; }
+
+    [MaxLength(20)]
+    public string? SchoolYear { get; set; }
+
+    /// <summary>Units credited (more than 0, at most the DBTC subject's units).</summary>
+    public decimal CreditedUnits { get; set; }
+
+    /// <summary>1 = from a previous school, 2 = cross-enrolled during a DBTC term.</summary>
+    public int Kind { get; set; } = 1;
+
+    /// <summary>Required for cross-enrollment: the DBTC term it was taken during.</summary>
+    public Guid? TermId { get; set; }
+}
+
 public class CreditedSubjectDto
 {
     public Guid CreditedSubjectId { get; set; }
