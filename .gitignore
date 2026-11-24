@@ -4,6 +4,12 @@
 service-account.json
 dbtc-firebase-service-account.json
 
+# Local secrets: database connection strings, the mail app password, TEST_POSTGRES.
+# appsettings.json holds placeholders only; the real values belong in the environment.
+.env
+.env.*
+*.env
+
 # Build & OS Outputs
 bin/
 obj/
