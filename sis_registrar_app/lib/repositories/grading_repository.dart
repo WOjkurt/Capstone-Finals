@@ -84,55 +84,6 @@ class GradeClearanceRepository {
   }
 }
 
-class GradeCorrectionRepository {
-  final AuthService _auth;
-  GradeCorrectionRepository(this._auth);
-
-  Future<List<GradeCorrectionModel>> getPendingCorrections() async {
-    final headers = await _auth.getAuthHeaders();
-    final res = await http
-        .get(Uri.parse('$baseUrl/api/gradecorrections/pending'), headers: headers);
-    if (res.statusCode != 200) {
-      throw ApiException(
-          statusCode: res.statusCode, message: _extractMessage(res.body));
-    }
-    return (jsonDecode(res.body) as List)
-        .map((e) =>
-            GradeCorrectionModel.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<GradeCorrectionModel> approveCorrection(String id) async {
-    final headers = await _auth.getAuthHeaders();
-    final res = await http.patch(
-        Uri.parse('$baseUrl/api/gradecorrections/$id/approve'),
-        headers: headers,
-        body: '{}');
-    if (res.statusCode != 200) {
-      throw ApiException(
-          statusCode: res.statusCode, message: _extractMessage(res.body));
-    }
-    return GradeCorrectionModel.fromJson(
-        jsonDecode(res.body) as Map<String, dynamic>);
-  }
-
-  Future<GradeCorrectionModel> rejectCorrection(String id,
-      {String? reason}) async {
-    final headers = await _auth.getAuthHeaders();
-    final body = reason != null ? jsonEncode({'reason': reason}) : '{}';
-    final res = await http.patch(
-        Uri.parse('$baseUrl/api/gradecorrections/$id/reject'),
-        headers: headers,
-        body: body);
-    if (res.statusCode != 200) {
-      throw ApiException(
-          statusCode: res.statusCode, message: _extractMessage(res.body));
-    }
-    return GradeCorrectionModel.fromJson(
-        jsonDecode(res.body) as Map<String, dynamic>);
-  }
-}
-
 class UserSearchRepository {
   final AuthService _auth;
   UserSearchRepository(this._auth);

@@ -181,15 +181,15 @@ public class GradeService : IGradeService
 
         if (midtermConflict && finalConflict)
         {
-            throw new InvalidOperationException("Both MidtermGrade and FinalGrade have already been submitted. Use a GradeCorrection request to change them.");
+            throw new InvalidOperationException("Both the midterm and the final have already been submitted. The Registrar changes a recorded grade.");
         }
         if (midtermConflict)
         {
-            throw new InvalidOperationException("MidtermGrade has already been submitted. Use a GradeCorrection request to change it.");
+            throw new InvalidOperationException("The midterm has already been submitted. The Registrar changes a recorded grade.");
         }
         if (finalConflict)
         {
-            throw new InvalidOperationException("FinalGrade has already been submitted. Use a GradeCorrection request to change it.");
+            throw new InvalidOperationException("The final has already been submitted. The Registrar changes a recorded grade.");
         }
 
         if (midtermGrade.HasValue)

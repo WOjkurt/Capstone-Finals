@@ -58,7 +58,6 @@ public class SchoolYearPostgresTests
         s.AddScoped<IClassRepository, ClassRepository>();
         s.AddScoped<IStudyLoadRepository, StudyLoadRepository>();
         s.AddScoped<IGradeRepository, GradeRepository>();
-        s.AddScoped<IGradeCorrectionRepository, GradeCorrectionRepository>();
         s.AddScoped<IGradeClearanceRepository, GradeClearanceRepository>();
         s.AddScoped<IEnrollmentService, EnrollmentService>();
         s.AddScoped<ICreditedSubjectService, CreditedSubjectService>();
@@ -69,7 +68,6 @@ public class SchoolYearPostgresTests
         s.AddScoped<IActivityLogService, ActivityLogService>();
         s.AddScoped<IStudyLoadService, StudyLoadService>();
         s.AddScoped<IGradeService, GradeService>();
-        s.AddScoped<IGradeCorrectionService, GradeCorrectionService>();
         s.AddScoped<IGradeClearanceService, GradeClearanceService>();
         s.AddScoped<IProgramScopingService, ProgramScopingService>();
         _root = s.BuildServiceProvider();
@@ -84,6 +82,20 @@ public class SchoolYearPostgresTests
     private Task Step(Func<IServiceProvider, Task> work) => Step<object?>(async sp => { await work(sp); return null; });
 
     private static T Svc<T>(IServiceProvider sp) where T : notnull => sp.GetRequiredService<T>();
+
+    /// <summary>
+    /// Marks one term active. Changing a recorded grade is only allowed in the active term, so a
+    /// walkthrough that corrects an earlier term's mark has to say the school is in it.
+    /// </summary>
+    private Task Activate(Guid termId) => Step(async sp =>
+    {
+        var db = Svc<AppDbContext>(sp);
+        foreach (var t in await db.AcademicTerms.Where(t => t.TermID == _term1 || t.TermID == _term2).ToListAsync())
+        {
+            t.IsActive = t.TermID == termId;
+        }
+        await db.SaveChangesAsync();
+    });
 
     private static TC As<TC>(IServiceProvider sp, TC controller, Guid user, int role) where TC : ControllerBase
     {
@@ -179,8 +191,11 @@ public class SchoolYearPostgresTests
     private async Task Correct(string code, Guid term, decimal from, decimal to)
     {
         var grade = (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, term, _registrar, RoleUtils.Registrar))).Single(g => g.SubjectCode == code);
-        var c = await Step(sp => Svc<IGradeCorrectionService>(sp).RequestCorrectionAsync(new CreateGradeCorrectionDto { GradeId = grade.GradeId, CorrectionPeriod = 2, OldGrade = from, NewGrade = to, Reason = "Test" }, _teacher));
-        await Step(sp => Svc<IGradeCorrectionService>(sp).ApproveCorrectionAsync(c.CorrectionId, _registrar));
+        // The correction request is gone; the Registrar changes the grade directly now, which
+        // is only allowed while the school is in that term.
+        await Activate(term);
+        await Step(sp => Svc<IGradeService>(sp).ModifyAsync(grade.GradeId,
+            new Api.DTOs.Grading.ModifyGradeDto { FinalGrade = to, Reason = "Test" }, _registrar));
     }
 
     [PostgresFact]
@@ -471,11 +486,11 @@ public class SchoolYearPostgresTests
         await Step(sp => Svc<IGradeClearanceService>(sp).SetClearanceAsync(_student, _term1, true, _registrar));
         Assert.Equal(4, (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _student, RoleUtils.Student))).Count);
 
-        // Grade correction: 2.5 becomes 2.0.
+        // The Registrar changes a recorded grade: 2.5 becomes 2.0.
+        await Activate(_term1);
         var ge = (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _registrar, RoleUtils.Registrar))).Single(g => g.SubjectCode == "GE 101");
-        var correction = await Step(sp => Svc<IGradeCorrectionService>(sp).RequestCorrectionAsync(new CreateGradeCorrectionDto { GradeId = ge.GradeId, CorrectionPeriod = 2, OldGrade = 2.5m, NewGrade = 2.0m, Reason = "Encoding error" }, _teacher));
-        Assert.Contains(await Step(sp => Svc<IGradeCorrectionService>(sp).GetPendingAsync()), c => c.CorrectionId == correction.CorrectionId);
-        await Step(sp => Svc<IGradeCorrectionService>(sp).ApproveCorrectionAsync(correction.CorrectionId, _registrar));
+        await Step(sp => Svc<IGradeService>(sp).ModifyAsync(ge.GradeId,
+            new Api.DTOs.Grading.ModifyGradeDto { FinalGrade = 2.0m, Reason = "Encoding error" }, _registrar));
         Assert.Equal(2.0m, (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _registrar, RoleUtils.Registrar))).Single(g => g.SubjectCode == "GE 101").FinalGrade);
 
         // ── Next semester: a hold blocks enrollment ───────────────────────

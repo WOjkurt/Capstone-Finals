@@ -156,13 +156,6 @@ class _DashboardViewState extends State<DashboardView> {
                                 width: width,
                                 onTap: () => widget.onNavigate?.call('Pending loads'),
                               ),
-                              _buildMetricCard(
-                                title: 'Grade Corrections',
-                                count: loaded.pendingCorrectionsCount,
-                                subtitle: 'Teacher requests',
-                                width: width,
-                                onTap: () => widget.onNavigate?.call('Grade corrections'),
-                              ),
                             ],
                           );
                         },

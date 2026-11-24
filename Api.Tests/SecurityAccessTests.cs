@@ -128,7 +128,6 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
         "GET api/classes", "GET api/classes/{id:guid}", "GET api/classes/{classId:guid}/schedules",
         "GET api/grades/studyload/{studyLoadId:guid}", "GET api/grades/class/{classId:guid}", "GET api/grades/student/{userId:guid}",
         "GET api/gradeclearances/{userId:guid}",
-        "POST api/gradecorrections", "GET api/gradecorrections/mine", "GET api/gradecorrections/{id:guid}",
         "GET api/studyloads/student/{userId:guid}", "GET api/studyloads/class/{classId:guid}",
         "GET api/UserDetails/me", "GET api/Me",
     };
@@ -308,13 +307,6 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
         Assert.False(string.IsNullOrWhiteSpace(json.GetProperty("message").GetString()));
     }
 
-    [Fact]
-    public async Task GradeCorrection_ReasonOver500Characters_Returns400()
-    {
-        var body = new { gradeId = Guid1, correctionPeriod = 1, oldGrade = 2.0, newGrade = 1.5, reason = new string('x', 501) };
-        var response = await SendAsync("POST", "api/gradecorrections", SecurityApiFactory.Teacher, RoleUtils.Teacher, body);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
 
     [Fact]
     public async Task RefusedRequest_IsRecordedOnceInTheActivityLog()

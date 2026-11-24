@@ -531,53 +531,6 @@ public class CollegeHeadRoleTests : IDisposable
         Assert.Null(updatedDetails?.ProgramID);
     }
 
-    [Fact]
-    public async Task GradeCorrection_Request_CollegeHead_Returns403Forbidden()
-    {
-        var teacher = await CreateUserWithDetailsAsync("teacher@dbtc-cebu.edu.ph", RoleUtils.Teacher);
-        var collegeHead = await CreateUserWithDetailsAsync("ch@dbtc-cebu.edu.ph", RoleUtils.CollegeHead);
-        var student = await CreateUserWithDetailsAsync("student@dbtc-cebu.edu.ph", RoleUtils.Student);
-
-        var sub = new Subject { SubjectID = Guid.NewGuid(), SubjectCode = "CS101", SubjectTitle = "CS 101", ProgramID = 1 };
-        _context.Subjects.Add(sub);
-
-        var cls = new Class { ClassID = Guid.NewGuid(), ClassName = "CS101 - A", TermID = _term.TermID, SubjectID = sub.SubjectID, UserID = teacher.UserID };
-        _context.Classes.Add(cls);
-
-        var sl = new StudyLoad { StudyLoadID = Guid.NewGuid(), ClassID = cls.ClassID, UserID = student.UserID, LoadStatus = StudyLoadStatus.Enrolled };
-        _context.StudyLoads.Add(sl);
-
-        var grade = new Domain.Grading.Grade
-        {
-            GradeID = Guid.NewGuid(),
-            StudyLoadID = sl.StudyLoadID,
-            MidtermGrade = 2.0m,
-            SubmittedByUserID = teacher.UserID,
-            DateSubmitted = DateTime.UtcNow
-        };
-        _context.Grades.Add(grade);
-        await _context.SaveChangesAsync();
-
-        var gradeRepo = new GradeRepository(_context);
-        var correctionRepo = new GradeCorrectionRepository(_context);
-        var correctionService = new GradeCorrectionService(_context, correctionRepo, gradeRepo);
-        var controller = new GradeCorrectionsController(correctionService);
-
-        SetControllerContext(controller, RoleUtils.CollegeHead, collegeHead.UserID);
-
-        var reqDto = new DTOs.Grading.CreateGradeCorrectionDto
-        {
-            GradeId = grade.GradeID,
-            CorrectionPeriod = 1,
-            OldGrade = 2.0m,
-            NewGrade = 1.5m,
-            Reason = "Re-evaluation"
-        };
-
-        var result = await controller.RequestCorrection(reqDto);
-        var objResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
-    }
 
     [Fact]
     public void WriteEndpoints_DecoratedWithForbiddenAttributesForCollegeHead()
@@ -609,9 +562,8 @@ public class CollegeHeadRoleTests : IDisposable
         AssertActionHasFilter<GradesController>("SubmitGrade", typeof(RequireTeacherAttribute));
         AssertActionHasFilter<GradesController>("SubmitGradeBatch", typeof(RequireTeacherAttribute));
 
-        // 5. GradeCorrectionsController write actions -> RequireRegistrarOrAdmin
-        AssertActionHasFilter<GradeCorrectionsController>("ApproveCorrection", typeof(RequireRegistrarOrAdminAttribute));
-        AssertActionHasFilter<GradeCorrectionsController>("RejectCorrection", typeof(RequireRegistrarOrAdminAttribute));
+        // 5. Changing a recorded grade replaced the correction workflow -> RequireRegistrarOrAdmin
+        AssertActionHasFilter<GradesController>("Modify", typeof(RequireRegistrarOrAdminAttribute));
 
         // 6. GradeClearancesController write actions -> RequireRegistrarOrAdmin
         AssertActionHasFilter<GradeClearancesController>("SetClearance", typeof(RequireRegistrarOrAdminAttribute));

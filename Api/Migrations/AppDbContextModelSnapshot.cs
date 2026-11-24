@@ -1060,54 +1060,6 @@ namespace Api.Migrations
                     b.ToTable("GradeClearances");
                 });
 
-            modelBuilder.Entity("Api.Domain.Grading.GradeCorrection", b =>
-                {
-                    b.Property<Guid>("CorrectionID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("CorrectionPeriod")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("CorrectionStatus")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("DateRequested")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateReviewed")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("GradeID")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("NewGrade")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("OldGrade")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("RequestedByUserID")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ReviewedByUserID")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("CorrectionID");
-
-                    b.HasIndex("GradeID");
-
-                    b.HasIndex("RequestedByUserID");
-
-                    b.HasIndex("ReviewedByUserID");
-
-                    b.ToTable("GradeCorrections");
-                });
-
             modelBuilder.Entity("Api.Domain.IdentityAccess.Position", b =>
                 {
                     b.Property<Guid>("PositionID")
@@ -1576,32 +1528,6 @@ namespace Api.Migrations
                     b.Navigation("Term");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Api.Domain.Grading.GradeCorrection", b =>
-                {
-                    b.HasOne("Api.Domain.Grading.Grade", "Grade")
-                        .WithMany()
-                        .HasForeignKey("GradeID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Api.Domain.IdentityAccess.User", "RequestedByUser")
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Api.Domain.IdentityAccess.User", "ReviewedByUser")
-                        .WithMany()
-                        .HasForeignKey("ReviewedByUserID")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Grade");
-
-                    b.Navigation("RequestedByUser");
-
-                    b.Navigation("ReviewedByUser");
                 });
 
             modelBuilder.Entity("Api.Domain.IdentityAccess.UserDetails", b =>

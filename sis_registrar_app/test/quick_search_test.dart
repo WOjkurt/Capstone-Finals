@@ -9,7 +9,6 @@ import 'package:http/testing.dart';
 import 'package:sis_registrar_app/blocs/applications_bloc.dart';
 import 'package:sis_registrar_app/blocs/auth_bloc.dart';
 import 'package:sis_registrar_app/blocs/clearance_bloc.dart';
-import 'package:sis_registrar_app/blocs/corrections_bloc.dart';
 import 'package:sis_registrar_app/blocs/dashboard_bloc.dart';
 import 'package:sis_registrar_app/blocs/link_accounts_bloc.dart';
 import 'package:sis_registrar_app/blocs/responses_bloc.dart';
@@ -101,7 +100,6 @@ Future<ClearanceBloc> _pumpApp(WidgetTester tester, {double width = 1440}) async
         ),
         BlocProvider<ClearanceBloc>.value(value: clearance),
         BlocProvider<SetupBloc>(create: (_) => getIt<SetupBloc>()),
-        BlocProvider<CorrectionsBloc>(create: (_) => getIt<CorrectionsBloc>()),
         BlocProvider<StaffBloc>(create: (_) => getIt<StaffBloc>()),
       ],
       child: MaterialApp(
@@ -126,12 +124,12 @@ void main() {
     _searchDelay = Duration.zero;
   });
 
-  testWidgets('a calm menu: 7 page links and badges only; Ctrl+K jumps to the Students search', (tester) async {
+  testWidgets('a calm menu: 6 page links and badges only; Ctrl+K jumps to the Students search', (tester) async {
     await http.runWithClient(() async {
       final clearance = await _pumpApp(tester);
 
       final titles = MainLayoutView.buildNavItems(role: 2, roleName: 'Registrar').map((i) => i['title']).toList();
-      expect(titles, ['Dashboard', 'Admissions', 'Students', 'Pending loads', 'Grade corrections', 'Reports', 'Setup']);
+      expect(titles, ['Dashboard', 'Admissions', 'Students', 'Pending loads', 'Reports', 'Setup']);
       for (final t in titles) {
         expect(find.byKey(ValueKey('nav_$t')), findsOneWidget, reason: t);
       }

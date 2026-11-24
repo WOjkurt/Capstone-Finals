@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/auth_bloc.dart';
 import 'blocs/classes_bloc.dart';
 import 'blocs/faculty_bloc.dart';
-import 'blocs/grade_corrections_bloc.dart';
 import 'blocs/grades_bloc.dart';
 import 'blocs/program_overview_bloc.dart';
 import 'firebase_options.dart';
@@ -49,9 +48,6 @@ class SisTeacherApp extends StatelessWidget {
         ),
         BlocProvider<GradesBloc>(
           create: (_) => getIt<GradesBloc>(),
-        ),
-        BlocProvider<GradeCorrectionsBloc>(
-          create: (_) => getIt<GradeCorrectionsBloc>(),
         ),
         BlocProvider<ProgramOverviewBloc>(
           create: (_) => getIt<ProgramOverviewBloc>(),

@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/applications_bloc.dart';
 import 'blocs/auth_bloc.dart';
 import 'blocs/clearance_bloc.dart';
-import 'blocs/corrections_bloc.dart';
 import 'blocs/dashboard_bloc.dart';
 import 'blocs/link_accounts_bloc.dart';
 import 'blocs/responses_bloc.dart';
@@ -64,9 +63,6 @@ class SisRegistrarApp extends StatelessWidget {
         ),
         BlocProvider<SetupBloc>(
           create: (_) => getIt<SetupBloc>(),
-        ),
-        BlocProvider<CorrectionsBloc>(
-          create: (_) => getIt<CorrectionsBloc>(),
         ),
         BlocProvider<StaffBloc>(
           create: (_) => getIt<StaffBloc>(),

@@ -24,23 +24,22 @@ void main() {
     expect(theme.scaffoldBackgroundColor, AppColors.scaffoldBg);
   });
 
-  test('MainLayoutView nav items for Teacher role (3) contains 3 items', () {
+  test('MainLayoutView nav items for Teacher role (3) contains 2 items', () {
     final items = MainLayoutView.buildNavItems(role: 3, roleName: 'Teacher');
-    expect(items.length, 3);
+    expect(items.length, 2);
+    // Grade Corrections is gone: the Registrar changes a recorded grade directly now.
     expect(items.map((i) => i['title']).toList(), [
       'My Classes',
       'Grades',
-      'Grade Corrections',
     ]);
   });
 
-  test('MainLayoutView nav items for Program Head role (4) contains 5 items including Program Overview and Faculty', () {
+  test('MainLayoutView nav items for Program Head role (4) contains 4 items including Program Overview and Faculty', () {
     final items = MainLayoutView.buildNavItems(role: 4, roleName: 'Program Head');
-    expect(items.length, 5);
+    expect(items.length, 4);
     expect(items.map((i) => i['title']).toList(), [
       'My Classes',
       'Grades',
-      'Grade Corrections',
       'Program Overview',
       'Faculty',
     ]);

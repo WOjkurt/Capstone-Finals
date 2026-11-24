@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/auth_bloc.dart';
 import '../theme/app_theme.dart';
 import 'faculty_view.dart';
-import 'grade_corrections_view.dart';
 import 'grades_view.dart';
 import 'my_classes_view.dart';
 import 'program_overview_view.dart';
@@ -31,11 +30,6 @@ class MainLayoutView extends StatefulWidget {
         'title': 'Grades',
         'icon': Icons.grade_outlined,
         'activeIcon': Icons.grade_rounded,
-      },
-      {
-        'title': 'Grade Corrections',
-        'icon': Icons.assignment_late_outlined,
-        'activeIcon': Icons.assignment_late_rounded,
       },
     ];
 
@@ -137,8 +131,6 @@ class _MainLayoutViewState extends State<MainLayoutView> {
           auth: widget.auth,
           initialClassId: _selectedGradesClassId,
         );
-      case 'Grade Corrections':
-        return const GradeCorrectionsView();
       case 'Program Overview':
         return const ProgramOverviewView();
       case 'Faculty':

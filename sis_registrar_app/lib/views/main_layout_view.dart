@@ -8,7 +8,6 @@ import '../theme/app_theme.dart';
 import 'accounting_view.dart';
 import 'admissions_view.dart';
 import 'clearance_view.dart';
-import 'corrections_view.dart';
 import 'dashboard_view.dart';
 import 'pending_loads_view.dart';
 import 'profile_view.dart';
@@ -65,12 +64,6 @@ class MainLayoutView extends StatefulWidget {
         'icon': Icons.pending_actions_outlined,
         'activeIcon': Icons.pending_actions_rounded,
         'badge': 'pendingLoads',
-      },
-      {
-        'title': 'Grade corrections',
-        'icon': Icons.assignment_late_outlined,
-        'activeIcon': Icons.assignment_late_rounded,
-        'badge': 'corrections',
       },
       {
         'title': 'Reports',
@@ -169,8 +162,6 @@ class _MainLayoutViewState extends State<MainLayoutView> {
         return ClearanceView(searchFocus: _studentSearchFocus);
       case 'Pending loads':
         return const PendingLoadsView();
-      case 'Grade corrections':
-        return const CorrectionsView();
       case 'Reports':
         return ReportsView(tab: _reportsTab);
       case 'Setup':
@@ -191,7 +182,6 @@ class _MainLayoutViewState extends State<MainLayoutView> {
         state.unprocessedResponsesCount +
             state.pendingApplicationsCount +
             state.approvedApplicationsCount,
-      'corrections' => state.pendingCorrectionsCount,
       'pendingLoads' => state.pendingLoadsCount,
       _ => 0,
     };

@@ -20,14 +20,12 @@ class DashboardLoaded extends DashboardState {
   final int unprocessedResponsesCount;
   final int pendingApplicationsCount;
   final int approvedApplicationsCount;
-  final int pendingCorrectionsCount;
   final int pendingLoadsCount;
 
   DashboardLoaded({
     required this.unprocessedResponsesCount,
     required this.pendingApplicationsCount,
     required this.approvedApplicationsCount,
-    required this.pendingCorrectionsCount,
     this.pendingLoadsCount = 0,
   });
 }
@@ -40,10 +38,9 @@ class DashboardError extends DashboardState {
 // Bloc
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final EnrollmentRepository _enrollmentRepo;
-  final GradeCorrectionRepository _correctionRepo;
   final ClassRepository? _classRepo;
 
-  DashboardBloc(this._enrollmentRepo, this._correctionRepo, [this._classRepo])
+  DashboardBloc(this._enrollmentRepo, [this._classRepo])
       : super(DashboardInitial()) {
     on<LoadDashboardData>(_onLoadDashboardData);
   }
@@ -56,13 +53,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         _enrollmentRepo.getUnprocessedResponses(),
         _enrollmentRepo.getApplications('pending'),
         _enrollmentRepo.getApplications('approved'),
-        _correctionRepo.getPendingCorrections(),
       ]);
 
       final unprocessed = results[0] as List;
       final pendingApps = results[1] as List;
       final approvedApps = results[2] as List;
-      final pendingCorrections = results[3] as List;
 
       // Pending loads only feed a card and a menu badge; a failure here must not hide the rest.
       var pendingLoads = 0;
@@ -74,7 +69,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         unprocessedResponsesCount: unprocessed.length,
         pendingApplicationsCount: pendingApps.length,
         approvedApplicationsCount: approvedApps.length,
-        pendingCorrectionsCount: pendingCorrections.length,
         pendingLoadsCount: pendingLoads,
       ));
     } catch (e, st) {

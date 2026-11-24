@@ -97,14 +97,7 @@ DROP POLICY IF EXISTS "GradeClearances_write" ON "GradeClearances";
 CREATE POLICY "GradeClearances_write" ON "GradeClearances" FOR ALL
   USING (app.is_registrar()) WITH CHECK (app.is_registrar());
 
-ALTER TABLE "GradeCorrections" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "GradeCorrections_read" ON "GradeCorrections";
-CREATE POLICY "GradeCorrections_read" ON "GradeCorrections" FOR SELECT USING (
-  app.is_staff() OR app.owns("RequestedByUserID")
-);
-DROP POLICY IF EXISTS "GradeCorrections_write" ON "GradeCorrections";
-CREATE POLICY "GradeCorrections_write" ON "GradeCorrections" FOR ALL
-  USING (app.is_staff()) WITH CHECK (app.is_staff());
+-- GradeCorrections is gone; the Registrar changes a grade directly now.
 
 -- ── Student records ───────────────────────────────────────────────────────────
 ALTER TABLE "StudentPersonalDetails" ENABLE ROW LEVEL SECURITY;

@@ -8,7 +8,6 @@ import 'package:http/testing.dart';
 import 'package:sis_teacher_app/blocs/auth_bloc.dart';
 import 'package:sis_teacher_app/blocs/classes_bloc.dart';
 import 'package:sis_teacher_app/blocs/faculty_bloc.dart';
-import 'package:sis_teacher_app/blocs/grade_corrections_bloc.dart';
 import 'package:sis_teacher_app/blocs/grades_bloc.dart';
 import 'package:sis_teacher_app/blocs/program_overview_bloc.dart';
 import 'package:sis_teacher_app/injection.dart';
@@ -33,7 +32,6 @@ Widget buildTeacherApp(AuthenticatedState auth) => MultiBlocProvider(
         BlocProvider<AuthBloc>(create: (_) => AuthBloc(getIt<AuthService>())),
         BlocProvider<ClassesBloc>(create: (_) => getIt<ClassesBloc>()),
         BlocProvider<GradesBloc>(create: (_) => getIt<GradesBloc>()),
-        BlocProvider<GradeCorrectionsBloc>(create: (_) => getIt<GradeCorrectionsBloc>()),
         BlocProvider<ProgramOverviewBloc>(create: (_) => getIt<ProgramOverviewBloc>()),
         BlocProvider<FacultyBloc>(create: (_) => getIt<FacultyBloc>()),
       ],
@@ -46,10 +44,10 @@ void main() {
 
   test('teachers get 3 pages; Program Heads get 2 more, set apart by a gap', () {
     final t = MainLayoutView.buildNavItems(role: 3, roleName: 'Teacher');
-    expect(t.map((i) => i['title']), ['My Classes', 'Grades', 'Grade Corrections']);
+    expect(t.map((i) => i['title']), ['My Classes', 'Grades']);
 
     final h = MainLayoutView.buildNavItems(role: 4, roleName: 'Program Head');
-    expect(h.map((i) => i['title']), ['My Classes', 'Grades', 'Grade Corrections', 'Program Overview', 'Faculty']);
+    expect(h.map((i) => i['title']), ['My Classes', 'Grades', 'Program Overview', 'Faculty']);
     expect(h.firstWhere((i) => i['title'] == 'Program Overview')['gapBefore'], isTrue);
   });
 
@@ -75,7 +73,7 @@ void main() {
       await pump(tester, teacher);
 
       expect(find.byKey(const ValueKey('full_sidebar')), findsOneWidget);
-      for (final t in ['My Classes', 'Grades', 'Grade Corrections']) {
+      for (final t in ['My Classes', 'Grades']) {
         expect(find.byKey(ValueKey('nav_$t')), findsOneWidget, reason: t);
       }
       expect(find.text('Ben Teach'), findsOneWidget);

@@ -40,7 +40,6 @@ builder.Services.AddScoped<IClassRepository, ClassRepository>();
 builder.Services.AddScoped<IClassScheduleRepository, ClassScheduleRepository>();
 builder.Services.AddScoped<IStudyLoadRepository, StudyLoadRepository>();
 builder.Services.AddScoped<IGradeRepository, GradeRepository>();
-builder.Services.AddScoped<IGradeCorrectionRepository, GradeCorrectionRepository>();
 builder.Services.AddScoped<IGradeClearanceRepository, GradeClearanceRepository>();
 
 // Service Registrations
@@ -80,7 +79,6 @@ builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IClassScheduleService, ClassScheduleService>();
 builder.Services.AddScoped<IStudyLoadService, StudyLoadService>();
 builder.Services.AddScoped<IGradeService, GradeService>();
-builder.Services.AddScoped<IGradeCorrectionService, GradeCorrectionService>();
 builder.Services.AddScoped<IGradeClearanceService, GradeClearanceService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddScoped<IProgramScopingService, ProgramScopingService>();

@@ -36,7 +36,6 @@ public class AppDbContext : DbContext
 
     // Grading
     public DbSet<Grade> Grades { get; set; }
-    public DbSet<GradeCorrection> GradeCorrections { get; set; }
     public DbSet<GradeClearance> GradeClearances { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -338,25 +337,6 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(g => g.ModifiedByUserID)
                 .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // ── GradeCorrection ─────────────────────────────────────────
-        modelBuilder.Entity<GradeCorrection>(entity =>
-        {
-            entity.HasOne(gc => gc.Grade)
-                .WithMany()
-                .HasForeignKey(gc => gc.GradeID)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(gc => gc.RequestedByUser)
-                .WithMany()
-                .HasForeignKey(gc => gc.RequestedByUserID)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(gc => gc.ReviewedByUser)
-                .WithMany()
-                .HasForeignKey(gc => gc.ReviewedByUserID)
-                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── GradeClearance ──────────────────────────────────────────
