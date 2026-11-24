@@ -20,6 +20,9 @@ public class GradeRepository : IGradeRepository
             .Include(g => g.StudyLoad)
                 .ThenInclude(sl => sl!.Class)
                     .ThenInclude(c => c!.Subject)
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.Class)
+                    .ThenInclude(c => c!.Term)
             .Include(g => g.SubmittedByUser)
             .FirstOrDefaultAsync(g => g.GradeID == gradeId);
     }
@@ -32,6 +35,9 @@ public class GradeRepository : IGradeRepository
             .Include(g => g.StudyLoad)
                 .ThenInclude(sl => sl!.Class)
                     .ThenInclude(c => c!.Subject)
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.Class)
+                    .ThenInclude(c => c!.Term)
             .Include(g => g.SubmittedByUser)
             .FirstOrDefaultAsync(g => g.StudyLoadID == studyLoadId);
     }
@@ -44,6 +50,9 @@ public class GradeRepository : IGradeRepository
             .Include(g => g.StudyLoad)
                 .ThenInclude(sl => sl!.Class)
                     .ThenInclude(c => c!.Subject)
+            .Include(g => g.StudyLoad)
+                .ThenInclude(sl => sl!.Class)
+                    .ThenInclude(c => c!.Term)
             .Include(g => g.SubmittedByUser)
             .Where(g => g.SubmittedByUserID == userId)
             .ToListAsync();

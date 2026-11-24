@@ -504,8 +504,18 @@ public class GradeService : IGradeService
         GradeScale.EnsureValid(dto.MidtermGrade);
         GradeScale.EnsureValid(dto.FinalGrade);
 
-        var term = grade.StudyLoad?.Class?.Term;
-        if (term == null || !term.IsActive)
+        // Asked of the database rather than read off a loaded navigation. A safety check that
+        // depends on an Include is one a missing Include can switch off, and this one is the
+        // difference between fixing last week's mark and reopening a transcript. The repository
+        // did not load Class.Term at all until this was found: in-memory tests passed because
+        // the provider fills navigations in by fixup, and Postgres would have refused every
+        // change instead.
+        var inActiveTerm = await _context.Grades
+            .AsNoTracking()
+            .Where(g => g.GradeID == gradeId)
+            .AnyAsync(g => g.StudyLoad!.Class!.Term!.IsActive);
+
+        if (!inActiveTerm)
         {
             throw new InvalidOperationException(
                 "Only grades in the term that is currently active can be changed. For an earlier term, "
