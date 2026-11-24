@@ -307,13 +307,7 @@ public partial class ReenrollmentService : IReenrollmentService
         }
     }
 
-    private static int? AgeOn(DateOnly birth, DateOnly today)
-    {
-        if (birth == default || birth > today) return null;
-        int age = today.Year - birth.Year;
-        if (birth > today.AddYears(-age)) age--;
-        return age;
-    }
+    private static int? AgeOn(DateOnly birth, DateOnly today) => Ages.On(birth, today);
 
     private static string Truncate(string text, int max) => text.Length <= max ? text : text[..max];
 

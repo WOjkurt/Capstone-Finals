@@ -56,6 +56,7 @@ builder.Services.AddScoped<IEnrollmentHoldService, EnrollmentHoldService>();
 builder.Services.AddScoped<ICurriculumService, CurriculumService>();
 builder.Services.AddScoped<IRecordsImportService, RecordsImportService>();
 builder.Services.AddScoped<IReenrollmentService, ReenrollmentService>();
+builder.Services.AddScoped<IPublicEnrollmentService, PublicEnrollmentService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IStudentRecordService, StudentRecordService>();
 builder.Services.AddScoped<IAccreditedSchoolService, AccreditedSchoolService>();
@@ -200,6 +201,21 @@ builder.Services.AddRateLimiter(options =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
         var limit = config.GetValue("RateLimiting:ReenrollPermitLimit", 5);
+        return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = limit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+
+    // Policy "enroll-public": applying from the public page, with no account behind the request.
+    // Tighter than the webhook's 60, because nothing else identifies the caller — a real applicant
+    // submits once, and the page asks for the status once before that.
+    options.AddPolicy("enroll-public", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var limit = config.GetValue("RateLimiting:PublicEnrollPermitLimit", 5);
         return RateLimitPartition.GetFixedWindowLimiter(RateLimitKey(httpContext), _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = limit,

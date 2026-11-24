@@ -5,7 +5,11 @@ import '../theme/app_theme.dart';
 import 'widgets/password_reset.dart';
 
 class LoginView extends StatefulWidget {
-  const LoginView({super.key});
+  /// Opens the public enrollment form. Null hides the way in — nothing on this page should
+  /// offer it unless there is somewhere for it to go.
+  final VoidCallback? onApply;
+
+  const LoginView({super.key, this.onApply});
 
   @override
   State<LoginView> createState() => _LoginViewState();
@@ -370,6 +374,42 @@ class _LoginViewState extends State<LoginView> {
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                   ),
+
+                  // Applying is not signing in, so it sits below a divider rather than among the
+                  // account buttons: the people who need it have no account and no school email,
+                  // and would otherwise read "Sign Up" as the way in and be turned away.
+                  if (widget.onApply != null) ...[
+                    const SizedBox(height: 20),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Not a student here yet?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      key: const ValueKey('enroll_button'),
+                      onPressed: widget.onApply,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.how_to_reg_outlined, size: 18),
+                      label: const Text(
+                        'Enroll at DBTC-Cebu',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Apply as a new student or a transferee. No account needed.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                    ),
+                  ],
                 ],
               ),
             ),

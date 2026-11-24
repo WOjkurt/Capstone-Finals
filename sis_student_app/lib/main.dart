@@ -7,6 +7,8 @@ import 'blocs/auth_bloc.dart';
 import 'firebase_options.dart';
 import 'injection.dart';
 import 'services/auth_service.dart';
+import 'repositories/public_enrollment_repository.dart';
+import 'views/apply_view.dart';
 import 'views/login_view.dart';
 import 'views/main_layout_view.dart';
 import 'views/verify_email_view.dart';
@@ -51,8 +53,17 @@ class SisStudentApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  /// Applying happens in front of the gate, not behind it: an applicant has no account, so
+  /// there is no signed-in state for the form to live in.
+  bool _applying = false;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +75,13 @@ class AuthGate extends StatelessWidget {
         if (state is EmailVerificationRequiredState) {
           return VerifyEmailView(state: state);
         }
-        return const LoginView();
+        if (_applying) {
+          return ApplyView(
+            repository: getIt<PublicEnrollmentRepository>(),
+            onBackToSignIn: () => setState(() => _applying = false),
+          );
+        }
+        return LoginView(onApply: () => setState(() => _applying = true));
       },
     );
   }

@@ -5,79 +5,22 @@ import '../models/reenrollment_models.dart';
 import '../repositories/reenrollment_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_handler.dart';
-import '../utils/phone_zip.dart';
+import 'widgets/enrollment_fields.dart';
 import 'widgets/page_header.dart';
 
 final _day = DateFormat('MMM d, yyyy');
 
-/// One field of the form: its key in the API's form, its label, and how to check it.
-class _Field {
-  final String key;
-  final String label;
-  final bool required;
-  final String? Function(String?)? check;
-  final List<String>? choices;
-  final bool wide;
-  final bool number;
+// The fields themselves live in widgets/enrollment_fields.dart, shared with the public
+// application form so the two cannot ask for different things. These names are kept so the
+// rest of this file reads as it did.
+typedef _Field = EnrollmentField;
 
-  const _Field(this.key, this.label,
-      {this.required = false, this.check, this.choices, this.wide = false, this.number = false});
-}
-
-const _personal = [
-  _Field('lastName', 'Last name'),
-  _Field('firstName', 'First name'),
-  _Field('middleName', 'Middle name'),
-  _Field('suffix', 'Suffix'),
-  _Field('dateOfBirth', 'Date of birth'),
-  _Field('placeOfBirth', 'Place of birth'),
-  _Field('sex', 'Sex'),
-  _Field('lrn', 'LRN'),
-  _Field('civilStatus', 'Civil status', required: true, choices: ['Single', 'Married', 'Widowed', 'Separated']),
-  _Field('nationality', 'Nationality', required: true),
-  _Field('religion', 'Religion'),
-  _Field('gender', 'Gender identity'),
-  _Field('bloodType', 'Blood type'),
-  _Field('facebookName', 'Facebook name'),
-];
-
-const _address = [
-  _Field('mobileNumber', 'Mobile number', required: true, check: mobileError),
-  _Field('houseStreet', 'House no. / street', wide: true),
-  _Field('barangay', 'Barangay', required: true),
-  _Field('cityMunicipality', 'City / municipality', required: true),
-  _Field('province', 'Province', required: true),
-  _Field('zipCode', 'ZIP code', required: true, check: zipError),
-  _Field('provHouseStreet', 'Provincial house no. / street', wide: true),
-  _Field('provBarangay', 'Provincial barangay'),
-  _Field('provCityMunicipality', 'Provincial city / municipality'),
-  _Field('provProvince', 'Provincial province'),
-  _Field('provZipCode', 'Provincial ZIP code', check: zipError),
-];
-
-const _family = [
-  _Field('birthOrder', 'Birth order'),
-  _Field('numberOfSiblings', 'Number of siblings', number: true),
-  _Field('familyStatus', 'Family status'),
-];
-
-const _health = [
-  _Field('ongoingMedications', 'Medicines you take now', wide: true),
-  _Field('developmentalConditions', 'Developmental conditions', wide: true),
-  _Field('otherMedicalDiagnosis', 'Other medical diagnosis', wide: true),
-  _Field('familyMedicalConditionsNotes', 'Family medical history notes', wide: true),
-];
-
-const _contactFields = [
-  _Field('lastName', 'Last name', required: true),
-  _Field('firstName', 'First name', required: true),
-  _Field('contactNo', 'Contact number', required: true, check: phoneError),
-  _Field('occupation', 'Occupation'),
-  _Field('email', 'Email'),
-  _Field('workplace', 'Workplace'),
-];
-
-const _relations = {1: 'Father', 2: 'Mother', 3: 'Guardian'};
+const _personal = enrollmentPersonalFields;
+const _address = enrollmentAddressFields;
+const _family = enrollmentFamilyFields;
+const _health = enrollmentHealthFields;
+const _contactFields = enrollmentContactFields;
+const _relations = enrollmentRelations;
 
 /// Old students enroll for the next term here, with last time's information already filled in.
 class EnrollmentView extends StatefulWidget {
@@ -154,12 +97,7 @@ class _EnrollmentViewState extends State<EnrollmentView> {
   }
 
   /// What is wrong with a value, or null. Used by the fields and to check hidden fields before Next.
-  static String? _problem(_Field f, Object? raw) {
-    final t = _text(raw);
-    if (f.required && t.isEmpty) return '${f.label} is required';
-    if (f.number && t.isNotEmpty && int.tryParse(t) == null) return 'Numbers only';
-    return f.check?.call(t);
-  }
+  static String? _problem(_Field f, Object? raw) => fieldProblem(f, raw);
 
   /// Checks this step only. Fields folded away (provincial address, a parent's card) are opened first
   /// when they have a mistake, so the student sees it.
@@ -235,7 +173,7 @@ class _EnrollmentViewState extends State<EnrollmentView> {
     );
   }
 
-  static String _text(Object? v) => v == null ? '' : '$v'.trim();
+  static String _text(Object? v) => fieldText(v);
 
   bool _changed(String key) => _text(_form[key]) != _text(_original[key]);
 
@@ -770,143 +708,15 @@ class _EnrollmentViewState extends State<EnrollmentView> {
 
   /// A responsive grid: one column on phones, two or three on wider screens.
   Widget _fields(Map<String, dynamic> data, List<_Field> fields, Set<String> locked, bool Function(String) changed,
-      {String prefix = 'f'}) {
-    return LayoutBuilder(builder: (context, box) {
-      final columns = box.maxWidth < 520 ? 1 : (box.maxWidth < 760 ? 2 : 3);
-      const gap = 12.0;
-      final cell = (box.maxWidth - gap * (columns - 1)) / columns;
-      // On a phone, fields the student cannot change are one short card instead of a tall box each.
-      final compact = columns == 1 && fields.any((f) => locked.contains(f.key));
-      final shownAsBoxes = compact ? fields.where((f) => !locked.contains(f.key)) : fields;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (compact) ...[
-            _lockedCard(data, [for (final f in fields) if (locked.contains(f.key)) f]),
-            const SizedBox(height: gap),
-          ],
-          Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (final f in shownAsBoxes)
-                SizedBox(
-                  width: f.wide && columns > 1 ? cell * 2 + gap : cell,
-                  child: _field(data, f, locked.contains(f.key), changed(f.key), prefix),
-                ),
-            ],
-          ),
-        ],
+      {String prefix = 'f'}) =>
+      EnrollmentFieldGrid(
+        data: data,
+        fields: fields,
+        locked: locked,
+        changed: changed,
+        prefix: prefix,
+        onChanged: (key, value) => setState(() => data[key] = value),
       );
-    });
-  }
-
-  String _shown(Map<String, dynamic> data, _Field f) {
-    final value = _text(data[f.key]);
-    if (f.key == 'dateOfBirth' && DateTime.tryParse(value) != null) return _day.format(DateTime.parse(value));
-    return value.isEmpty ? '—' : value;
-  }
-
-  /// Phone view of the locked fields: label and value rows in one grey card.
-  Widget _lockedCard(Map<String, dynamic> data, List<_Field> fields) => Container(
-        key: const ValueKey('locked_card'),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        decoration: BoxDecoration(color: AppColors.borderSubtle, borderRadius: BorderRadius.circular(8)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.textMuted),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text('Only the Registrar can change these',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            for (final f in fields)
-              Padding(
-                key: ValueKey('locked:${f.key}'),
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 104,
-                      child: Text(f.label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ),
-                    Expanded(
-                      child: Text(_shown(data, f),
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      );
-
-  Widget _field(Map<String, dynamic> data, _Field f, bool locked, bool changed, String prefix) {
-    final value = _text(data[f.key]);
-    if (locked) {
-      final shown = f.key == 'dateOfBirth' && DateTime.tryParse(value) != null
-          ? _day.format(DateTime.parse(value))
-          : (value.isEmpty ? '—' : value);
-      return InputDecorator(
-        key: ValueKey('$prefix:${f.key}'),
-        decoration: InputDecoration(
-          labelText: f.label,
-          border: const OutlineInputBorder(),
-          filled: true,
-          fillColor: AppColors.borderSubtle,
-          suffixIcon: const Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.textMuted),
-        ),
-        child: Text(shown, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
-      );
-    }
-
-    final decoration = InputDecoration(
-      labelText: f.required ? '${f.label} *' : f.label,
-      border: const OutlineInputBorder(),
-      errorMaxLines: 2,
-      helperText: changed ? 'changed' : null,
-      helperStyle: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.w700),
-      enabledBorder: changed
-          ? const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFF59E0B), width: 1.5))
-          : null,
-      filled: changed,
-      fillColor: changed ? AppColors.accentAmberLight : null,
-    );
-    String? validate(String? v) => _problem(f, v);
-
-    if (f.choices != null) {
-      final choices = [...f.choices!, if (value.isNotEmpty && !f.choices!.contains(value)) value];
-      return DropdownButtonFormField<String>(
-        key: ValueKey('$prefix:${f.key}'),
-        initialValue: value.isEmpty ? null : value,
-        isExpanded: true,
-        decoration: decoration,
-        items: [for (final c in choices) DropdownMenuItem(value: c, child: Text(c))],
-        validator: validate,
-        onChanged: (v) => setState(() => data[f.key] = v),
-      );
-    }
-    return TextFormField(
-      key: ValueKey('$prefix:${f.key}'),
-      initialValue: value,
-      decoration: decoration,
-      keyboardType: f.number || f.check == mobileError || f.check == zipError || f.check == phoneError
-          ? TextInputType.phone
-          : TextInputType.text,
-      validator: validate,
-      onChanged: (v) => setState(() {
-        final t = v.trim();
-        data[f.key] = f.number ? (t.isEmpty ? null : int.tryParse(t)) : (t.isEmpty && data[f.key] == null ? null : v);
-      }),
-    );
-  }
 }
 
 /// A short message card: closed, can't enroll yet, or an error.

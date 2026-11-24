@@ -187,10 +187,24 @@ ALTER TABLE "EnrollmentResponses" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "EnrollmentResponses_staff" ON "EnrollmentResponses";
 DROP POLICY IF EXISTS "EnrollmentResponses_read" ON "EnrollmentResponses";
 CREATE POLICY "EnrollmentResponses_read" ON "EnrollmentResponses" FOR SELECT
-  USING (app.is_staff() OR app.role() = -1 OR app.owns_response("ResponseID"));
+  USING (app.is_staff() OR app.role() = -1 OR app.role() = -2 OR app.owns_response("ResponseID"));
 DROP POLICY IF EXISTS "EnrollmentResponses_webhook_insert" ON "EnrollmentResponses";
 CREATE POLICY "EnrollmentResponses_webhook_insert" ON "EnrollmentResponses" FOR INSERT
   WITH CHECK (app.is_staff() OR app.role() = -1);
+
+-- Someone applying from the public page, who has no account at all (role -2, set by
+-- PublicEnrollmentController and by nothing else). They may add an unprocessed response and
+-- nothing more: no update, no delete, and IsProcessed false, so a stranger cannot post a
+-- submission that looks like one the Registrar has already dealt with.
+--
+-- The read above includes -2 because recording a response first looks for an identical one from
+-- the same address -- the check that stops a double-tapped Submit becoming two applications.
+-- Without a row to read, that check silently passes and the Registrar gets the duplicate. No
+-- anonymous endpoint returns a response, so this widens what the policy allows, not what the API
+-- gives out, the same bargain already made for the Forms webhook at -1.
+DROP POLICY IF EXISTS "EnrollmentResponses_public_insert" ON "EnrollmentResponses";
+CREATE POLICY "EnrollmentResponses_public_insert" ON "EnrollmentResponses" FOR INSERT
+  WITH CHECK (app.role() = -2 AND "IsProcessed" = false);
 DROP POLICY IF EXISTS "EnrollmentResponses_staff_write" ON "EnrollmentResponses";
 CREATE POLICY "EnrollmentResponses_staff_write" ON "EnrollmentResponses" FOR ALL
   USING (app.is_staff()) WITH CHECK (app.is_staff());

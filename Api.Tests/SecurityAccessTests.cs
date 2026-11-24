@@ -133,6 +133,17 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
         "GET api/UserDetails/me", "GET api/Me",
     };
 
+    /// <summary>
+    /// Open to the world on purpose: applying to DBTC when you have no account to sign in with.
+    /// Listed one by one, never matched by prefix, so adding a second anonymous endpoint has to be
+    /// a decision somebody writes down here rather than something that slips in behind a route.
+    /// </summary>
+    private static readonly HashSet<string> OpenToTheWorld = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GET api/public/enrollment/status",
+        "POST api/public/enrollment",
+    };
+
     private List<(string Key, string Method, string Url)> AllEndpoints()
     {
         var found = new List<(string, string, string)>();
@@ -168,10 +179,43 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
         var wrong = new List<string>();
         foreach (var (key, method, url) in AllEndpoints())
         {
+            if (OpenToTheWorld.Contains(key)) continue;
             var response = await SendAsync(method, url);
             if (response.StatusCode != HttpStatusCode.Unauthorized) wrong.Add($"{key} -> {(int)response.StatusCode}");
         }
         Assert.Empty(wrong);
+    }
+
+    /// <summary>
+    /// The anonymous surface is exactly the enrollment form and nothing else. Both halves matter:
+    /// a new route under api/public must be declared above, and a declared one must still exist.
+    /// </summary>
+    [Fact]
+    public void OnlyTheEnrollmentForm_IsReachableWithoutSigningIn()
+    {
+        var keys = AllEndpoints().Select(e => e.Key).ToList();
+
+        var anonymous = keys
+            .Where(k => k.Contains(" api/public/", StringComparison.OrdinalIgnoreCase) ||
+                        k.EndsWith(" api/public", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.Equal(OpenToTheWorld.OrderBy(k => k), anonymous.OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
+
+        foreach (var declared in OpenToTheWorld)
+        {
+            Assert.Contains(declared, keys, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>An applicant has no account, so these two have to answer a request with no sign-in.</summary>
+    [Fact]
+    public async Task TheEnrollmentForm_AnswersSomeoneWithNoAccount()
+    {
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync("GET", "api/public/enrollment/status")).StatusCode);
+
+        // Empty body: refused on its contents, which means it was let through to be read at all.
+        var submitted = await SendAsync("POST", "api/public/enrollment", body: new { emailAddress = "a@b.com" });
+        Assert.Equal(HttpStatusCode.BadRequest, submitted.StatusCode);
     }
 
     [Theory]
@@ -186,7 +230,8 @@ public class SecurityAccessTests : IClassFixture<SecurityApiFactory>
         var wrong = new List<string>();
         foreach (var (key, method, url) in AllEndpoints())
         {
-            if (OpenToAnySignedInUser.Contains(key) || key.Contains("EnrollmentResponses") && method == "POST") continue;
+            if (OpenToAnySignedInUser.Contains(key) || OpenToTheWorld.Contains(key)) continue;
+            if (key.Contains("EnrollmentResponses") && method == "POST") continue;
             if (role == RoleUtils.Teacher && teacherOnly.Contains(key)) continue;
             if (role == RoleUtils.Student && studentOnly.Contains(key)) continue;
             var response = await SendAsync(method, url, user, role);

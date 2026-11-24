@@ -16,6 +16,14 @@ public static class RoleUtils
     /// </summary>
     public const int Accounting = 7;
 
+    /// <summary>
+    /// Not a person: someone applying to DBTC who has no account yet. It is published to Postgres
+    /// for the public enrollment endpoint alone, so row-level security can name that one path the
+    /// way it names the Forms webhook (-1). Negative on purpose -- IsValidRole rejects it, so it
+    /// can never be stored on a user or reached by signing in.
+    /// </summary>
+    public const int PublicApplicant = -2;
+
     public static bool IsValidRole(int role)
     {
         return role is >= Admin and <= Accounting;
