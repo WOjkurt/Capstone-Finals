@@ -59,14 +59,25 @@ class MockStudentRepository implements StudentRepository {
 }
 
 void main() {
+  // Released, because these tests are about what a student sees once results are out.
+  // The withheld case has its own tests below.
   final term1 = const AcademicTermModel(
     termId: 'term-1',
     schoolYear: '2025-2026',
     semester: 1,
     isActive: false,
+    areGradesReleased: true,
   );
 
   final term2 = const AcademicTermModel(
+    termId: 'term-2',
+    schoolYear: '2025-2026',
+    semester: 2,
+    isActive: true,
+    areGradesReleased: true,
+  );
+
+  const withheldTerm = AcademicTermModel(
     termId: 'term-2',
     schoolYear: '2025-2026',
     semester: 2,
@@ -248,6 +259,43 @@ void main() {
         ),
       );
     }
+
+    testWidgets('a term whose results are not out says so, and asks nothing of the student',
+        (tester) async {
+      repo.terms = [withheldTerm];
+      repo.activeTerm = withheldTerm;
+      repo.clearances = [
+        const GradeClearanceModel(
+          clearanceId: 'c-2', userId: 'user-1', termId: 'term-2', isCleared: true),
+      ];
+      repo.gradesByTerm['term-2'] = [];
+
+      await tester.pumpWidget(createWidgetUnderTest(GradesBloc(repo)));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('grades_not_released')), findsOneWidget);
+      expect(find.textContaining('have not been released yet'), findsOneWidget);
+      // Nobody can hurry this along, so it must not send them to an office.
+      expect(find.textContaining('nothing you need to do'), findsOneWidget);
+      expect(find.textContaining('Registrar releases them'), findsOneWidget);
+    });
+
+    testWidgets('an unreleased term is not mistaken for a clearance problem', (tester) async {
+      repo.terms = [withheldTerm];
+      repo.activeTerm = withheldTerm;
+      repo.clearances = [
+        const GradeClearanceModel(
+          clearanceId: 'c-2', userId: 'user-1', termId: 'term-2', isCleared: true),
+      ];
+      repo.gradesByTerm['term-2'] = [];
+
+      await tester.pumpWidget(createWidgetUnderTest(GradesBloc(repo)));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Grades Withheld Pending Clearance'), findsNothing);
+    });
 
     testWidgets('a grade the Registrar corrected says so, with the date', (tester) async {
       repo.clearances = [

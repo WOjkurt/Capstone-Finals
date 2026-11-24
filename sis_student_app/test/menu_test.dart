@@ -21,12 +21,15 @@ class FakeAuthService implements AuthService {
 /// Sample data with long names and titles, so tight phone layouts are really tested.
 Future<http.Response> fakeApi(http.Request req) async {
   final path = req.url.path.toLowerCase();
-  const term = {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true};
+  // Released: this file is about the menu, not about grades being withheld.
+  const term = {'termID': 't1', 'schoolYear': '2026-2027', 'semester': 1, 'isActive': true,
+    'areGradesReleased': true};
   Object body = <Object>[];
   if (path.endsWith('/api/academicterms/active')) {
     body = term;
   } else if (path.endsWith('/api/academicterms')) {
-    body = [term, {'termID': 't0', 'schoolYear': '2025-2026', 'semester': 2, 'isActive': false}];
+    body = [term, {'termID': 't0', 'schoolYear': '2025-2026', 'semester': 2, 'isActive': false,
+      'areGradesReleased': true}];
   } else if (path.contains('/api/studyloads/student/')) {
     Map<String, Object?> load(String code, String title, String days, String room) => {
           'studyLoadId': code, 'classId': code, 'subjectCode': code, 'subjectTitle': title, 'units': 3, 'className': 'BTVTED 2A',

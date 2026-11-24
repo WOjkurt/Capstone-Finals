@@ -1724,19 +1724,24 @@ class _ProgramClassDetailDialog extends StatefulWidget {
 }
 
 class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
-  DateTime? _verifiedAt;
+  /// Null until this dialog changes it, then true or false. A nullable DateTime cannot carry
+  /// that: "set back to null" and "not touched yet" would look the same, and the button would
+  /// fall back to the original date and never show as unverified again.
+  bool? _verifiedOverride;
   bool _verifying = false;
 
+  bool get _isVerified => _verifiedOverride ?? (widget.classItem.verifiedAt != null);
+
   Widget _verifyButton() {
-    final verified = _verifiedAt ?? widget.classItem.verifiedAt;
+    final verified = _isVerified;
     return OutlinedButton.icon(
       key: const ValueKey('verify_sheet_button'),
       style: OutlinedButton.styleFrom(
-        foregroundColor: verified != null ? const Color(0xFF15803D) : null,
+        foregroundColor: verified ? const Color(0xFF15803D) : null,
       ),
-      onPressed: _verifying ? null : () => _setVerified(verified == null),
-      icon: Icon(verified != null ? Icons.verified_rounded : Icons.fact_check_outlined, size: 16),
-      label: Text(verified != null ? 'Sheet verified' : 'Verify grade sheet'),
+      onPressed: _verifying ? null : () => _setVerified(!verified),
+      icon: Icon(verified ? Icons.verified_rounded : Icons.fact_check_outlined, size: 16),
+      label: Text(verified ? 'Sheet verified' : 'Verify grade sheet'),
     );
   }
 
@@ -1747,7 +1752,7 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
       await getIt<GradeSheetRepository>().setVerified(widget.classItem.classId, verify);
       if (!mounted) return;
       setState(() {
-        _verifiedAt = verify ? DateTime.now() : null;
+        _verifiedOverride = verify;
         _verifying = false;
       });
       messenger.showSnackBar(SnackBar(

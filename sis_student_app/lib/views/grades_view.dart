@@ -193,7 +193,15 @@ class _GradesViewState extends State<GradesView> {
         ];
       }
 
-      // 3. Cleared, but empty grades list
+      // 3. The term's results are not out yet. Checked before the empty-grades card, because
+      // "nothing submitted yet" and "finished but not published" look identical from here and
+      // only one of them is worth asking the Registrar about.
+      final term = state.selectedTerm;
+      if (term != null && !term.areGradesReleased) {
+        return [SliverToBoxAdapter(child: _buildNotReleasedCard(term))];
+      }
+
+      // 4. Cleared, but empty grades list
       if (state.grades.isEmpty) {
         return [SliverToBoxAdapter(child: _buildEmptyGradesCard(state))];
       }
@@ -329,6 +337,43 @@ class _GradesViewState extends State<GradesView> {
   }
 
   // ── Cleared But Empty State ────────────────────────────────────────────────
+
+  /// Said plainly, and without pointing them at an office. Nobody can hurry this along, and a
+  /// student who walks to the Registrar over it has wasted the trip.
+  Widget _buildNotReleasedCard(AcademicTermModel term) {
+    return Center(
+      key: const ValueKey('grades_not_released'),
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 520),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.hourglass_empty_rounded, size: 40, color: Color(0xFFB45309)),
+            const SizedBox(height: 12),
+            const Text(
+              'Grades for this term have not been released yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your grades for ${term.schoolYear}, semester ${term.semester} will appear here once '
+              'the Registrar releases them. There is nothing you need to do.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildEmptyGradesCard(GradesLoaded state) {
     return Center(

@@ -6,6 +6,8 @@ import 'package:sis_teacher_app/blocs/program_overview_bloc.dart';
 import 'package:sis_teacher_app/models/class_models.dart';
 import 'package:sis_teacher_app/models/setup_models.dart';
 import 'package:sis_teacher_app/repositories/class_repository.dart';
+import 'package:sis_teacher_app/repositories/grading_repository.dart';
+import 'package:sis_teacher_app/utils/error_handler.dart';
 import 'package:sis_teacher_app/views/program_overview_view.dart';
 import 'package:sis_teacher_app/views/widgets/class_schedule_dialog.dart';
 
@@ -54,7 +56,7 @@ class _FakeClassRepository implements ClassRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-ClassModel _class(String id, String code, {bool isMinor = false}) => ClassModel(
+ClassModel _class(String id, String code, {bool isMinor = false, DateTime? verifiedAt}) => ClassModel(
       classId: id,
       subjectId: 'subj-$id',
       subjectCode: code,
@@ -65,16 +67,35 @@ ClassModel _class(String id, String code, {bool isMinor = false}) => ClassModel(
       termId: 'term-1',
       className: 'BSIT 1A',
       isMinor: isMinor,
+      verifiedAt: verifiedAt,
     );
+
+/// Records what the verify button asked the server to do.
+class _FakeGradeSheetRepository implements GradeSheetRepository {
+  final List<(String, bool)> calls = [];
+  Object? throws;
+
+  @override
+  Future<void> setVerified(String classId, bool verified) async {
+    if (throws != null) throw throws!;
+    calls.add((classId, verified));
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   final getIt = GetIt.instance;
+  late _FakeGradeSheetRepository sheets;
   late _FakeClassRepository repo;
 
   setUp(() async {
     await getIt.reset();
     repo = _FakeClassRepository();
+    sheets = _FakeGradeSheetRepository();
     getIt.registerSingleton<ClassRepository>(repo);
+    getIt.registerSingleton<GradeSheetRepository>(sheets);
   });
 
   tearDown(() async => getIt.reset());
@@ -146,5 +167,51 @@ void main() {
     expect(find.byType(ClassScheduleDialog), findsNothing);
     expect(find.byKey(const ValueKey('edit_schedule_button')), findsNothing, reason: 'detail closes after a change');
     expect(repo.programClassLoads, greaterThan(loadsBefore));
+  });
+
+  testWidgets('an unchecked sheet offers Verify; verifying tells the server', (tester) async {
+    repo.mockClasses = [_class('c1', 'IT 101A')];
+
+    await openDetail(tester, 'IT 101A');
+
+    expect(find.text('Verify grade sheet'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('verify_sheet_button')));
+    await tester.pumpAndSettle();
+
+    expect(sheets.calls, [('c1', true)]);
+    expect(find.text('Sheet verified'), findsOneWidget);
+    // Checked is not published: the Registrar still has to release the term.
+    expect(find.textContaining('released by the Registrar'), findsOneWidget);
+  });
+
+  testWidgets('a sheet already checked offers to take it off again', (tester) async {
+    repo.mockClasses = [_class('c1', 'IT 101A', verifiedAt: DateTime.utc(2026, 11, 20))];
+
+    await openDetail(tester, 'IT 101A');
+
+    expect(find.text('Sheet verified'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('verify_sheet_button')));
+    await tester.pumpAndSettle();
+
+    expect(sheets.calls, [('c1', false)]);
+    expect(find.text('Verify grade sheet'), findsOneWidget);
+  });
+
+  testWidgets('a refusal from the server is reported and the button does not lie', (tester) async {
+    repo.mockClasses = [_class('c1', 'IT 101A')];
+    sheets.throws = ApiException(
+        statusCode: 403,
+        message: 'A Program Head can only verify grade sheets for their own programme.');
+
+    await openDetail(tester, 'IT 101A');
+    await tester.tap(find.byKey(const ValueKey('verify_sheet_button')));
+    await tester.pumpAndSettle();
+
+    // The shared handler deliberately makes every 403 generic, so the server's own wording
+    // does not reach the screen. Reaching this at all means the UI let somebody try a class
+    // they cannot see in Program Overview anyway.
+    expect(find.textContaining('Access denied'), findsOneWidget);
+    // Still unverified: the screen must not claim something the server refused.
+    expect(find.text('Verify grade sheet'), findsOneWidget);
   });
 }

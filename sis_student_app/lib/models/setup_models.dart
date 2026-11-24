@@ -31,11 +31,16 @@ class AcademicTermModel {
   final int semester;
   final bool isActive;
 
+  /// Whether the school has let this term's grades out. Separate from the student's own
+  /// clearance: this one is about the term being finished at all.
+  final bool areGradesReleased;
+
   const AcademicTermModel({
     required this.termId,
     required this.schoolYear,
     required this.semester,
     this.isActive = false,
+    this.areGradesReleased = false,
   });
 
   factory AcademicTermModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +49,7 @@ class AcademicTermModel {
       schoolYear: json['schoolYear'] as String? ?? '',
       semester: (json['semester'] as num?)?.toInt() ?? 1,
       isActive: json['isActive'] as bool? ?? false,
+      areGradesReleased: json['areGradesReleased'] as bool? ?? false,
     );
   }
 
