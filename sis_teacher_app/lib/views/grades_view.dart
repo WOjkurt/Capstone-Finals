@@ -924,7 +924,7 @@ class _GradeSheetTableState extends State<_GradeSheetTable> {
                                       width: 120,
                                       child: _buildRemarksBadge(effectiveFinal, g?.remarksLabel),
                                     ),
-                                    // Action column: Save button + Correction icon buttons
+                                    // Action column: Save button
                                     SizedBox(
                                       width: 160,
                                       child: isSavingThisRow

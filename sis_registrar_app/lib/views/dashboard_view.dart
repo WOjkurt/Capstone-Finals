@@ -208,7 +208,7 @@ class _DashboardViewState extends State<DashboardView> {
                               _buildStepRow(
                                 step: '5',
                                 title: 'Grades',
-                                description: 'Release each term\'s grades in the student\'s Grade release tab, and review grade corrections.',
+                                description: 'Release a term\'s grades under Setup → Terms, clear each student in their Grade release tab, and correct a wrong mark from their Grades tab.',
                               ),
                             ],
                           ),
