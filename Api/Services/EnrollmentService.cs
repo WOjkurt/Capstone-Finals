@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Api.Constants;
 using Api.Common;
 using Api.Auth;
+using Api.Services.Mail;
 using Microsoft.Extensions.Configuration;
 
 namespace Api.Services;
@@ -24,6 +25,7 @@ public class EnrollmentService : IEnrollmentService
     private readonly IUserRepository _userRepository;
     private readonly ILogger<EnrollmentService> _logger;
     private readonly IConfiguration? _configuration;
+    private readonly ISchoolMailer? _mailer;
 
     public EnrollmentService(
         AppDbContext context,
@@ -34,7 +36,8 @@ public class EnrollmentService : IEnrollmentService
         IUserDetailsRepository userDetailsRepository,
         IUserRepository userRepository,
         ILogger<EnrollmentService> logger,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        ISchoolMailer? mailer = null)
     {
         _context = context;
         _responseRepository = responseRepository;
@@ -45,6 +48,49 @@ public class EnrollmentService : IEnrollmentService
         _userRepository = userRepository;
         _logger = logger;
         _configuration = configuration;
+        _mailer = mailer;
+    }
+
+    /// <summary>
+    /// The address an applicant can actually read. They have no school email until the Registrar
+    /// issues one, so everything the school tells them before that goes to the personal address
+    /// they applied with, which is the one on their original response.
+    /// </summary>
+    private async Task<string?> PersonalEmailAsync(Guid responseId)
+    {
+        var response = await _responseRepository.GetByIdAsync(responseId);
+        return string.IsNullOrWhiteSpace(response?.EmailAddress) ? null : response!.EmailAddress;
+    }
+
+    /// <summary>
+    /// Tells an applicant something, and never lets the telling break what it is announcing: an
+    /// approved application stays approved whether or not the mail server was reachable.
+    /// </summary>
+    private async Task NotifyAsync(Guid responseId, (string Subject, string Body) notice, Guid applicationId)
+    {
+        if (_mailer == null) return;
+        try
+        {
+            var to = await PersonalEmailAsync(responseId);
+            if (to == null)
+            {
+                _logger.LogWarning("No personal email on the response, so no notice was sent. ApplicationID={ApplicationId}", applicationId);
+                return;
+            }
+
+            if (await _mailer.SendAsync(to, notice.Subject, notice.Body))
+            {
+                _logger.LogInformation("Emailed a notice to the applicant. ApplicationID={ApplicationId}", applicationId);
+            }
+            else
+            {
+                _logger.LogWarning("Could not email the applicant; tell them another way. ApplicationID={ApplicationId}", applicationId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Sending a notice failed. ApplicationID={ApplicationId}", applicationId);
+        }
     }
 
     public async Task<Guid> CreateResponseAsync(CreateEnrollmentResponseDto dto)
@@ -367,6 +413,13 @@ public class EnrollmentService : IEnrollmentService
 
         application.Status = EnrollmentApplicationStatus.Approved; // 2 = Approved
         await _applicationRepository.UpdateAsync(application);
+
+        // A returning student never reaches here: they already have an account and a school
+        // email, and the branch above sent them straight to Active.
+        var approvedForm = await _formRepository.GetByApplicationIdAsync(applicationId);
+        await NotifyAsync(application.ResponseID,
+            EnrollmentNotices.Accepted(approvedForm?.FirstName, approvedForm?.AcademicYear, application.SchoolEmail),
+            applicationId);
     }
 
     public async Task RejectApplicationAsync(Guid applicationId, Guid reviewedByUserId, string? reason)
@@ -566,6 +619,11 @@ public class EnrollmentService : IEnrollmentService
             throw new InvalidOperationException($"Cannot update school email on an application with status {application.Status}. Must be Pending or Approved.");
         }
 
+        // Kept so the applicant is only told when the address actually changes: the Registrar
+        // re-saves this screen while correcting other details, and an identical "your school
+        // email is X" arriving three times reads like something has gone wrong.
+        var previousSchoolEmail = application.SchoolEmail;
+
         string action;
         if (string.IsNullOrWhiteSpace(rawSchoolEmail))
         {
@@ -595,6 +653,17 @@ public class EnrollmentService : IEnrollmentService
         await _applicationRepository.UpdateAsync(application);
 
         _logger.LogInformation("School email {Action} for application {ApplicationId} by user {UserId}", action, applicationId, callerUserId);
+
+        // This is the message with something in it the applicant can act on, so it is sent when
+        // the address is issued rather than when the application was accepted -- at which point
+        // there was usually nothing to tell them yet. Clearing an email tells nobody anything.
+        var changed = !string.Equals(previousSchoolEmail, application.SchoolEmail, StringComparison.OrdinalIgnoreCase);
+        if (action == "set" && changed && application.SchoolEmail is { } issued)
+        {
+            var form = await _formRepository.GetByApplicationIdAsync(applicationId);
+            await NotifyAsync(application.ResponseID,
+                EnrollmentNotices.SchoolEmailReady(form?.FirstName, issued), applicationId);
+        }
 
         var updated = await GetApplicationByIdAsync(applicationId);
         return updated!;

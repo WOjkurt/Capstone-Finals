@@ -57,6 +57,19 @@ builder.Services.AddScoped<ICurriculumService, CurriculumService>();
 builder.Services.AddScoped<IRecordsImportService, RecordsImportService>();
 builder.Services.AddScoped<IReenrollmentService, ReenrollmentService>();
 builder.Services.AddScoped<IPublicEnrollmentService, PublicEnrollmentService>();
+
+// Mail only when an account is actually configured. Without it the app runs normally and notices
+// are logged as unsent, so a missing app password cannot turn into mail nobody meant to send.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Mail:Host"]) &&
+    !string.IsNullOrWhiteSpace(builder.Configuration["Mail:Username"]) &&
+    !string.IsNullOrWhiteSpace(builder.Configuration["Mail:Password"]))
+{
+    builder.Services.AddScoped<Api.Services.Mail.ISchoolMailer, Api.Services.Mail.SmtpSchoolMailer>();
+}
+else
+{
+    builder.Services.AddScoped<Api.Services.Mail.ISchoolMailer, Api.Services.Mail.UnconfiguredSchoolMailer>();
+}
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IStudentRecordService, StudentRecordService>();
 builder.Services.AddScoped<IAccreditedSchoolService, AccreditedSchoolService>();
