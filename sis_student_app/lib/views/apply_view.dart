@@ -41,6 +41,13 @@ class _ApplyViewState extends State<ApplyView> {
   String _email = '';
   String? _course;
 
+  // A failed Submit has to say where the problem is, not just that there is one: this form runs
+  // to about forty questions, and on a phone the offending answer is usually well off-screen.
+  final _whichCourseKey = GlobalKey();
+  final _aboutYouKey = GlobalKey();
+  final _reachYouKey = GlobalKey();
+  final _schoolingKey = GlobalKey();
+
   final Map<String, dynamic> _form = {};
   final Map<int, Map<String, dynamic>> _contacts = {
     for (final type in enrollmentRelations.keys) type: <String, dynamic>{}
@@ -111,6 +118,7 @@ class _ApplyViewState extends State<ApplyView> {
     // Every answer, the course picker included: it carries its own validator, so one pass marks
     // all of them at once rather than sending the applicant back a field at a time.
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showFirstProblem();
       _snack('Some answers still need fixing. They are marked in red.', error: true);
       return;
     }
@@ -280,7 +288,7 @@ class _ApplyViewState extends State<ApplyView> {
           children: [
             _openBanner(status),
             const SizedBox(height: 20),
-            _section('Which course, and how you are joining', [
+            _section('Which course, and how you are joining', key: _whichCourseKey, [
               _kindPicker(),
               const SizedBox(height: 12),
               _coursePicker(status.programs),
@@ -317,17 +325,13 @@ class _ApplyViewState extends State<ApplyView> {
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
-                  final t = (v ?? '').trim();
-                  if (t.isEmpty) return 'Email address is required';
-                  if (!t.contains('@') || t.startsWith('@') || t.endsWith('@')) {
-                    return 'That does not look like an email address';
-                  }
-                  return null;
+                  if ((v ?? '').trim().isEmpty) return 'Email address is required';
+                  return _emailLooksRight ? null : 'That does not look like an email address';
                 },
                 onChanged: (v) => _email = v,
               ),
             ]),
-            _section('About you', [
+            _section('About you', key: _aboutYouKey, [
               EnrollmentFieldGrid(
                 data: _form,
                 fields: enrollmentPersonalFields,
@@ -335,7 +339,7 @@ class _ApplyViewState extends State<ApplyView> {
                 onChanged: _set,
               ),
             ]),
-            _section('Where to reach you', [
+            _section('Where to reach you', key: _reachYouKey, [
               EnrollmentFieldGrid(
                 data: _form,
                 fields: enrollmentAddressFields,
@@ -343,7 +347,7 @@ class _ApplyViewState extends State<ApplyView> {
                 onChanged: _set,
               ),
             ]),
-            _section('Schooling before DBTC', [
+            _section('Schooling before DBTC', key: _schoolingKey, [
               EnrollmentFieldGrid(
                 data: _form,
                 fields: _schoolingFields,
@@ -405,6 +409,37 @@ class _ApplyViewState extends State<ApplyView> {
       );
 
   void _set(String key, Object? value) => setState(() => _form[key] = value);
+
+  /// Scrolls to the first section holding an unanswered or wrong answer, so the red marks the
+  /// snackbar mentions are actually on screen. Sections with nothing required are skipped.
+  void _showFirstProblem() {
+    bool missing(List<EnrollmentField> fields) =>
+        fields.any((f) => fieldProblem(f, _form[f.key]) != null);
+
+    final sections = <(GlobalKey, bool)>[
+      (_whichCourseKey, _course == null || _course!.isEmpty || !_emailLooksRight),
+      (_aboutYouKey, missing(enrollmentPersonalFields)),
+      (_reachYouKey, missing(enrollmentAddressFields)),
+      (_schoolingKey, missing(_schoolingFields)),
+    ];
+
+    for (final (key, hasProblem) in sections) {
+      if (!hasProblem) continue;
+      final context = key.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(context,
+            alignment: 0.05, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      }
+      return;
+    }
+  }
+
+  /// The same rule the server applies, so the page cannot accept an address the submission will
+  /// then be refused for. A name, an @, and a domain with a dot in it — nothing clever, because
+  /// the real test of an address is whether the Registrar's reply arrives.
+  static final _email_ = RegExp(r'^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$');
+
+  bool get _emailLooksRight => _email_.hasMatch(_email.trim());
 
   Widget _checklist(String label, List<String> choices, String key) => Padding(
         padding: const EdgeInsets.only(bottom: 16),
@@ -539,7 +574,8 @@ class _ApplyViewState extends State<ApplyView> {
         ),
       );
 
-  Widget _section(String title, List<Widget> children) => Padding(
+  Widget _section(String title, List<Widget> children, {Key? key}) => Padding(
+        key: key,
         padding: const EdgeInsets.only(bottom: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

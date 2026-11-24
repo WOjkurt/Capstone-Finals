@@ -210,6 +210,22 @@ void main() {
       expect(find.byKey(const ValueKey('apply:previousStudentID')), findsOneWidget);
     });
 
+    testWidgets('an address the server would refuse is marked here instead', (tester) async {
+      await pump(tester);
+
+      // The page used to accept these and let the server do the refusing, which meant filling in
+      // the whole form first and being turned away at the end.
+      for (final bad in ['applicant@example', 'appl icant@example.com', 'applicant@', '@example.com']) {
+        await type(tester, 'apply_email', bad);
+        await act(tester, () async {
+          await tester.tap(find.byKey(const ValueKey('apply_submit_button')));
+        });
+        expect(requests.where((r) => r.method == 'POST'), isEmpty, reason: 'sent "$bad"');
+      }
+
+      expect(find.text('That does not look like an email address'), findsWidgets);
+    });
+
     testWidgets('an incomplete form is not sent', (tester) async {
       await pump(tester);
 
@@ -503,6 +519,46 @@ void main() {
       expect(form.containsKey('previousCourse'), false);
       expect(form.containsKey('previousStudentID'), false);
       expect(form.containsKey('yearLevel'), false);
+    });
+
+    testWidgets('the whole form fits a phone screen without overflowing', (tester) async {
+      await pump(tester, width: 360);
+      await tester.tap(find.text('Transferring in'));
+      await tester.pumpAndSettle();
+
+      // Every section has to lay out, including the ones only a transferee sees.
+      for (var i = 0; i < 12; i++) {
+        await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -400));
+        await tester.pump();
+      }
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a failed submit brings the first unanswered question into view', (tester) async {
+      await pump(tester, width: 360);
+
+      // Answer the first section fully, leave the next one empty, and submit from the bottom.
+      await type(tester, 'apply_email', 'applicant@example.com');
+      await choose(tester, 'apply_course_picker', 'BSIT — BS Information Technology');
+      for (var i = 0; i < 12; i++) {
+        await tester.drag(find.byType(SingleChildScrollView).first, const Offset(0, -400));
+        await tester.pump();
+      }
+
+      final nationality = find.byKey(const ValueKey('apply:nationality'));
+      expect(nationality, findsOneWidget);
+      final before = tester.getTopLeft(nationality).dy;
+
+      await act(tester, () async {
+        await tester.tap(find.byKey(const ValueKey('apply_submit_button')));
+      });
+
+      // 'About you' holds the first missing answer, so the page came back up to it.
+      final after = tester.getTopLeft(nationality).dy;
+      expect(after, greaterThan(before));
+      expect(after, lessThan(tester.view.physicalSize.height));
+      expect(requests.where((r) => r.method == 'POST'), isEmpty);
     });
 
     testWidgets('there is always a way back to sign in', (tester) async {
