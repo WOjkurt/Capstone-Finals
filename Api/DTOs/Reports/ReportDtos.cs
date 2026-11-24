@@ -142,3 +142,51 @@ public class DeansListRowDto
     /// <summary>The student's lowest (numerically highest) grade in the term.</summary>
     public decimal LowestGrade { get; set; }
 }
+
+/// <summary>
+/// One class's finished grade sheet, as the Registrar files and prints it.
+///
+/// It is the class list with the marks filled in, plus the two facts that decide whether it can
+/// be filed at all: who checked it, and whether the term's results are out.
+/// </summary>
+public class GradeSheetDto
+{
+    public Guid ClassId { get; set; }
+    public string ClassName { get; set; } = string.Empty;
+    public string SubjectCode { get; set; } = string.Empty;
+    public string SubjectTitle { get; set; } = string.Empty;
+    public decimal Units { get; set; }
+    public string TermLabel { get; set; } = string.Empty;
+    public string? TeacherName { get; set; }
+
+    /// <summary>When a Program Head or College Head checked this sheet, or null if nobody has.</summary>
+    public DateTime? VerifiedAt { get; set; }
+    public string? VerifiedByName { get; set; }
+
+    /// <summary>Whether the term's results are out. A sheet can be finished and still withheld.</summary>
+    public bool AreGradesReleased { get; set; }
+
+    public List<GradeSheetRowDto> Students { get; set; } = new();
+
+    /// <summary>Students with a final mark of 3.0 or better.</summary>
+    public int Passed { get; set; }
+    public int Failed { get; set; }
+
+    /// <summary>Enrolled students with no final mark yet. The number that stops a sheet being final.</summary>
+    public int NoFinalYet { get; set; }
+}
+
+public class GradeSheetRowDto
+{
+    public Guid UserId { get; set; }
+    /// <summary>"LASTNAME, Firstname".</summary>
+    public string Name { get; set; } = string.Empty;
+    public string? StudentId { get; set; }
+    public decimal? MidtermGrade { get; set; }
+    public decimal? FinalGrade { get; set; }
+    /// <summary>1 Passed, 2 Failed, null when there is no final mark yet.</summary>
+    public int? Remarks { get; set; }
+
+    /// <summary>When the Registrar changed this mark after it was first recorded.</summary>
+    public DateTime? ModifiedAt { get; set; }
+}

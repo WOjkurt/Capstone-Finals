@@ -82,6 +82,66 @@ void main() {
     ]);
   });
 
+  test('the grade sheets report asks for the term, and reads what comes back', () async {
+    late String path;
+    final client = MockClient((req) async {
+      path = '${req.url.path}?${req.url.query}';
+      return http.Response(
+          jsonEncode([
+            {
+              'classId': 'c1', 'className': 'IT 101 A', 'subjectCode': 'IT 101',
+              'subjectTitle': 'Intro', 'units': 3.0, 'termLabel': '2026-2027 (1st Sem)',
+              'teacherName': 'Ben Staff', 'verifiedAt': '2026-11-20T02:00:00Z',
+              'verifiedByName': 'Carla Staff', 'areGradesReleased': true,
+              'passed': 1, 'failed': 0, 'noFinalYet': 1,
+              'students': [
+                {'name': 'Cruz, Ana', 'studentId': '2026-0001', 'midtermGrade': 2.0,
+                 'finalGrade': 2.25, 'remarks': 1, 'modifiedAt': '2026-11-21T02:00:00Z'},
+                {'name': 'Santos, Bea', 'studentId': null, 'midtermGrade': 2.5,
+                 'finalGrade': null, 'remarks': null},
+              ],
+            }
+          ]),
+          200);
+    });
+    final repo = ReportRepository(FakeAuthService(), client: client);
+
+    final sheets = await repo.gradeSheets('t1');
+
+    expect(path, '/api/reports/grade-sheets?termId=t1');
+    final sheet = sheets.single;
+    expect(sheet.isVerified, isTrue);
+    expect(sheet.verifiedByName, 'Carla Staff');
+    expect(sheet.areGradesReleased, isTrue);
+    // Somebody still owes a final, so it cannot be filed as finished.
+    expect(sheet.isIncomplete, isTrue);
+    expect(sheet.students.first.remarksLabel, 'Passed');
+    expect(sheet.students.first.modifiedAt, isNotNull);
+    expect(sheet.students.last.remarksLabel, '');
+    expect(sheet.students.last.finalGrade, isNull);
+  });
+
+  test('a sheet nobody has checked, in a term not yet released, says so', () async {
+    final client = MockClient((req) async => http.Response(
+        jsonEncode([
+          {
+            'classId': 'c1', 'className': 'IT 102 A', 'subjectCode': 'IT 102',
+            'subjectTitle': 'Next', 'units': 3.0, 'termLabel': '2026-2027 (1st Sem)',
+            'teacherName': null, 'areGradesReleased': false,
+            'passed': 0, 'failed': 0, 'noFinalYet': 0, 'students': [],
+          }
+        ]),
+        200));
+
+    final sheet = (await ReportRepository(FakeAuthService(), client: client).gradeSheets('t1')).single;
+
+    expect(sheet.isVerified, isFalse);
+    expect(sheet.verifiedByName, isNull);
+    expect(sheet.areGradesReleased, isFalse);
+    expect(sheet.teacherName, isNull);
+    expect(sheet.isIncomplete, isFalse);   // nobody enrolled, so nobody owes a mark
+  });
+
   test('Reports is in the Registrar menu', () {
     expect(MainLayoutView.buildNavItems(role: 2, roleName: 'Registrar').map((i) => i['title']), contains('Reports'));
   });

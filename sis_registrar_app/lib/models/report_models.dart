@@ -345,3 +345,97 @@ class DeansList {
   String get rules => 'GWA ${gradeText(maxGwa)} or better, no grade below ${gradeText(worstGrade)}, '
       'at least their regular study load, no failed, dropped or withdrawn subject';
 }
+
+/// One class's finished grade sheet: the marks as they stand, who checked them, and whether
+/// the term's results are out.
+class GradeSheet {
+  final String classId;
+  final String className;
+  final String subjectCode;
+  final String subjectTitle;
+  final double units;
+  final String termLabel;
+  final String? teacherName;
+  final DateTime? verifiedAt;
+  final String? verifiedByName;
+  final bool areGradesReleased;
+  final List<GradeSheetRow> students;
+  final int passed;
+  final int failed;
+  final int noFinalYet;
+
+  const GradeSheet({
+    required this.classId,
+    required this.className,
+    required this.subjectCode,
+    required this.subjectTitle,
+    required this.units,
+    required this.termLabel,
+    this.teacherName,
+    this.verifiedAt,
+    this.verifiedByName,
+    this.areGradesReleased = false,
+    this.students = const [],
+    this.passed = 0,
+    this.failed = 0,
+    this.noFinalYet = 0,
+  });
+
+  bool get isVerified => verifiedAt != null;
+
+  /// A sheet nobody can file yet: somebody still owes a final mark.
+  bool get isIncomplete => noFinalYet > 0;
+
+  factory GradeSheet.fromJson(Map<String, dynamic> json) => GradeSheet(
+        classId: json['classId']?.toString() ?? '',
+        className: json['className'] as String? ?? '',
+        subjectCode: json['subjectCode'] as String? ?? '',
+        subjectTitle: json['subjectTitle'] as String? ?? '',
+        units: (json['units'] as num?)?.toDouble() ?? 0,
+        termLabel: json['termLabel'] as String? ?? '',
+        teacherName: json['teacherName'] as String?,
+        verifiedAt: DateTime.tryParse(json['verifiedAt']?.toString() ?? ''),
+        verifiedByName: json['verifiedByName'] as String?,
+        areGradesReleased: json['areGradesReleased'] == true,
+        students: [
+          for (final r in (json['students'] as List<dynamic>? ?? []))
+            GradeSheetRow.fromJson(r as Map<String, dynamic>)
+        ],
+        passed: (json['passed'] as num?)?.toInt() ?? 0,
+        failed: (json['failed'] as num?)?.toInt() ?? 0,
+        noFinalYet: (json['noFinalYet'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class GradeSheetRow {
+  final String name;
+  final String? studentId;
+  final double? midtermGrade;
+  final double? finalGrade;
+  final int? remarks;
+  final DateTime? modifiedAt;
+
+  const GradeSheetRow({
+    required this.name,
+    this.studentId,
+    this.midtermGrade,
+    this.finalGrade,
+    this.remarks,
+    this.modifiedAt,
+  });
+
+  String get remarksLabel => switch (remarks) {
+        1 => 'Passed',
+        2 => 'Failed',
+        _ => '',
+      };
+
+  factory GradeSheetRow.fromJson(Map<String, dynamic> json) => GradeSheetRow(
+        name: json['name'] as String? ?? '',
+        studentId: json['studentId'] as String?,
+        midtermGrade: (json['midtermGrade'] as num?)?.toDouble(),
+        finalGrade: (json['finalGrade'] as num?)?.toDouble(),
+        remarks: (json['remarks'] as num?)?.toInt(),
+        modifiedAt: DateTime.tryParse(json['modifiedAt']?.toString() ?? ''),
+      );
+}

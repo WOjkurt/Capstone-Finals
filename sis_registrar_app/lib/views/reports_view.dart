@@ -20,7 +20,7 @@ import 'widgets/page_header.dart';
 import '../utils/numbers.dart';
 
 /// The four term reports. Each tab shows a table and can be downloaded as CSV (opens in Excel).
-enum ReportKind { enrollment, statistics, classSizes, failed, deansList, teacherLoads }
+enum ReportKind { enrollment, statistics, classSizes, failed, deansList, teacherLoads, gradeSheets }
 
 extension on ReportKind {
   String get title => switch (this) {
@@ -30,6 +30,7 @@ extension on ReportKind {
     ReportKind.failed => 'Failed students',
     ReportKind.deansList => 'Dean\'s list',
     ReportKind.teacherLoads => 'Teacher loads',
+    ReportKind.gradeSheets => 'Grade sheets',
   };
 
   String get fileStem => switch (this) {
@@ -39,6 +40,7 @@ extension on ReportKind {
     ReportKind.failed => 'Failed_Students',
     ReportKind.deansList => 'Deans_List',
     ReportKind.teacherLoads => 'Teacher_Loads',
+    ReportKind.gradeSheets => 'Grade_Sheets_Final_Report',
   };
 }
 
@@ -286,6 +288,45 @@ class _ReportsViewState extends State<ReportsView>
                 averageText(r.gwa),
                 gradeText(r.lowestGrade),
               ],
+          ],
+        );
+      case ReportKind.gradeSheets:
+        final sheets = await repo.gradeSheets(termId);
+        // Flattened: one row per student, the class repeated beside each. It is what gets filed
+        // and what a spreadsheet wants, and the per-class view already exists on the class roster.
+        return ReportTable(
+          [
+            'Subject', 'Class', 'Teacher', 'Student', 'Student ID',
+            'Midterm', 'Final', 'Remarks', 'Sheet checked', 'Released',
+          ],
+          [
+            for (final sheet in sheets)
+              if (sheet.students.isEmpty)
+                [
+                  sheet.subjectCode,
+                  sheet.className,
+                  sheet.teacherName ?? 'Unassigned',
+                  'No students enrolled',
+                  '', '', '', '',
+                  sheet.isVerified ? 'Yes' : 'No',
+                  sheet.areGradesReleased ? 'Yes' : 'No',
+                ]
+              else
+                for (final r in sheet.students)
+                  [
+                    sheet.subjectCode,
+                    sheet.className,
+                    sheet.teacherName ?? 'Unassigned',
+                    r.name,
+                    r.studentId ?? '',
+                    r.midtermGrade == null ? '' : gradeText(r.midtermGrade!),
+                    r.finalGrade == null ? '' : gradeText(r.finalGrade!),
+                    // A mark the Registrar changed is flagged: a sheet filed from this should
+                    // not hide that one of its numbers was not the teacher's.
+                    r.modifiedAt != null ? '${r.remarksLabel} (changed)' : r.remarksLabel,
+                    sheet.isVerified ? 'Yes' : 'No',
+                    sheet.areGradesReleased ? 'Yes' : 'No',
+                  ],
           ],
         );
       case ReportKind.teacherLoads:

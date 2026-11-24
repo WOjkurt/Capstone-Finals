@@ -61,6 +61,12 @@ class ReportRepository {
   Future<List<EnrollmentStatisticsRow>> enrollmentStatistics(String termId) async =>
       (await _get('enrollment-statistics', termId)).map(EnrollmentStatisticsRow.fromJson).toList();
 
+  /// The finished grade sheets of the term, or just [classId]'s.
+  Future<List<GradeSheet>> gradeSheets(String termId, {String? classId}) async =>
+      (await _get('grade-sheets', termId, extra: {if (classId != null) 'classId': classId}))
+          .map(GradeSheet.fromJson)
+          .toList();
+
   /// Every class of the term, or just [classId].
   Future<List<ClassList>> classLists(String termId, {String? classId}) async =>
       (await _get('class-lists', termId, extra: {if (classId != null) 'classId': classId})).map(ClassList.fromJson).toList();

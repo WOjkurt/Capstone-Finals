@@ -54,6 +54,20 @@ public class ReportsController : ControllerBase
     public Task<IActionResult> EnrollmentStatistics([FromQuery] Guid termId) => Run(() => _reports.GetEnrollmentStatisticsAsync(termId));
 
     /// <summary>Class lists for a term, or one class with <paramref name="classId"/>.</summary>
+    /// <summary>Finished grade sheets for a term, or for one class in it.</summary>
+    [HttpGet("grade-sheets")]
+    public async Task<IActionResult> GradeSheets([FromQuery] Guid termId, [FromQuery] Guid? classId = null)
+    {
+        try
+        {
+            return Ok(await _reports.GetGradeSheetsAsync(termId, classId));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("class-lists")]
     public Task<IActionResult> ClassLists([FromQuery] Guid termId, [FromQuery] Guid? classId) => Run(() => _reports.GetClassListsAsync(termId, classId));
 

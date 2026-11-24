@@ -16,6 +16,9 @@ public interface IReportService
     Task<List<TransfereeRowDto>> GetTransfereesAsync();
     Task<List<EnrollmentStatisticsRowDto>> GetEnrollmentStatisticsAsync(Guid termId);
     Task<List<ClassListDto>> GetClassListsAsync(Guid termId, Guid? classId);
+
+    /// <summary>The finished grade sheets for a term, or for one class in it.</summary>
+    Task<List<GradeSheetDto>> GetGradeSheetsAsync(Guid termId, Guid? classId);
     Task<List<MissingSexRowDto>> GetStudentsMissingSexAsync(Guid termId);
 }
 
@@ -413,6 +416,95 @@ public class ReportService : IReportService
     /// Printable class lists for a term (or one class): header details and the Enrolled students,
     /// sorted by last name. Classes are sorted by subject code and section.
     /// </summary>
+    /// <summary>
+    /// One class's marks as they stand, for filing and printing. The class list with the grades
+    /// in it, plus who checked the sheet and whether the term's results are out.
+    ///
+    /// Only enrolled loads are counted. A student who dropped or withdrew is not part of the
+    /// class's results, and counting them would make every sheet look unfinished.
+    /// </summary>
+    public async Task<List<GradeSheetDto>> GetGradeSheetsAsync(Guid termId, Guid? classId)
+    {
+        var term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == termId)
+            ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+
+        var classes = await _context.Classes.AsNoTracking()
+            .Include(c => c.Subject)
+            .Where(c => c.TermID == termId && (classId == null || c.ClassID == classId))
+            .ToListAsync();
+        if (classId != null && classes.Count == 0)
+        {
+            throw new KeyNotFoundException("Class not found in this term.");
+        }
+
+        var classIds = classes.Select(c => c.ClassID).ToList();
+        var loads = await _context.StudyLoads.AsNoTracking()
+            .Where(sl => classIds.Contains(sl.ClassID) && sl.LoadStatus == StudyLoadStatus.Enrolled)
+            .Select(sl => new { sl.StudyLoadID, sl.ClassID, sl.UserID })
+            .ToListAsync();
+
+        var loadIds = loads.Select(l => l.StudyLoadID).ToList();
+        var grades = await _context.Grades.AsNoTracking()
+            .Where(g => loadIds.Contains(g.StudyLoadID))
+            .ToDictionaryAsync(g => g.StudyLoadID);
+
+        var studentIds = loads.Select(l => l.UserID).Distinct().ToList();
+        var students = await _context.UserDetails.AsNoTracking()
+            .Where(u => studentIds.Contains(u.UserID))
+            .ToDictionaryAsync(u => u.UserID);
+
+        var staffIds = classes.Where(c => c.UserID.HasValue).Select(c => c.UserID!.Value)
+            .Concat(classes.Where(c => c.VerifiedByUserID.HasValue).Select(c => c.VerifiedByUserID!.Value));
+        var names = await NamesAsync(staffIds);
+
+        var byClass = loads.ToLookup(l => l.ClassID);
+
+        return classes
+            .OrderBy(c => c.Subject?.SubjectCode).ThenBy(c => c.ClassName)
+            .Select(c =>
+            {
+                var rows = byClass[c.ClassID]
+                    .Select(l =>
+                    {
+                        students.TryGetValue(l.UserID, out var ud);
+                        grades.TryGetValue(l.StudyLoadID, out var g);
+                        return new GradeSheetRowDto
+                        {
+                            UserId = l.UserID,
+                            Name = ud != null ? $"{ud.Lastname}, {ud.Firstname}" : "Unknown",
+                            StudentId = ud?.StudentID,
+                            MidtermGrade = g?.MidtermGrade,
+                            FinalGrade = g?.FinalGrade,
+                            Remarks = g?.Remarks,
+                            ModifiedAt = g?.ModifiedAt,
+                        };
+                    })
+                    .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return new GradeSheetDto
+                {
+                    ClassId = c.ClassID,
+                    ClassName = c.ClassName,
+                    SubjectCode = c.Subject?.SubjectCode ?? string.Empty,
+                    SubjectTitle = c.Subject?.SubjectTitle ?? string.Empty,
+                    Units = (c.Subject?.LecUnits ?? 0) + (c.Subject?.LabUnits ?? 0),
+                    TermLabel = Api.Common.TermLabel.Format(term.SchoolYear, term.Semester),
+                    TeacherName = c.UserID.HasValue ? names.GetValueOrDefault(c.UserID.Value) : null,
+                    VerifiedAt = c.VerifiedAt,
+                    VerifiedByName = c.VerifiedByUserID.HasValue
+                        ? names.GetValueOrDefault(c.VerifiedByUserID.Value)
+                        : null,
+                    AreGradesReleased = term.AreGradesReleased,
+                    Students = rows,
+                    Passed = rows.Count(r => r.Remarks == 1),
+                    Failed = rows.Count(r => r.Remarks == 2),
+                    NoFinalYet = rows.Count(r => r.FinalGrade == null),
+                };
+            })
+            .ToList();
+    }
+
     public async Task<List<ClassListDto>> GetClassListsAsync(Guid termId, Guid? classId)
     {
         var term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == termId)
