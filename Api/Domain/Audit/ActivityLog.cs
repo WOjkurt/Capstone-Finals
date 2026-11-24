@@ -75,12 +75,19 @@ public static class ActivityActions
     public const string ApplicationRejected = "APPLICATION_REJECTED";
     public const string AccountLinked = "ACCOUNT_LINKED";
 
+    /// <summary>
+    /// The school emailed an applicant: accepted, or their school email issued. Recorded whether
+    /// or not it arrived, because "we told them" and "we tried to tell them" lead to different
+    /// next steps for whoever picks the application up afterwards.
+    /// </summary>
+    public const string ApplicantNotified = "APPLICANT_NOTIFIED";
+
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditEdited, CreditRemoved, CreditsImported, FormsImported, EmailsImported, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
         PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged, RecordsImported, SchoolEmailSet,
         GradeSubmitted, StaffCreated, RoleChanged, AccountDisabled, AccountReactivated, ApplicationApproved, ApplicationRejected, AccountLinked,
-        SignInBlocked, AccessDenied
+        SignInBlocked, AccessDenied, ApplicantNotified
     };
 }

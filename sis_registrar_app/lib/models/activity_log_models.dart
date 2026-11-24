@@ -29,6 +29,7 @@ const Map<String, String> kActivityActionLabels = {
   'HOLD_ADDED': 'Enrollment hold added',
   'HOLD_REMOVED': 'Enrollment hold removed',
   'REENROLLMENT_SUBMITTED': 'Enrolled online',
+  'APPLICANT_NOTIFIED': 'Applicant emailed',
 };
 
 const Map<int, String> _roleNames = {

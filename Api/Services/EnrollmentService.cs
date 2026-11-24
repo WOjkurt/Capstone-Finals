@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Api.Constants;
 using Api.Common;
 using Api.Auth;
+using Api.Domain.Audit;
 using Api.Services.Mail;
 using Microsoft.Extensions.Configuration;
 
@@ -26,6 +27,7 @@ public class EnrollmentService : IEnrollmentService
     private readonly ILogger<EnrollmentService> _logger;
     private readonly IConfiguration? _configuration;
     private readonly ISchoolMailer? _mailer;
+    private readonly IActivityLogService? _activityLog;
 
     public EnrollmentService(
         AppDbContext context,
@@ -37,7 +39,8 @@ public class EnrollmentService : IEnrollmentService
         IUserRepository userRepository,
         ILogger<EnrollmentService> logger,
         IConfiguration? configuration = null,
-        ISchoolMailer? mailer = null)
+        ISchoolMailer? mailer = null,
+        IActivityLogService? activityLog = null)
     {
         _context = context;
         _responseRepository = responseRepository;
@@ -49,6 +52,7 @@ public class EnrollmentService : IEnrollmentService
         _logger = logger;
         _configuration = configuration;
         _mailer = mailer;
+        _activityLog = activityLog;
     }
 
     /// <summary>
@@ -66,7 +70,8 @@ public class EnrollmentService : IEnrollmentService
     /// Tells an applicant something, and never lets the telling break what it is announcing: an
     /// approved application stays approved whether or not the mail server was reachable.
     /// </summary>
-    private async Task NotifyAsync(Guid responseId, (string Subject, string Body) notice, Guid applicationId)
+    private async Task NotifyAsync(Guid responseId, (string Subject, string Body) notice,
+        Guid applicationId, Guid actorId, Guid? studentId)
     {
         if (_mailer == null) return;
         try
@@ -75,21 +80,49 @@ public class EnrollmentService : IEnrollmentService
             if (to == null)
             {
                 _logger.LogWarning("No personal email on the response, so no notice was sent. ApplicationID={ApplicationId}", applicationId);
+                await RecordAsync(actorId, studentId,
+                    $"\"{notice.Subject}\" was not sent: the application has no personal email address on it");
                 return;
             }
 
             if (await _mailer.SendAsync(to, notice.Subject, notice.Body))
             {
                 _logger.LogInformation("Emailed a notice to the applicant. ApplicationID={ApplicationId}", applicationId);
+                await RecordAsync(actorId, studentId, $"Emailed {to}: \"{notice.Subject}\"");
             }
             else
             {
                 _logger.LogWarning("Could not email the applicant; tell them another way. ApplicationID={ApplicationId}", applicationId);
+                await RecordAsync(actorId, studentId,
+                    $"Could not email {to}: \"{notice.Subject}\" — tell them another way");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Sending a notice failed. ApplicationID={ApplicationId}", applicationId);
+            await RecordAsync(actorId, studentId, $"Could not email the applicant: \"{notice.Subject}\"");
+        }
+    }
+
+    /// <summary>
+    /// Puts the outcome where the Registrar can see it. The address is named on purpose: the
+    /// entry exists so somebody can tell whether an applicant was reached, and a typo in the
+    /// address is the usual reason they were not. It is the same address the Registrar reads off
+    /// the response screen, unlike the server log, which has a different audience and leaves it out.
+    ///
+    /// Logging never breaks the thing it describes, so a failure here is swallowed too: an
+    /// applicant who has been emailed stays emailed whether or not the entry was written.
+    /// </summary>
+    private async Task RecordAsync(Guid actorId, Guid? studentId, string summary)
+    {
+        if (_activityLog == null) return;
+        try
+        {
+            await _activityLog.LogAsync(actorId, ActivityActions.ApplicantNotified, summary, studentId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not record that an applicant was notified.");
         }
     }
 
@@ -419,7 +452,7 @@ public class EnrollmentService : IEnrollmentService
         var approvedForm = await _formRepository.GetByApplicationIdAsync(applicationId);
         await NotifyAsync(application.ResponseID,
             EnrollmentNotices.Accepted(approvedForm?.FirstName, approvedForm?.AcademicYear, application.SchoolEmail),
-            applicationId);
+            applicationId, reviewedByUserId, application.StudentUserID);
     }
 
     public async Task RejectApplicationAsync(Guid applicationId, Guid reviewedByUserId, string? reason)
@@ -658,11 +691,31 @@ public class EnrollmentService : IEnrollmentService
         // the address is issued rather than when the application was accepted -- at which point
         // there was usually nothing to tell them yet. Clearing an email tells nobody anything.
         var changed = !string.Equals(previousSchoolEmail, application.SchoolEmail, StringComparison.OrdinalIgnoreCase);
+        // The address that owns a student's records changing is worth a trace of its own: this
+        // endpoint was the one place a school email could be set without leaving one, while the
+        // same action from the Students screen and the credits import both record it.
+        if (_activityLog != null)
+        {
+            try
+            {
+                await _activityLog.LogAsync(callerUserId, ActivityActions.SchoolEmailSet,
+                    action == "set"
+                        ? $"School email {action} to {application.SchoolEmail} on application {applicationId}"
+                        : $"School email cleared on application {applicationId}",
+                    application.StudentUserID);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not record the school email change.");
+            }
+        }
+
         if (action == "set" && changed && application.SchoolEmail is { } issued)
         {
             var form = await _formRepository.GetByApplicationIdAsync(applicationId);
             await NotifyAsync(application.ResponseID,
-                EnrollmentNotices.SchoolEmailReady(form?.FirstName, issued), applicationId);
+                EnrollmentNotices.SchoolEmailReady(form?.FirstName, issued),
+                applicationId, callerUserId, application.StudentUserID);
         }
 
         var updated = await GetApplicationByIdAsync(applicationId);
