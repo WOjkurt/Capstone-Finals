@@ -17,6 +17,5 @@ public class StaffResponseDto
     public bool IsRegular { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
-    public string? PasswordResetLink { get; set; }
     public string? FirebaseSyncWarning { get; set; }
 }

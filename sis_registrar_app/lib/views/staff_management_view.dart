@@ -76,8 +76,8 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                 style: const TextStyle(fontSize: 14, color: Color(0xFF334155)),
               ),
               const SizedBox(height: 16),
-              // Firebase sends the setup link on its own. Say plainly whether it went out,
-              // because the link below is the fallback when it did not.
+              // Firebase sends the setup link on its own. This box says only whether it went
+              // out; what to do about it is the line underneath, so the two do not repeat.
               Container(
                 key: ValueKey(emailSent ? 'setup_email_sent' : 'setup_email_failed'),
                 padding: const EdgeInsets.all(12),
@@ -101,10 +101,9 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                       child: Text(
                         emailSent
                             ? 'A link for setting their password was emailed to ${staff.email}. '
-                                'Tell them to check their spam folder if it is not in the inbox, and to open it '
-                                'within the hour — after that, Forgot password on the login page sends a fresh one.'
-                            : 'The email could not be sent. Give them the link below yourself, or ask them to '
-                                'use Forgot password on the login page.',
+                                'Tell them to check their spam folder if it is not in the inbox, and to open '
+                                'it within the hour.'
+                            : 'The email could not be sent.',
                         style: TextStyle(
                           fontSize: 13,
                           color: emailSent ? const Color(0xFF065F46) : const Color(0xFF92400E),
@@ -144,60 +143,22 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                 ),
                 const SizedBox(height: 16),
               ],
-              if (staff.passwordResetLink != null && staff.passwordResetLink!.isNotEmpty) ...[
-                Text(
-                  emailSent ? 'The same link, if you need to send it yourself:' : 'Password Setup Link:',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B)),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
-                  ),
-                  child: SelectableText(
-                    staff.passwordResetLink!,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  emailSent
-                      ? 'Only needed if the email does not reach them.'
-                      : 'Share this link with the new staff member so they can set their password.',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontStyle: FontStyle.italic),
-                ),
-              ],
+              // No link is shown any more. One used to be, labelled as the thing to send if
+              // the email did not arrive -- but Firebase supersedes a password-reset code as soon
+              // as a newer one is issued, and the email we send is newer, so that link was always
+              // dead. Whoever was given it met "Try resetting your password again".
+              Text(
+                emailSent
+                    ? 'If it does not arrive, ask them to use Forgot password on the sign-in page — '
+                        'that sends a fresh link to them directly.'
+                    : 'Ask them to use Forgot password on the sign-in page. It sends a setup link '
+                        'to their school email.',
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
             ],
           ),
         ),
         actions: [
-          if (staff.passwordResetLink != null && staff.passwordResetLink!.isNotEmpty)
-            ElevatedButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: staff.passwordResetLink!));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Password setup link copied to clipboard!'),
-                    backgroundColor: AppColors.success,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: const Icon(Icons.copy, size: 16),
-              label: const Text('Copy Link'),
-            ),
           TextButton(
             onPressed: () {
               context.read<StaffBloc>().add(ClearStaffCreatedEvent());

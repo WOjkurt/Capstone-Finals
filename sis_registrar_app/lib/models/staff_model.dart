@@ -14,7 +14,6 @@ class StaffModel {
   final bool isRegular;
   final bool isActive;
   final DateTime createdAt;
-  final String? passwordResetLink;
   final String? firebaseSyncWarning;
 
   StaffModel({
@@ -33,7 +32,6 @@ class StaffModel {
     required this.isRegular,
     required this.isActive,
     required this.createdAt,
-    this.passwordResetLink,
     this.firebaseSyncWarning,
   });
 
@@ -58,7 +56,6 @@ class StaffModel {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      passwordResetLink: json['passwordResetLink'] as String?,
       firebaseSyncWarning: json['firebaseSyncWarning'] as String?,
     );
   }
@@ -80,7 +77,6 @@ class StaffModel {
       'isRegular': isRegular,
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
-      if (passwordResetLink != null) 'passwordResetLink': passwordResetLink,
       if (firebaseSyncWarning != null) 'firebaseSyncWarning': firebaseSyncWarning,
     };
   }

@@ -137,17 +137,18 @@ public class StaffService : IStaffService
             throw new InvalidOperationException($"Failed to save staff record: {dbEx.Message}");
         }
 
-        string? passwordResetLink = null;
-        try
-        {
-            passwordResetLink = await FirebaseAuth.DefaultInstance.GeneratePasswordResetLinkAsync(email);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not generate password reset link for new staff account.");
-        }
-
-        return await BuildStaffResponseDto(user.UserID, passwordResetLink);
+        // No setup link is generated here any more, and none is handed back.
+        //
+        // The app emails one straight after this call, through Firebase. Firebase's password-reset
+        // codes are single-use and the newest supersedes the last, so a link generated here was
+        // dead the moment that email went out -- while the dialog still offered it as the thing to
+        // send "if the email does not arrive". Anyone given it met "Try resetting your password
+        // again" and had no idea why.
+        //
+        // The fallback is Forgot password on the sign-in page, which issues a fresh code to the
+        // person who actually needs it. It is also the one fallback that does not involve pasting
+        // a password-setting URL into a chat window.
+        return await BuildStaffResponseDto(user.UserID);
     }
 
     public async Task<List<StaffResponseDto>> GetAllStaffAsync()
@@ -424,7 +425,6 @@ public class StaffService : IStaffService
 
     private async Task<StaffResponseDto> BuildStaffResponseDto(
         Guid userId,
-        string? passwordResetLink = null,
         string? firebaseSyncWarning = null)
     {
         var user = await _userRepository.GetByIdAsync(userId);
@@ -455,7 +455,6 @@ public class StaffService : IStaffService
             IsRegular = details?.IsRegular ?? true,
             IsActive = user.IsActive,
             CreatedAt = user.CreatedAt,
-            PasswordResetLink = passwordResetLink,
             FirebaseSyncWarning = firebaseSyncWarning
         };
     }

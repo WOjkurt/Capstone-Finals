@@ -76,7 +76,6 @@ class MockStaffRepository implements StaffRepository {
       isRegular: request.isRegular,
       isActive: true,
       createdAt: DateTime.now(),
-      passwordResetLink: 'https://auth.example.com/reset?token=xyz',
       firebaseSyncWarning: null,
     );
     staff.add(created);
@@ -193,7 +192,6 @@ void main() {
         'isRegular': true,
         'isActive': true,
         'createdAt': '2026-09-11T08:00:00Z',
-        'passwordResetLink': 'https://example.com/reset',
         'firebaseSyncWarning': null,
       };
 
@@ -206,7 +204,6 @@ void main() {
       expect(model.employeeId, 1001);
       expect(model.positionName, 'Registrar Head');
       expect(model.isActive, true);
-      expect(model.passwordResetLink, 'https://example.com/reset');
     });
 
     test('CreateStaffRequest serializes to json without PositionID and omits ProgramID when null', () {
@@ -389,7 +386,6 @@ void main() {
           predicate<StaffState>((s) =>
               s.isSubmitting == false &&
               s.createdStaff != null &&
-              s.createdStaff!.passwordResetLink != null &&
               s.staffList.length == 1),
         ]),
       );
@@ -407,8 +403,9 @@ void main() {
       expect(email.sentTo, ['newstaff@dbtc-cebu.edu.ph']);
       expect(staffBloc.state.createdStaffEmailSent, true);
       expect(staffBloc.state.successMessage, contains('emailed to newstaff@dbtc-cebu.edu.ph'));
-      // The link stays available whatever happens, as the way to send it by hand.
-      expect(staffBloc.state.createdStaff!.passwordResetLink, isNotNull);
+      // No link comes back any more: Firebase supersedes the code as soon as the email issues
+      // a newer one, so a link handed out beside the email was always dead.
+      expect(staffBloc.state.createdStaff, isNotNull);
     });
 
     test('an email that fails to send still leaves a usable account and the link', () async {
@@ -425,7 +422,6 @@ void main() {
       expect(staffBloc.state.createdStaffEmailSent, false);
       expect(staffBloc.state.errorMessage, isNull);
       expect(staffBloc.state.createdStaff, isNotNull);
-      expect(staffBloc.state.createdStaff!.passwordResetLink, isNotNull);
       expect(staffBloc.state.successMessage, contains('could not be emailed'));
       expect(staffBloc.state.staffList.length, 1);
     });
@@ -881,7 +877,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('the dialog says the link was emailed, and still offers it to send by hand',
+    testWidgets('the dialog says the link was emailed, and offers no link of its own',
         (tester) async {
       await createAnAccount(tester);
 
@@ -895,12 +891,14 @@ void main() {
         ),
         findsOneWidget,
       );
-      // The link is still there as the fallback, with Copy Link beside it.
-      expect(find.text('Copy Link'), findsOneWidget);
-      expect(find.text('https://auth.example.com/reset?token=xyz'), findsOneWidget);
+      // No link and no Copy Link: one used to be offered here and could never have worked,
+      // because the email we had just sent superseded its code.
+      expect(find.text('Copy Link'), findsNothing);
+      expect(find.textContaining('reset?token='), findsNothing);
+      expect(find.textContaining('Forgot password'), findsOneWidget);
     });
 
-    testWidgets('an email that does not send is reported, and the link is the way to send it',
+    testWidgets('an email that does not send is reported, and points at Forgot password',
         (tester) async {
       email.shouldThrow = true;
 
@@ -909,8 +907,9 @@ void main() {
       expect(find.byKey(const ValueKey('setup_email_failed')), findsOneWidget);
       expect(find.byKey(const ValueKey('setup_email_sent')), findsNothing);
       expect(find.textContaining('The email could not be sent'), findsOneWidget);
-      expect(find.text('Password Setup Link:'), findsOneWidget);
-      expect(find.text('Copy Link'), findsOneWidget);
+      expect(find.text('Copy Link'), findsNothing);
+      // The only working fallback: a fresh link, issued to the person who needs it.
+      expect(find.textContaining('Forgot password'), findsOneWidget);
       // The account itself was created even though the email failed.
       expect(mockRepo.lastCreateRequest, isNotNull);
       expect(find.text('Staff Account Created'), findsOneWidget);
