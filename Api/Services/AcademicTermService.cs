@@ -113,7 +113,32 @@ public class AcademicTermService : IAcademicTermService
         EnrollmentOpensOn = term.EnrollmentOpensOn,
         EnrollmentClosesOn = term.EnrollmentClosesOn,
         IsEnrollmentOpen = term.IsEnrollmentOpen(today ?? SchoolClock.Today()),
+        GradesReleasedAt = term.GradesReleasedAt,
+        AreGradesReleased = term.AreGradesReleased,
     };
+
+    public async Task<AcademicTermDto> SetGradesReleasedAsync(Guid termId, bool released, Guid callerId)
+    {
+        var term = await _termRepository.GetByIdAsync(termId)
+            ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
+
+        term.GradesReleasedAt = released ? DateTime.UtcNow : null;
+        term.GradesReleasedByUserID = released ? callerId : null;
+        await _termRepository.UpdateAsync(term);
+
+        var dto = ToDto(term);
+        dto.UnverifiedSheets = await UnverifiedSheetsAsync(termId);
+        return dto;
+    }
+
+    /// <summary>
+    /// Classes in the term whose sheet nobody has verified. Counted when releasing so the
+    /// Registrar knows what is going out unchecked -- a warning, not a gate, because one class
+    /// with no teacher assigned must not hold up a whole term's results.
+    /// </summary>
+    public async Task<int> UnverifiedSheetsAsync(Guid termId) =>
+        await _context.Classes.AsNoTracking()
+            .CountAsync(c => c.TermID == termId && c.VerifiedAt == null);
 
     public async Task DeleteAsync(Guid termId)
     {

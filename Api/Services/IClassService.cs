@@ -12,4 +12,10 @@ public interface IClassService
     Task<ClassDto> AssignTeacherAsync(Guid classId, Guid? userId);
     Task DeleteAsync(Guid classId);
     Task<OpenTermResultDto> OpenTermAsync(OpenTermRequestDto request, bool dryRun, Guid callerUserId);
+
+    /// <summary>
+    /// Marks a class's grade sheet as checked, or takes the mark off again. Returns the class
+    /// and whether it was verified before, so the caller can log a change rather than a re-save.
+    /// </summary>
+    Task<(ClassDto Class, bool WasVerified)> SetVerifiedAsync(Guid classId, bool verified, Guid callerId, int callerRole);
 }

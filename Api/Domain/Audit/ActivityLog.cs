@@ -89,12 +89,18 @@ public static class ActivityActions
     /// </summary>
     public const string GradeModified = "GRADE_MODIFIED";
 
+    /// <summary>A Program Head or College Head checked a class's grade sheet.</summary>
+    public const string GradeSheetVerified = "GRADE_SHEET_VERIFIED";
+
+    /// <summary>The Registrar let a term's grades out to students, or pulled them back.</summary>
+    public const string GradesReleased = "GRADES_RELEASED";
+
     public static readonly string[] All =
     {
         LoadsSaved, ForcedEnrollment, LoadsFinalized, LoadStatusChanged, OverloadApproved, YearLevelChanged,
         CreditAdded, CreditEdited, CreditRemoved, CreditsImported, FormsImported, EmailsImported, GradeCorrectionApproved, GradeCorrectionRejected, TeacherAssigned, ClearanceChanged,
         PersonalDetailsUpdated, StandingChanged, ProgramShifted, SettingsChanged, HoldAdded, HoldRemoved, ReenrollmentSubmitted, CurriculumChanged, StudentIdChanged, RecordsImported, SchoolEmailSet,
         GradeSubmitted, StaffCreated, RoleChanged, AccountDisabled, AccountReactivated, ApplicationApproved, ApplicationRejected, AccountLinked,
-        SignInBlocked, AccessDenied, ApplicantNotified, GradeModified
+        SignInBlocked, AccessDenied, ApplicantNotified, GradeModified, GradeSheetVerified, GradesReleased
     };
 }

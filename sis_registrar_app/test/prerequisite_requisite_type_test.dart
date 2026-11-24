@@ -95,6 +95,11 @@ class _FakeSetupRepo implements AcademicSetupRepository {
   Future<void> removePrerequisite(String prerequisiteId) async {
     prereqs = prereqs.where((p) => p.prerequisiteId != prerequisiteId).toList();
   }
+
+  @override
+  Future<AcademicTermModel> setGradeRelease(String id, bool released) async {
+    throw UnimplementedError();
+  }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

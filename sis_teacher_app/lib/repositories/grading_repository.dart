@@ -54,4 +54,24 @@ class UserSearchRepository {
         a.lastname.toLowerCase().compareTo(b.lastname.toLowerCase()));
     return merged;
   }
+
+}
+
+/// Checking a class's grade sheet. A Program Head may do this for their own programme's
+/// classes; the server refuses anything else, so this does not second-guess it.
+class GradeSheetRepository {
+  final AuthService _auth;
+  GradeSheetRepository(this._auth);
+
+  Future<void> setVerified(String classId, bool verified) async {
+    final headers = {...await _auth.getAuthHeaders(), 'Content-Type': 'application/json'};
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/classes/$classId/verification'),
+      headers: headers,
+      body: jsonEncode({'verified': verified}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+  }
 }

@@ -68,6 +68,7 @@ public class SchoolYearPostgresTests
         s.AddScoped<IActivityLogService, ActivityLogService>();
         s.AddScoped<IStudyLoadService, StudyLoadService>();
         s.AddScoped<IGradeService, GradeService>();
+        s.AddScoped<IAcademicTermService, AcademicTermService>();
         s.AddScoped<IGradeClearanceService, GradeClearanceService>();
         s.AddScoped<IProgramScopingService, ProgramScopingService>();
         _root = s.BuildServiceProvider();
@@ -484,6 +485,10 @@ public class SchoolYearPostgresTests
         });
         Assert.Equal(0, hidden);
         await Step(sp => Svc<IGradeClearanceService>(sp).SetClearanceAsync(_student, _term1, true, _registrar));
+
+        // Clearance alone is not enough now: the term's results have to be out as well.
+        Assert.Empty(await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _student, RoleUtils.Student)));
+        await Step(sp => Svc<IAcademicTermService>(sp).SetGradesReleasedAsync(_term1, true, _registrar));
         Assert.Equal(4, (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _student, RoleUtils.Student))).Count);
 
         // The Registrar changes a recorded grade: 2.5 becomes 2.0.

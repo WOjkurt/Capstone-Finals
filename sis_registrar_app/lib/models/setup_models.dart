@@ -47,11 +47,21 @@ class AcademicTermModel {
   /// Worked out by the API from today's date in the Philippines.
   final bool isEnrollmentOpen;
 
+  /// When this term's grades were let out to students, or null while they are withheld.
+  final DateTime? gradesReleasedAt;
+
+  /// Classes in the term whose sheet nobody verified. Only filled in by a release call.
+  final int unverifiedSheets;
+
+  bool get areGradesReleased => gradesReleasedAt != null;
+
   const AcademicTermModel({
     required this.termId,
     required this.schoolYear,
     required this.semester,
     this.isActive = false,
+    this.gradesReleasedAt,
+    this.unverifiedSheets = 0,
     this.enrollmentOpensOn,
     this.enrollmentClosesOn,
     this.isEnrollmentOpen = false,
@@ -66,6 +76,8 @@ class AcademicTermModel {
       enrollmentOpensOn: DateTime.tryParse(json['enrollmentOpensOn'] as String? ?? ''),
       enrollmentClosesOn: DateTime.tryParse(json['enrollmentClosesOn'] as String? ?? ''),
       isEnrollmentOpen: json['isEnrollmentOpen'] as bool? ?? false,
+      gradesReleasedAt: DateTime.tryParse(json['gradesReleasedAt']?.toString() ?? ''),
+      unverifiedSheets: (json['unverifiedSheets'] as num?)?.toInt() ?? 0,
     );
   }
 

@@ -91,6 +91,11 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
       {int requisiteType = 0}) async {}
   @override
   Future<void> removePrerequisite(String prerequisiteId) async {}
+
+  @override
+  Future<AcademicTermModel> setGradeRelease(String id, bool released) async {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

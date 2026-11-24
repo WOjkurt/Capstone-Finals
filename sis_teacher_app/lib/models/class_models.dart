@@ -77,6 +77,9 @@ class ClassModel {
   final DateTime? createdAt;
   final String? createdByUserId;
   final int enrolledCount;
+
+  /// When somebody checked this class's grade sheet, or null if nobody has.
+  final DateTime? verifiedAt;
   final int? yearLevel;
 
   /// Minor (GE, theology…) classes are staffed and scheduled by the College Head.
@@ -99,6 +102,7 @@ class ClassModel {
     this.createdAt,
     this.createdByUserId,
     this.enrolledCount = 0,
+    this.verifiedAt,
     this.yearLevel,
     this.isMinor = false,
     this.schedules = const [],
@@ -123,6 +127,7 @@ class ClassModel {
           : null,
       createdByUserId: json['createdByUserID'] as String? ?? json['createdByUserId'] as String?,
       enrolledCount: (json['enrolledCount'] as num?)?.toInt() ?? 0,
+      verifiedAt: DateTime.tryParse(json['verifiedAt']?.toString() ?? ''),
       yearLevel: (json['yearLevel'] as num?)?.toInt(),
       isMinor: json['isMinor'] as bool? ?? false,
       schedules: (json['schedules'] as List<dynamic>?)

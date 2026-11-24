@@ -88,6 +88,11 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
 
   @override
   Future<void> removePrerequisite(String prerequisiteId) async {}
+
+  @override
+  Future<AcademicTermModel> setGradeRelease(String id, bool released) async {
+    throw UnimplementedError();
+  }
 }
 
 class TestSetupBloc extends Bloc<SetupEvent, SetupState> implements SetupBloc {

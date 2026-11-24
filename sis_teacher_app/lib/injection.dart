@@ -17,6 +17,8 @@ void setupLocator() {
   // Repositories
   getIt.registerLazySingleton<ClassRepository>(
       () => ClassRepository(getIt<AuthService>()));
+  getIt.registerLazySingleton<GradeSheetRepository>(
+      () => GradeSheetRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<GradesRepository>(
       () => GradesRepository(getIt<AuthService>()));
   getIt.registerLazySingleton<UserSearchRepository>(

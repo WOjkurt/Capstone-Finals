@@ -298,6 +298,20 @@ public class GradeService : IGradeService
         // If the student's term has not been cleared, return 403 instead of the grade.
         if (studyLoad.Class != null)
         {
+            // Two separate gates, and the order matters for what the student is told. Releasing
+            // is about the whole term being finished; clearance is about this one student. Being
+            // told "pending clearance" when in fact nobody's results are out yet sends them to
+            // the Registrar's door for no reason.
+            var released = await _context.AcademicTerms.AsNoTracking()
+                .Where(t => t.TermID == studyLoad.Class.TermID)
+                .Select(t => t.GradesReleasedAt)
+                .FirstOrDefaultAsync();
+            if (released == null)
+            {
+                throw new UnauthorizedAccessException(
+                    "This term's grades have not been released yet. They will appear once the Registrar releases them.");
+            }
+
             bool cleared = await _clearanceService.IsClearedAsync(authenticatedUserId, studyLoad.Class.TermID);
             if (!cleared)
             {
@@ -448,10 +462,16 @@ public class GradeService : IGradeService
                 .Distinct()
                 .ToList();
 
+            var releasedTerms = (await _context.AcademicTerms.AsNoTracking()
+                .Where(t => distinctTermIds.Contains(t.TermID) && t.GradesReleasedAt != null)
+                .Select(t => t.TermID)
+                .ToListAsync()).ToHashSet();
+
             var clearedTerms = new HashSet<Guid>();
             foreach (var tId in distinctTermIds)
             {
-                if (await _clearanceService.IsClearedAsync(userId, tId))
+                // Withheld unless the term is out AND this student is cleared for it.
+                if (releasedTerms.Contains(tId) && await _clearanceService.IsClearedAsync(userId, tId))
                 {
                     clearedTerms.Add(tId);
                 }

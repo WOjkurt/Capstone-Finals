@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.DTOs.Setup;
 using Api.Domain.Audit;
 using Api.DTOs.Class;
 using Api.Repositories;
@@ -463,6 +464,46 @@ public class ClassesController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Marks a class's grade sheet as checked, or takes the mark off. Program Head, College Head
+    /// or Admin — deliberately not the Registrar, who is the one who can change a mark.
+    /// </summary>
+    [HttpPatch("{id:guid}/verification")]
+    [RequireProgramHeadCollegeHeadOrAdmin]
+    public async Task<IActionResult> SetVerification(Guid id, [FromBody] SetVerificationDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var idObj) || idObj is not Guid callerId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+        var role = HttpContext.Items.TryGetValue("role", out var r) && r is int i ? i : 0;
+
+        try
+        {
+            var (cls, wasVerified) = await _classService.SetVerifiedAsync(id, dto.Verified, callerId, role);
+
+            var log = this.ActivityLog();
+            if (log != null && wasVerified != dto.Verified)
+            {
+                await log.LogAsync(callerId, ActivityActions.GradeSheetVerified,
+                    dto.Verified
+                        ? $"Verified the grade sheet for {cls.ClassName} ({cls.SubjectCode})"
+                        : $"Took the verification off the grade sheet for {cls.ClassName} ({cls.SubjectCode})",
+                    null, cls.TermID);
+            }
+
+            return Ok(cls);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
     }
 }

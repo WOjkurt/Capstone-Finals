@@ -158,6 +158,43 @@ public class ClassService : IClassService
         }
     }
 
+    /// <summary>
+    /// Verifying a class's grade sheet: somebody other than the person who can change a mark has
+    /// looked at it. A Program Head may only do this for their own programme's classes; a
+    /// College Head or Admin is not narrowed that way.
+    ///
+    /// It records a check, nothing more. It does not freeze the marks, and it does not by itself
+    /// show anything to a student -- releasing the term does that.
+    /// </summary>
+    public async Task<(ClassDto Class, bool WasVerified)> SetVerifiedAsync(
+        Guid classId, bool verified, Guid callerId, int callerRole)
+    {
+        var cls = await _context.Classes.FirstOrDefaultAsync(c => c.ClassID == classId)
+            ?? throw new KeyNotFoundException("That class was not found.");
+
+        if (callerRole == RoleUtils.ProgramHead)
+        {
+            var programId = await _context.Classes
+                .Where(c => c.ClassID == classId)
+                .Select(c => (int?)c.Subject!.ProgramID)
+                .FirstOrDefaultAsync();
+            var mine = await _context.UserDetails
+                .Where(ud => ud.UserID == callerId).Select(ud => ud.ProgramID).FirstOrDefaultAsync();
+            if (programId == null || mine == null || programId != mine)
+            {
+                throw new UnauthorizedAccessException(
+                    "A Program Head can only verify grade sheets for their own programme's classes.");
+            }
+        }
+
+        var wasVerified = cls.VerifiedAt != null;
+        cls.VerifiedAt = verified ? DateTime.UtcNow : null;
+        cls.VerifiedByUserID = verified ? callerId : null;
+        await _context.SaveChangesAsync();
+
+        return ((await GetByIdAsync(classId))!, wasVerified);
+    }
+
     public async Task<ClassDto?> GetByIdAsync(Guid classId)
     {
         var entity = await _classRepository.GetByIdAsync(classId);

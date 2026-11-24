@@ -5,6 +5,8 @@ import '../injection.dart';
 import '../models/class_models.dart';
 import '../models/setup_models.dart';
 import '../repositories/class_repository.dart';
+import '../repositories/enrollment_repository.dart';
+import '../utils/error_handler.dart';
 import '../theme/app_theme.dart';
 import 'widgets/class_roster_dialog.dart';
 import 'widgets/open_term_dialog.dart';
@@ -594,7 +596,7 @@ class _TermsTab extends StatelessWidget {
                                       color: AppColors.primary),
                                 ),
                               ),
-                              DataCell(
+                              DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                                 t.isActive
                                     ? Container(
                                         padding: const EdgeInsets.symmetric(
@@ -643,7 +645,16 @@ class _TermsTab extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                              ),
+                                if (!t.areGradesReleased) ...[
+                                  const SizedBox(width: 6),
+                                  Tooltip(
+                                    key: ValueKey('grades_withheld_${t.termId}'),
+                                    message: 'Grades for this term are withheld from students',
+                                    child: const Icon(Icons.lock_outline_rounded,
+                                        size: 15, color: Color(0xFFB45309)),
+                                  ),
+                                ],
+                              ])),
                               DataCell(EnrollmentPeriodCell(term: t)),
                               DataCell(
                                 Row(
@@ -686,6 +697,19 @@ class _TermsTab extends StatelessWidget {
                                         onPressed: () => menu.isOpen ? menu.close() : menu.open(),
                                       ),
                                       menuChildren: [
+                                        MenuItemButton(
+                                          key: ValueKey('grade_release_${t.termId}'),
+                                          leadingIcon: Icon(
+                                              t.areGradesReleased
+                                                  ? Icons.lock_outline_rounded
+                                                  : Icons.lock_open_rounded,
+                                              size: 18),
+                                          onPressed: () =>
+                                              _confirmGradeRelease(context, t, !t.areGradesReleased),
+                                          child: Text(t.areGradesReleased
+                                              ? 'Withhold grades'
+                                              : 'Release grades'),
+                                        ),
                                         MenuItemButton(
                                           key: ValueKey('term_classes_${t.termId}'),
                                           onPressed: () => context
@@ -730,6 +754,55 @@ class _TermsTab extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmGradeRelease(
+      BuildContext context, AcademicTermModel t, bool release) async {
+    final label = '${t.schoolYear} — Semester ${t.semester}';
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(release ? 'Release grades?' : 'Withhold grades again?'),
+        content: SizedBox(
+          width: 420,
+          child: Text(release
+              ? 'Students cleared for $label will be able to see their grades. '
+                  'Any sheet nobody has verified goes out with them.'
+              : 'Students will stop seeing their grades for $label until you release them again.'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            key: const ValueKey('confirm_grade_release'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(release ? 'Release' : 'Withhold'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final updated = await getIt<AcademicSetupRepository>().setGradeRelease(t.termId, release);
+      if (!context.mounted) return;
+      context.read<SetupBloc>().add(LoadSetupData());
+      // Said after the fact, not as a block: one unchecked class must not hold up a term.
+      final unchecked = updated.unverifiedSheets;
+      messenger.showSnackBar(SnackBar(
+        backgroundColor: unchecked > 0 && release ? AppColors.warning : AppColors.success,
+        content: Text(release
+            ? (unchecked > 0
+                ? 'Grades released for $label — $unchecked grade sheet(s) had not been verified.'
+                : 'Grades released for $label.')
+            : 'Grades withheld again for $label.'),
+      ));
+    } catch (e, st) {
+      messenger.showSnackBar(SnackBar(
+        backgroundColor: AppColors.error,
+        content: Text(getFriendlyErrorMessage(e, st)),
+      ));
+    }
   }
 
   void _confirmActivateTerm(

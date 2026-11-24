@@ -248,6 +248,12 @@ public class AppDbContext : DbContext
         // ── Class ────────────────────────────────────────────────────
         modelBuilder.Entity<Class>(entity =>
         {
+            // Optional: most classes have never been verified.
+            entity.HasOne(c => c.VerifiedByUser)
+                .WithMany()
+                .HasForeignKey(c => c.VerifiedByUserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(c => c.Subject)
                 .WithMany()
                 .HasForeignKey(c => c.SubjectID)

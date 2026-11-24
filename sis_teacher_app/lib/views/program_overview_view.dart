@@ -6,6 +6,8 @@ import '../blocs/faculty_bloc.dart';
 import '../blocs/program_overview_bloc.dart';
 import '../injection.dart';
 import '../models/class_models.dart';
+import '../repositories/grading_repository.dart';
+import '../utils/error_handler.dart';
 import '../repositories/class_repository.dart';
 import '../theme/app_theme.dart';
 import 'widgets/assign_teacher_dialog.dart';
@@ -1722,6 +1724,48 @@ class _ProgramClassDetailDialog extends StatefulWidget {
 }
 
 class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
+  DateTime? _verifiedAt;
+  bool _verifying = false;
+
+  Widget _verifyButton() {
+    final verified = _verifiedAt ?? widget.classItem.verifiedAt;
+    return OutlinedButton.icon(
+      key: const ValueKey('verify_sheet_button'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: verified != null ? const Color(0xFF15803D) : null,
+      ),
+      onPressed: _verifying ? null : () => _setVerified(verified == null),
+      icon: Icon(verified != null ? Icons.verified_rounded : Icons.fact_check_outlined, size: 16),
+      label: Text(verified != null ? 'Sheet verified' : 'Verify grade sheet'),
+    );
+  }
+
+  Future<void> _setVerified(bool verify) async {
+    setState(() => _verifying = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await getIt<GradeSheetRepository>().setVerified(widget.classItem.classId, verify);
+      if (!mounted) return;
+      setState(() {
+        _verifiedAt = verify ? DateTime.now() : null;
+        _verifying = false;
+      });
+      messenger.showSnackBar(SnackBar(
+        backgroundColor: AppColors.success,
+        content: Text(verify
+            ? 'Grade sheet verified. It still has to be released by the Registrar before students see it.'
+            : 'Verification removed from this grade sheet.'),
+      ));
+    } catch (e, st) {
+      if (!mounted) return;
+      setState(() => _verifying = false);
+      messenger.showSnackBar(SnackBar(
+        backgroundColor: AppColors.error,
+        content: Text(getFriendlyErrorMessage(e, st)),
+      ));
+    }
+  }
+
   final TextEditingController _rosterSearch = TextEditingController();
   List<ClassRosterItemModel>? _roster;
   bool _isLoading = true;
@@ -2215,8 +2259,13 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
             const SizedBox(height: 16),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            // Wrap, not Row: the footer carries a note, a schedule action and now a verify
+            // action, and on a narrow dialog they will not all fit on one line.
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 if (widget.classItem.isMinor)
                   const Text(
@@ -2233,6 +2282,10 @@ class _ProgramClassDetailDialogState extends State<_ProgramClassDetailDialog> {
                     icon: const Icon(Icons.schedule_rounded, size: 16),
                     label: const Text('Edit schedule'),
                   ),
+                const SizedBox(width: 8),
+                // Checking the sheet is a Program Head's job, not the Registrar's: the person
+                // who checks should not also be the one who can change a mark.
+                _verifyButton(),
                 const SizedBox(width: 8),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),

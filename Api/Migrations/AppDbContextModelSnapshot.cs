@@ -113,6 +113,12 @@ namespace Api.Migrations
                     b.Property<DateOnly?>("EnrollmentOpensOn")
                         .HasColumnType("date");
 
+                    b.Property<DateTime?>("GradesReleasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GradesReleasedByUserID")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -189,6 +195,12 @@ namespace Api.Migrations
                     b.Property<Guid?>("UserID")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("VerifiedByUserID")
+                        .HasColumnType("uuid");
+
                     b.HasKey("ClassID");
 
                     b.HasIndex("CreatedByUserID");
@@ -198,6 +210,8 @@ namespace Api.Migrations
                     b.HasIndex("TermID");
 
                     b.HasIndex("UserID");
+
+                    b.HasIndex("VerifiedByUserID");
 
                     b.ToTable("Classes");
                 });
@@ -1205,6 +1219,11 @@ namespace Api.Migrations
                         .HasForeignKey("UserID")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Api.Domain.IdentityAccess.User", "VerifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("VerifiedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Subject");
@@ -1212,6 +1231,8 @@ namespace Api.Migrations
                     b.Navigation("Term");
 
                     b.Navigation("User");
+
+                    b.Navigation("VerifiedByUser");
                 });
 
             modelBuilder.Entity("Api.Domain.Enrollment.ClassSchedule", b =>

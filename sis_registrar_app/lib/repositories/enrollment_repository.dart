@@ -244,6 +244,21 @@ class AcademicSetupRepository {
     return AcademicTermModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// Lets a term's grades out to students, or withholds them again. The reply carries how
+  /// many sheets nobody verified, so the caller can say what went out unchecked.
+  Future<AcademicTermModel> setGradeRelease(String id, bool released) async {
+    final headers = {...await _auth.getAuthHeaders(), 'Content-Type': 'application/json'};
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/AcademicTerms/$id/grade-release'),
+      headers: headers,
+      body: jsonEncode({'released': released}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(statusCode: res.statusCode, message: _extractMessage(res.body));
+    }
+    return AcademicTermModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<AcademicTermModel> activateTerm(String id) async {
     final headers = await _auth.getAuthHeaders();
     final res = await http.patch(

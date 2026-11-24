@@ -157,4 +157,42 @@ public class AcademicTermsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Releases a term's grades to students, or withholds them again. The response carries how
+    /// many sheets nobody verified, so the app can say what went out unchecked.
+    /// </summary>
+    [HttpPatch("{id:guid}/grade-release")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> SetGradeRelease(Guid id, [FromBody] SetGradeReleaseDto dto)
+    {
+        if (!HttpContext.Items.TryGetValue("user_id", out var idObj) || idObj is not Guid callerId)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
+        try
+        {
+            var term = await _termService.SetGradesReleasedAsync(id, dto.Released, callerId);
+
+            var log = this.ActivityLog();
+            if (log != null)
+            {
+                var unchecked_ = term.UnverifiedSheets > 0
+                    ? $" — {term.UnverifiedSheets} sheet(s) had not been verified"
+                    : "";
+                await log.LogAsync(callerId, ActivityActions.GradesReleased,
+                    (dto.Released
+                        ? $"Released grades for {term.SchoolYear} semester {term.Semester}"
+                        : $"Withheld grades again for {term.SchoolYear} semester {term.Semester}") + unchecked_,
+                    null, term.TermID);
+            }
+
+            return Ok(term);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
 }
