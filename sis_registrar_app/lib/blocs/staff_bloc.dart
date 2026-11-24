@@ -3,6 +3,10 @@ import '../models/staff_model.dart';
 import '../repositories/staff_repository.dart';
 import '../utils/error_handler.dart';
 
+/// Emails a link for setting a password. Firebase sends the message itself, so nothing
+/// here talks to a mail server.
+typedef SendPasswordReset = Future<void> Function(String email);
+
 // Events
 abstract class StaffEvent {}
 
@@ -42,6 +46,10 @@ class StaffState {
   final String? processingId;
   final List<StaffModel> staffList;
   final StaffModel? createdStaff;
+
+  /// Whether the setup link was emailed to the account just created. False means the
+  /// email did not go out and the Registrar has to send the link themselves.
+  final bool createdStaffEmailSent;
   final StaffModel? updatedStaff;
   final String? errorMessage;
   final String? successMessage;
@@ -53,6 +61,7 @@ class StaffState {
     this.processingId,
     this.staffList = const [],
     this.createdStaff,
+    this.createdStaffEmailSent = false,
     this.updatedStaff,
     this.errorMessage,
     this.successMessage,
@@ -66,6 +75,7 @@ class StaffState {
     bool clearProcessing = false,
     List<StaffModel>? staffList,
     StaffModel? createdStaff,
+    bool? createdStaffEmailSent,
     bool clearCreatedStaff = false,
     StaffModel? updatedStaff,
     bool clearUpdatedStaff = false,
@@ -84,6 +94,9 @@ class StaffState {
       createdStaff: clearCreatedStaff
           ? null
           : (createdStaff ?? this.createdStaff),
+      createdStaffEmailSent: clearCreatedStaff
+          ? false
+          : (createdStaffEmailSent ?? this.createdStaffEmailSent),
       updatedStaff: clearUpdatedStaff
           ? null
           : (updatedStaff ?? this.updatedStaff),
@@ -99,8 +112,11 @@ class StaffState {
 // Bloc
 class StaffBloc extends Bloc<StaffEvent, StaffState> {
   final StaffRepository _staffRepository;
+  final SendPasswordReset _sendPasswordReset;
 
-  StaffBloc(this._staffRepository) : super(StaffState()) {
+  StaffBloc(this._staffRepository, {required SendPasswordReset sendPasswordReset})
+      : _sendPasswordReset = sendPasswordReset,
+        super(StaffState()) {
     on<LoadStaffList>(_onLoadStaffList);
     on<CreateStaffEvent>(_onCreateStaff);
     on<UpdateStaffEvent>(_onUpdateStaff);
@@ -140,12 +156,26 @@ class StaffBloc extends Bloc<StaffEvent, StaffState> {
     ));
     try {
       final created = await _staffRepository.createStaff(event.request);
+
+      // Firebase emails the setup link itself. If that fails the account is still good:
+      // the dialog falls back to the link, for the Registrar to pass on by hand.
+      var emailSent = false;
+      try {
+        await _sendPasswordReset(created.email);
+        emailSent = true;
+      } catch (_) {
+        emailSent = false;
+      }
+
       final updatedList = await _staffRepository.getAllStaff();
       emit(state.copyWith(
         isSubmitting: false,
         staffList: updatedList,
         createdStaff: created,
-        successMessage: 'Staff account created successfully for ${created.fullName}!',
+        createdStaffEmailSent: emailSent,
+        successMessage: emailSent
+            ? 'Staff account created for ${created.fullName}. The setup link was emailed to ${created.email}.'
+            : 'Staff account created for ${created.fullName}, but the setup link could not be emailed — send it to them yourself.',
       ));
     } catch (e, st) {
       emit(state.copyWith(

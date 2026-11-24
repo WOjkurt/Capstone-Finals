@@ -94,5 +94,6 @@ void setupLocator() {
       ));
   getIt.registerFactory<StaffBloc>(() => StaffBloc(
         getIt<StaffRepository>(),
+        sendPasswordReset: getIt<AuthService>().sendPasswordReset,
       ));
 }

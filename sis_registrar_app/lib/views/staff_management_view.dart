@@ -48,7 +48,8 @@ class _StaffManagementViewState extends State<StaffManagementView> {
     super.dispose();
   }
 
-  void _showPasswordResetDialog(BuildContext context, StaffModel staff) {
+  void _showPasswordResetDialog(
+      BuildContext context, StaffModel staff, bool emailSent) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -73,6 +74,46 @@ class _StaffManagementViewState extends State<StaffManagementView> {
               Text(
                 'An account for ${staff.fullName} (${staff.email}) has been successfully generated.',
                 style: const TextStyle(fontSize: 14, color: Color(0xFF334155)),
+              ),
+              const SizedBox(height: 16),
+              // Firebase sends the setup link on its own. Say plainly whether it went out,
+              // because the link below is the fallback when it did not.
+              Container(
+                key: ValueKey(emailSent ? 'setup_email_sent' : 'setup_email_failed'),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: emailSent ? const Color(0xFFD1FAE5) : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: emailSent ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      emailSent ? Icons.mark_email_read_outlined : Icons.mail_outline,
+                      color: emailSent ? const Color(0xFF047857) : const Color(0xFFD97706),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        emailSent
+                            ? 'A link for setting their password was emailed to ${staff.email}. '
+                                'Tell them to check their spam folder if it is not in the inbox, and to open it '
+                                'within the hour — after that, Forgot password on the login page sends a fresh one.'
+                            : 'The email could not be sent. Give them the link below yourself, or ask them to '
+                                'use Forgot password on the login page.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: emailSent ? const Color(0xFF065F46) : const Color(0xFF92400E),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               if (staff.firebaseSyncWarning != null && staff.firebaseSyncWarning!.isNotEmpty) ...[
@@ -104,9 +145,9 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                 const SizedBox(height: 16),
               ],
               if (staff.passwordResetLink != null && staff.passwordResetLink!.isNotEmpty) ...[
-                const Text(
-                  'Password Setup Link:',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B)),
+                Text(
+                  emailSent ? 'The same link, if you need to send it yourself:' : 'Password Setup Link:',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B)),
                 ),
                 const SizedBox(height: 6),
                 Container(
@@ -126,9 +167,11 @@ class _StaffManagementViewState extends State<StaffManagementView> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Share this link with the new staff member so they can set their password.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontStyle: FontStyle.italic),
+                Text(
+                  emailSent
+                      ? 'Only needed if the email does not reach them.'
+                      : 'Share this link with the new staff member so they can set their password.',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontStyle: FontStyle.italic),
                 ),
               ],
             ],
@@ -190,7 +233,8 @@ class _StaffManagementViewState extends State<StaffManagementView> {
               listener: (consumerCtx, state) {
                 if (!state.isSubmitting && state.createdStaff != null) {
                   Navigator.of(dialogCtx).pop();
-                  _showPasswordResetDialog(context, state.createdStaff!);
+                  _showPasswordResetDialog(
+                      context, state.createdStaff!, state.createdStaffEmailSent);
                 }
               },
               builder: (consumerCtx, state) {

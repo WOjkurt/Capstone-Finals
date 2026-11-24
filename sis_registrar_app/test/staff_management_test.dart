@@ -29,6 +29,18 @@ class FakeAcademicSetupRepository implements AcademicSetupRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Stands in for Firebase sending the setup email, so a test can see whether it was asked
+/// to send and to whom, and make the send fail.
+class FakeSetupEmail {
+  final List<String> sentTo = [];
+  bool shouldThrow = false;
+
+  Future<void> send(String email) async {
+    if (shouldThrow) throw Exception('Firebase is unreachable');
+    sentTo.add(email);
+  }
+}
+
 class MockStaffRepository implements StaffRepository {
   List<StaffModel> staff = [];
   bool shouldThrow = false;
@@ -320,11 +332,13 @@ void main() {
 
   group('StaffBloc tests', () {
     late MockStaffRepository mockRepo;
+    late FakeSetupEmail email;
     late StaffBloc staffBloc;
 
     setUp(() {
       mockRepo = MockStaffRepository();
-      staffBloc = StaffBloc(mockRepo);
+      email = FakeSetupEmail();
+      staffBloc = StaffBloc(mockRepo, sendPasswordReset: email.send);
     });
 
     tearDown(() {
@@ -379,6 +393,58 @@ void main() {
               s.staffList.length == 1),
         ]),
       );
+    });
+
+    test('creating an account emails the setup link to the new staff member', () async {
+      staffBloc.add(CreateStaffEvent(CreateStaffRequest(
+        email: 'newstaff@dbtc-cebu.edu.ph',
+        firstname: 'New',
+        lastname: 'Staff',
+        role: 2,
+      )));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(email.sentTo, ['newstaff@dbtc-cebu.edu.ph']);
+      expect(staffBloc.state.createdStaffEmailSent, true);
+      expect(staffBloc.state.successMessage, contains('emailed to newstaff@dbtc-cebu.edu.ph'));
+      // The link stays available whatever happens, as the way to send it by hand.
+      expect(staffBloc.state.createdStaff!.passwordResetLink, isNotNull);
+    });
+
+    test('an email that fails to send still leaves a usable account and the link', () async {
+      email.shouldThrow = true;
+
+      staffBloc.add(CreateStaffEvent(CreateStaffRequest(
+        email: 'newstaff@dbtc-cebu.edu.ph',
+        firstname: 'New',
+        lastname: 'Staff',
+        role: 2,
+      )));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(staffBloc.state.createdStaffEmailSent, false);
+      expect(staffBloc.state.errorMessage, isNull);
+      expect(staffBloc.state.createdStaff, isNotNull);
+      expect(staffBloc.state.createdStaff!.passwordResetLink, isNotNull);
+      expect(staffBloc.state.successMessage, contains('could not be emailed'));
+      expect(staffBloc.state.staffList.length, 1);
+    });
+
+    test('clearing the created account forgets that an email was sent', () async {
+      staffBloc.add(CreateStaffEvent(CreateStaffRequest(
+        email: 'newstaff@dbtc-cebu.edu.ph',
+        firstname: 'New',
+        lastname: 'Staff',
+        role: 2,
+      )));
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(staffBloc.state.createdStaffEmailSent, true);
+
+      staffBloc.add(ClearStaffCreatedEvent());
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(staffBloc.state.createdStaff, isNull);
+      expect(staffBloc.state.createdStaffEmailSent, false);
     });
 
     test('DisableStaffEvent and ReactivateStaffEvent update staff state', () async {
@@ -545,7 +611,7 @@ void main() {
 
     setUp(() {
       mockRepo = MockStaffRepository();
-      staffBloc = StaffBloc(mockRepo);
+      staffBloc = StaffBloc(mockRepo, sendPasswordReset: FakeSetupEmail().send);
       if (getIt.isRegistered<AcademicSetupRepository>()) {
         getIt.unregister<AcademicSetupRepository>();
       }
@@ -761,6 +827,93 @@ void main() {
       expect(payload['lastname'], 'Turing');
 
       debugPrint('Edit College Head Request Payload: $payload');
+    });
+  });
+
+  group('StaffManagementView Widget Tests - Setup email', () {
+    late MockStaffRepository mockRepo;
+    late FakeSetupEmail email;
+    late StaffBloc staffBloc;
+
+    setUp(() {
+      mockRepo = MockStaffRepository();
+      email = FakeSetupEmail();
+      staffBloc = StaffBloc(mockRepo, sendPasswordReset: email.send);
+      if (getIt.isRegistered<AcademicSetupRepository>()) {
+        getIt.unregister<AcademicSetupRepository>();
+      }
+      getIt.registerSingleton<AcademicSetupRepository>(FakeAcademicSetupRepository());
+    });
+
+    tearDown(() {
+      staffBloc.close();
+      if (getIt.isRegistered<AcademicSetupRepository>()) {
+        getIt.unregister<AcademicSetupRepository>();
+      }
+    });
+
+    Future<void> createAnAccount(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(MaterialApp(
+        home: BlocProvider<StaffBloc>.value(
+          value: staffBloc,
+          child: const StaffManagementView(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add Staff'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const ValueKey('staff_email_field')), 'newstaff@dbtc-cebu.edu.ph');
+      await tester.enterText(find.byKey(const ValueKey('staff_first_name_field')), 'New');
+      await tester.enterText(find.byKey(const ValueKey('staff_last_name_field')), 'Staff');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Create Account'));
+      // The bloc is built in setUp, so its work runs on the real event loop: creating the
+      // account, emailing the link and reloading the list each need a turn of it before
+      // the result dialog can be expected.
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the dialog says the link was emailed, and still offers it to send by hand',
+        (tester) async {
+      await createAnAccount(tester);
+
+      expect(email.sentTo, ['newstaff@dbtc-cebu.edu.ph']);
+      expect(find.byKey(const ValueKey('setup_email_sent')), findsOneWidget);
+      expect(find.byKey(const ValueKey('setup_email_failed')), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('setup_email_sent')),
+          matching: find.textContaining('was emailed to newstaff@dbtc-cebu.edu.ph'),
+        ),
+        findsOneWidget,
+      );
+      // The link is still there as the fallback, with Copy Link beside it.
+      expect(find.text('Copy Link'), findsOneWidget);
+      expect(find.text('https://auth.example.com/reset?token=xyz'), findsOneWidget);
+    });
+
+    testWidgets('an email that does not send is reported, and the link is the way to send it',
+        (tester) async {
+      email.shouldThrow = true;
+
+      await createAnAccount(tester);
+
+      expect(find.byKey(const ValueKey('setup_email_failed')), findsOneWidget);
+      expect(find.byKey(const ValueKey('setup_email_sent')), findsNothing);
+      expect(find.textContaining('The email could not be sent'), findsOneWidget);
+      expect(find.text('Password Setup Link:'), findsOneWidget);
+      expect(find.text('Copy Link'), findsOneWidget);
+      // The account itself was created even though the email failed.
+      expect(mockRepo.lastCreateRequest, isNotNull);
+      expect(find.text('Staff Account Created'), findsOneWidget);
     });
   });
 }
