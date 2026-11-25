@@ -5,6 +5,7 @@ import '../../models/curriculum_models.dart';
 import '../../models/setup_models.dart';
 import '../../repositories/curriculum_repository.dart';
 import '../../theme/app_theme.dart';
+import 'curriculum_view_page.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/file_pick.dart';
 import 'status_badge.dart';
@@ -215,6 +216,21 @@ class _CurriculaTabState extends State<CurriculaTab> {
                                               tooltip: 'Import subjects (CSV)',
                                               icon: const Icon(Icons.upload_file_outlined, size: 18, color: AppColors.primary),
                                               onPressed: () => _import(c),
+                                            ),
+                                            // The whole curriculum on its own page: every year
+                                            // and semester at once, which is what gets printed
+                                            // and handed to a student.
+                                            IconButton(
+                                              key: ValueKey('view_${c.curriculumId}'),
+                                              tooltip: c.subjectCount > 0
+                                                  ? 'View the complete curriculum'
+                                                  : 'No subjects in this curriculum yet',
+                                              icon: const Icon(Icons.visibility_outlined,
+                                                  size: 18, color: AppColors.primary),
+                                              onPressed: c.subjectCount > 0
+                                                  ? () => Navigator.of(context).push(MaterialPageRoute(
+                                                      builder: (_) => CurriculumViewPage(curriculum: c)))
+                                                  : null,
                                             ),
                                             IconButton(
                                               key: ValueKey('edit_${c.curriculumId}'),
