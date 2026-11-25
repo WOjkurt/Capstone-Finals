@@ -245,4 +245,54 @@ public class GradeSheetReportTests : IDisposable
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => _reports.GetGradeSheetsAsync(Guid.NewGuid(), null));
     }
+
+    // ── Whether the caller may verify what they are looking at ──────────────
+
+    [Fact]
+    public async Task ASheetTheCallerEncoded_IsMarkedAsTheirOwnWork()
+    {
+        Enrol(_classId, "Cruz", "Ana", midterm: 2.0m, final: 2.25m);
+
+        var sheets = await _reports.GetGradeSheetsAsync(_termId, null, _teacher);
+
+        // Enrol submits every mark as the teacher, so IT 101 is theirs. IT 102 has nobody in
+        // it, and an empty sheet is nobody's work -- there is nothing on it to have encoded.
+        Assert.True(sheets.Single(sheet => sheet.ClassId == _classId).EncodedByCaller);
+        Assert.False(sheets.Single(sheet => sheet.ClassId == _emptyClassId).EncodedByCaller);
+    }
+
+    [Fact]
+    public async Task ASheetSomebodyElseEncoded_IsNotTheirOwnWork()
+    {
+        Enrol(_classId, "Cruz", "Ana", midterm: 2.0m, final: 2.25m);
+
+        var sheets = await _reports.GetGradeSheetsAsync(_termId, null, _programHead);
+
+        Assert.All(sheets, sheet => Assert.False(sheet.EncodedByCaller));
+    }
+
+    [Fact]
+    public async Task CorrectingAMarkCountsAsHavingTouchedTheSheet()
+    {
+        Enrol(_classId, "Cruz", "Ana", midterm: 2.0m, final: 2.25m);
+        var registrar = Guid.NewGuid();
+        var grade = await _context.Grades.FirstAsync();
+        grade.ModifiedByUserID = registrar;
+        grade.ModifiedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        var sheets = await _reports.GetGradeSheetsAsync(_termId, null, registrar);
+
+        // She did not type this mark, but she changed it, which is the same problem.
+        Assert.True(sheets.Single(sheet => sheet.ClassId == _classId).EncodedByCaller);
+    }
+
+    [Fact]
+    public async Task NobodyInParticularAsking_ClaimsNoSheetAsTheirs()
+    {
+        Enrol(_classId, "Cruz", "Ana", midterm: 2.0m, final: 2.25m);
+
+        // The printed report has no caller, and must not light up every row as un-verifiable.
+        Assert.All(await Sheets(), sheet => Assert.False(sheet.EncodedByCaller));
+    }
 }

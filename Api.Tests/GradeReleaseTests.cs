@@ -244,6 +244,94 @@ public class GradeReleaseTests : IDisposable
         Assert.Empty(await AsStudent());
     }
 
+    // ── The second pass in the Registrar's own office ───────────────────────
+    //
+    // At DBTC every mark is encoded by the Registrar's office, so the check on it happens
+    // there too -- by a different member of staff. The rule is not "not the Registrar", it is
+    // "not the person who typed it".
+
+    [Fact]
+    public async Task ARegistrarVerifiesASheetSheDidNotEncode()
+    {
+        // The seeded marks were submitted by the teacher.
+        var (_, wasVerified) = await _classes.SetVerifiedAsync(_classId, true, _registrar, RoleUtils.Registrar);
+
+        Assert.False(wasVerified);
+        var saved = await _context.Classes.AsNoTracking().FirstAsync(c => c.ClassID == _classId);
+        Assert.NotNull(saved.VerifiedAt);
+        Assert.Equal(_registrar, saved.VerifiedByUserID);
+    }
+
+    [Fact]
+    public async Task ARegistrarCannotVerifyMarksSheEnteredHerself()
+    {
+        var grade = await _context.Grades.FirstAsync(g => g.StudyLoadID == _studyLoadId);
+        grade.SubmittedByUserID = _registrar;
+        await _context.SaveChangesAsync();
+
+        var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _classes.SetVerifiedAsync(_classId, true, _registrar, RoleUtils.Registrar));
+
+        Assert.Contains("somebody else in the office", refused.Message);
+        Assert.Null((await _context.Classes.AsNoTracking().FirstAsync(c => c.ClassID == _classId)).VerifiedAt);
+    }
+
+    [Fact]
+    public async Task ARegistrarCannotVerifyAMarkSheCorrected()
+    {
+        // Encoded by the teacher, but she is the one who changed it, which is the same problem.
+        var grade = await _context.Grades.FirstAsync(g => g.StudyLoadID == _studyLoadId);
+        grade.ModifiedByUserID = _registrar;
+        grade.ModifiedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _classes.SetVerifiedAsync(_classId, true, _registrar, RoleUtils.Registrar));
+    }
+
+    [Fact]
+    public async Task SheCannotTakeTheVerificationOffHerOwnSheetEither()
+    {
+        await _classes.SetVerifiedAsync(_classId, true, _programHead, RoleUtils.ProgramHead);
+        var grade = await _context.Grades.FirstAsync(g => g.StudyLoadID == _studyLoadId);
+        grade.SubmittedByUserID = _registrar;
+        await _context.SaveChangesAsync();
+
+        // Otherwise the rule is one click away from meaningless: unverify, then verify.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _classes.SetVerifiedAsync(_classId, false, _registrar, RoleUtils.Registrar));
+
+        Assert.NotNull((await _context.Classes.AsNoTracking().FirstAsync(c => c.ClassID == _classId)).VerifiedAt);
+    }
+
+    [Fact]
+    public async Task AnotherRegistrarCanVerifyWhatTheFirstOneEncoded()
+    {
+        var otherRegistrar = Guid.NewGuid();
+        _context.Users.Add(new User { UserID = otherRegistrar, FirebaseUID = "fb" + otherRegistrar, Email = "reg2@dbtc-cebu.edu.ph", Role = RoleUtils.Registrar, IsActive = true });
+        var grade = await _context.Grades.FirstAsync(g => g.StudyLoadID == _studyLoadId);
+        grade.SubmittedByUserID = _registrar;
+        await _context.SaveChangesAsync();
+
+        await _classes.SetVerifiedAsync(_classId, true, otherRegistrar, RoleUtils.Registrar);
+
+        Assert.Equal(otherRegistrar,
+            (await _context.Classes.AsNoTracking().FirstAsync(c => c.ClassID == _classId)).VerifiedByUserID);
+    }
+
+    [Fact]
+    public async Task AdminIsNotNarrowedByWhoEncodedIt()
+    {
+        var grade = await _context.Grades.FirstAsync(g => g.StudyLoadID == _studyLoadId);
+        grade.SubmittedByUserID = _registrar;
+        await _context.SaveChangesAsync();
+
+        // The account that exists to get the office unstuck.
+        await _classes.SetVerifiedAsync(_classId, true, _registrar, RoleUtils.Admin);
+
+        Assert.NotNull((await _context.Classes.AsNoTracking().FirstAsync(c => c.ClassID == _classId)).VerifiedAt);
+    }
+
     // ── Unverified sheets warn, they do not block ───────────────────────────
 
     [Fact]

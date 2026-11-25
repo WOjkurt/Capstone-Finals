@@ -468,11 +468,14 @@ public class ClassesController : ControllerBase
     }
 
     /// <summary>
-    /// Marks a class's grade sheet as checked, or takes the mark off. Program Head, College Head
-    /// or Admin — deliberately not the Registrar, who is the one who can change a mark.
+    /// Marks a class's grade sheet as checked, or takes the mark off.
+    ///
+    /// Program Head (own programme), College Head, Admin — and Registrar staff, who do the
+    /// second pass over marks their own office encoded. Never the person who encoded or
+    /// corrected those marks: the service refuses that, which is the whole point of the step.
     /// </summary>
     [HttpPatch("{id:guid}/verification")]
-    [RequireProgramHeadCollegeHeadOrAdmin]
+    [RequireRegistrarProgramHeadCollegeHeadOrAdmin]
     public async Task<IActionResult> SetVerification(Guid id, [FromBody] SetVerificationDto dto)
     {
         if (!HttpContext.Items.TryGetValue("user_id", out var idObj) || idObj is not Guid callerId)

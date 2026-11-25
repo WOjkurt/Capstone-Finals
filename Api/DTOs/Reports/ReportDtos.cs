@@ -159,9 +159,16 @@ public class GradeSheetDto
     public string TermLabel { get; set; } = string.Empty;
     public string? TeacherName { get; set; }
 
-    /// <summary>When a Program Head or College Head checked this sheet, or null if nobody has.</summary>
+    /// <summary>When somebody checked this sheet, or null if nobody has.</summary>
     public DateTime? VerifiedAt { get; set; }
     public string? VerifiedByName { get; set; }
+
+    /// <summary>
+    /// The caller entered or corrected at least one mark on this sheet, so they are not allowed
+    /// to verify it. Sent so a screen can say why its Verify button is off, instead of offering
+    /// a button that answers 403.
+    /// </summary>
+    public bool EncodedByCaller { get; set; }
 
     /// <summary>Whether the term's results are out. A sheet can be finished and still withheld.</summary>
     public bool AreGradesReleased { get; set; }

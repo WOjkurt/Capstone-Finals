@@ -358,6 +358,11 @@ class GradeSheet {
   final String? teacherName;
   final DateTime? verifiedAt;
   final String? verifiedByName;
+
+  /// You entered or corrected a mark on this sheet, so you may not verify it. The server decides
+  /// this and refuses the call anyway; it is sent so the screen can say why the button is off.
+  final bool encodedByCaller;
+
   final bool areGradesReleased;
   final List<GradeSheetRow> students;
   final int passed;
@@ -374,6 +379,7 @@ class GradeSheet {
     this.teacherName,
     this.verifiedAt,
     this.verifiedByName,
+    this.encodedByCaller = false,
     this.areGradesReleased = false,
     this.students = const [],
     this.passed = 0,
@@ -396,6 +402,7 @@ class GradeSheet {
         teacherName: json['teacherName'] as String?,
         verifiedAt: DateTime.tryParse(json['verifiedAt']?.toString() ?? ''),
         verifiedByName: json['verifiedByName'] as String?,
+        encodedByCaller: json['encodedByCaller'] == true,
         areGradesReleased: json['areGradesReleased'] == true,
         students: [
           for (final r in (json['students'] as List<dynamic>? ?? []))

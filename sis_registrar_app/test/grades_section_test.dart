@@ -25,6 +25,9 @@ class FakeAuthService implements AuthService {
 final _requests = <String>[];
 final _bodies = <String, String>{};
 
+/// Set to make the fake server refuse a verification the way the real one does.
+String? _verificationRefusal;
+
 Future<http.Response> _api(http.Request req) async {
   final path = req.url.path;
   _requests.add('${req.method} $path?${req.url.query}');
@@ -63,6 +66,7 @@ Future<http.Response> _api(http.Request req) async {
             'teacherName': 'Mr Dela Cruz',
             'verifiedAt': '2026-11-20T01:00:00Z',
             'verifiedByName': 'Ms Program Head',
+            'encodedByCaller': false,
             'students': [],
             'passed': 12,
             'failed': 1,
@@ -78,10 +82,28 @@ Future<http.Response> _api(http.Request req) async {
             'teacherName': null,
             'verifiedAt': null,
             'verifiedByName': null,
+            'encodedByCaller': false,
             'students': [],
             'passed': 8,
             'failed': 0,
             'noFinalYet': 2,
+          },
+          {
+            'classId': 'c3',
+            'className': 'IT103-A',
+            'subjectCode': 'IT 103',
+            'subjectTitle': 'Data Structures',
+            'units': 3.0,
+            'termLabel': '2026-2027 (1st Sem)',
+            'teacherName': 'Ms Reyes',
+            'verifiedAt': null,
+            'verifiedByName': null,
+            // She imported these marks herself.
+            'encodedByCaller': true,
+            'students': [],
+            'passed': 10,
+            'failed': 0,
+            'noFinalYet': 0,
           },
         ]),
         200);
@@ -124,6 +146,12 @@ Future<http.Response> _api(http.Request req) async {
         ]),
         200);
   }
+  if (path.contains('/verification')) {
+    if (_verificationRefusal != null) {
+      return http.Response(jsonEncode({'message': _verificationRefusal}), 403);
+    }
+    return http.Response(jsonEncode({'classId': path.split('/')[3]}), 200);
+  }
   if (path.contains('/grades')) return http.Response(jsonEncode([]), 200);
   return http.Response(jsonEncode([]), 200);
 }
@@ -147,10 +175,22 @@ Future<void> _register() async {
       () => StudentRecordRepository(getIt<AuthService>()));
 }
 
+/// The Grade sheets table is seven columns wide and the Verified column is the last of them,
+/// so on the default 800px test viewport its buttons sit off-screen and a tap lands on nothing.
+Future<void> _open(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(2400, 1800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  await tester.pumpWidget(const MaterialApp(home: GradesView()));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() async {
     _requests.clear();
     _bodies.clear();
+    _verificationRefusal = null;
     await _register();
   });
 
@@ -175,22 +215,20 @@ void main() {
 
   testWidgets('grade sheets name who verified them, and who did not', (tester) async {
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: GradesView()));
-      await tester.pumpAndSettle();
+      await _open(tester);
 
       expect(find.text('IT 101'), findsOneWidget);
       expect(find.text('IT 102'), findsOneWidget);
       // A class with no teacher is said plainly; 74 of 79 of them have none.
       expect(find.text('No teacher'), findsOneWidget);
-      // One sheet checked, one not.
-      expect(find.text('Not verified'), findsOneWidget);
+      // One sheet checked, two not.
       expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
-      // The verifying is somebody else's job, and the page says so rather than leaving a gap.
+      expect(find.textContaining('2 not verified'), findsOneWidget);
+      // The rule is named on the page: not which office, but which person.
       expect(
-        find.textContaining('Verified by a Program Head or the College Head'),
+        find.textContaining('somebody other than whoever entered the marks'),
         findsOneWidget,
       );
-      expect(find.textContaining('1 not verified'), findsOneWidget);
 
       expect(_requests.any((r) => r.contains('/api/reports/grade-sheets?termId=t1')), isTrue);
     }, () => MockClient(_api));
@@ -198,8 +236,7 @@ void main() {
 
   testWidgets('releasing a term says how many sheets went out unchecked', (tester) async {
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: GradesView()));
-      await tester.pumpAndSettle();
+      await _open(tester);
 
       expect(find.text('Release grades'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('grades_release_button')));
@@ -219,8 +256,7 @@ void main() {
 
   testWidgets('corrections already made are listed with their reason', (tester) async {
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: GradesView()));
-      await tester.pumpAndSettle();
+      await _open(tester);
 
       await tester.tap(find.byKey(const ValueKey('grades_corrections_tab')));
       await tester.pumpAndSettle();
@@ -238,8 +274,7 @@ void main() {
 
   testWidgets('a student can be found from the Grades page itself', (tester) async {
     await http.runWithClient(() async {
-      await tester.pumpWidget(const MaterialApp(home: GradesView()));
-      await tester.pumpAndSettle();
+      await _open(tester);
 
       await tester.tap(find.byKey(const ValueKey('grades_corrections_tab')));
       await tester.pumpAndSettle();
@@ -251,6 +286,63 @@ void main() {
       expect(find.text('Ana Cruz'), findsOneWidget);
       expect(find.text('25060208 · BSIT · Year 2'), findsOneWidget);
       expect(find.byKey(const ValueKey('open_student_grades_s1')), findsOneWidget);
+    }, () => MockClient(_api));
+  });
+
+  testWidgets('she can verify a sheet she did not encode', (tester) async {
+    await http.runWithClient(() async {
+      await _open(tester);
+
+      // IT 102: nobody checked it and it is not her work.
+      await tester.tap(find.byKey(const ValueKey('verify_sheet_c2')));
+      await tester.pumpAndSettle();
+
+      expect(_requests.any((r) => r.startsWith('PATCH') && r.contains('/api/classes/c2/verification')),
+          isTrue);
+      expect(_bodies['/api/classes/c2/verification'], '{"verified":true}');
+      expect(find.textContaining('Verified IT 102'), findsOneWidget);
+    }, () => MockClient(_api));
+  });
+
+  testWidgets('a sheet she encoded offers her no button at all', (tester) async {
+    await http.runWithClient(() async {
+      await _open(tester);
+
+      // IT 103 came in through her own import.
+      expect(find.byKey(const ValueKey('own_work_c3')), findsOneWidget);
+      expect(find.text('Your own work'), findsOneWidget);
+      expect(find.byKey(const ValueKey('verify_sheet_c3')), findsNothing);
+
+      // And the page does not pretend the other two are hers.
+      expect(find.byKey(const ValueKey('own_work_c2')), findsNothing);
+    }, () => MockClient(_api));
+  });
+
+  testWidgets('a check can be taken off, but not off your own work', (tester) async {
+    await http.runWithClient(() async {
+      await _open(tester);
+
+      // IT 101 was verified by the Program Head, so she may undo it.
+      await tester.tap(find.byKey(const ValueKey('unverify_sheet_c1')));
+      await tester.pumpAndSettle();
+
+      expect(_bodies['/api/classes/c1/verification'], '{"verified":false}');
+      // Nothing to undo on the sheets nobody has checked.
+      expect(find.byKey(const ValueKey('unverify_sheet_c2')), findsNothing);
+      expect(find.byKey(const ValueKey('unverify_sheet_c3')), findsNothing);
+    }, () => MockClient(_api));
+  });
+
+  testWidgets('a refusal from the server is shown as it was written', (tester) async {
+    await http.runWithClient(() async {
+      _verificationRefusal =
+          'You entered or corrected the marks on this sheet, so somebody else in the office has to verify it.';
+      await _open(tester);
+
+      await tester.tap(find.byKey(const ValueKey('verify_sheet_c2')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('somebody else in the office'), findsOneWidget);
     }, () => MockClient(_api));
   });
 

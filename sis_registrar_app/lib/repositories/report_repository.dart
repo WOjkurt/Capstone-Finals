@@ -61,6 +61,26 @@ class ReportRepository {
   Future<List<EnrollmentStatisticsRow>> enrollmentStatistics(String termId) async =>
       (await _get('enrollment-statistics', termId)).map(EnrollmentStatisticsRow.fromJson).toList();
 
+  /// Records that somebody checked a class's grade sheet, or takes the mark off.
+  ///
+  /// The server refuses a sheet whose marks the caller entered or corrected, which is the
+  /// point of the step, so this does not second-guess it -- it lets the message through.
+  Future<void> setGradeSheetVerified(String classId, bool verified) async {
+    final headers = {...await _auth.getAuthHeaders(), 'Content-Type': 'application/json'};
+    final res = await _client.patch(
+      Uri.parse('$baseUrl/api/classes/$classId/verification'),
+      headers: headers,
+      body: jsonEncode({'verified': verified}),
+    );
+    if (res.statusCode != 200) {
+      String message = 'Request failed (${res.statusCode}).';
+      try {
+        message = (jsonDecode(res.body) as Map<String, dynamic>)['message'] as String? ?? message;
+      } catch (_) {}
+      throw ApiException(statusCode: res.statusCode, message: message);
+    }
+  }
+
   /// The finished grade sheets of the term, or just [classId]'s.
   Future<List<GradeSheet>> gradeSheets(String termId, {String? classId}) async =>
       (await _get('grade-sheets', termId, extra: {if (classId != null) 'classId': classId}))

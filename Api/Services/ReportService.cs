@@ -18,7 +18,7 @@ public interface IReportService
     Task<List<ClassListDto>> GetClassListsAsync(Guid termId, Guid? classId);
 
     /// <summary>The finished grade sheets for a term, or for one class in it.</summary>
-    Task<List<GradeSheetDto>> GetGradeSheetsAsync(Guid termId, Guid? classId);
+    Task<List<GradeSheetDto>> GetGradeSheetsAsync(Guid termId, Guid? classId, Guid? callerId = null);
     Task<List<MissingSexRowDto>> GetStudentsMissingSexAsync(Guid termId);
 }
 
@@ -423,7 +423,7 @@ public class ReportService : IReportService
     /// Only enrolled loads are counted. A student who dropped or withdrew is not part of the
     /// class's results, and counting them would make every sheet look unfinished.
     /// </summary>
-    public async Task<List<GradeSheetDto>> GetGradeSheetsAsync(Guid termId, Guid? classId)
+    public async Task<List<GradeSheetDto>> GetGradeSheetsAsync(Guid termId, Guid? classId, Guid? callerId = null)
     {
         var term = await _context.AcademicTerms.AsNoTracking().FirstOrDefaultAsync(t => t.TermID == termId)
             ?? throw new KeyNotFoundException($"AcademicTerm with ID '{termId}' was not found.");
@@ -458,6 +458,22 @@ public class ReportService : IReportService
         var names = await NamesAsync(staffIds);
 
         var byClass = loads.ToLookup(l => l.ClassID);
+
+        // Which of these sheets the caller has already touched. One query for the term, rather
+        // than a check per class, and empty when nobody asked as a particular person.
+        var callersOwn = new HashSet<Guid>();
+        if (callerId.HasValue)
+        {
+            // Read off the grades already fetched above, and matched by StudyLoadID. No extra
+            // query, and nothing reaches through g.StudyLoad.ClassID -- that navigation is not
+            // included here, so on Postgres it reads as null and every sheet would come back as
+            // nobody's work, which is how f59d0ae passed its tests and refused every real grade.
+            callersOwn = loads
+                .Where(l => grades.TryGetValue(l.StudyLoadID, out var g)
+                    && (g.SubmittedByUserID == callerId.Value || g.ModifiedByUserID == callerId.Value))
+                .Select(l => l.ClassID)
+                .ToHashSet();
+        }
 
         return classes
             .OrderBy(c => c.Subject?.SubjectCode).ThenBy(c => c.ClassName)
@@ -495,6 +511,7 @@ public class ReportService : IReportService
                     VerifiedByName = c.VerifiedByUserID.HasValue
                         ? names.GetValueOrDefault(c.VerifiedByUserID.Value)
                         : null,
+                    EncodedByCaller = callersOwn.Contains(c.ClassID),
                     AreGradesReleased = term.AreGradesReleased,
                     Students = rows,
                     Passed = rows.Count(r => r.Remarks == 1),

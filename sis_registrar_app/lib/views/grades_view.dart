@@ -104,6 +104,9 @@ class _GradeSheetsTabState extends State<GradeSheetsTab> with CurrentTermUser {
   bool _loading = false;
   bool _releasing = false;
 
+  /// Sheets with a verification call in flight, by class id.
+  final _verifying = <String>{};
+
   /// The term as the server last described it. Release flips a field on the term, and the
   /// shared [CurrentTerm] list is not refetched on every page, so the newer copy wins here.
   AcademicTermModel? _fresher;
@@ -203,6 +206,38 @@ class _GradeSheetsTabState extends State<GradeSheetsTab> with CurrentTermUser {
         behavior: SnackBarBehavior.floating,
         content: Text(e is ApiException ? e.message : e.toString()),
       ));
+    }
+  }
+
+  /// Records that this sheet was checked, or takes the mark off.
+  ///
+  /// The office that encodes the marks also checks them, so the rule that matters is not which
+  /// office but which person: the server refuses a sheet whose marks the caller entered or
+  /// corrected. The button is already hidden in that case; this still shows what it says, in
+  /// case the data moved under us.
+  Future<void> _toggleVerified(GradeSheet sheet) async {
+    setState(() => _verifying.add(sheet.classId));
+    try {
+      await getIt<ReportRepository>()
+          .setGradeSheetVerified(sheet.classId, !sheet.isVerified);
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        content: Text(sheet.isVerified
+            ? 'Verification taken off ${sheet.subjectCode} ${sheet.className}.'
+            : 'Verified ${sheet.subjectCode} ${sheet.className}.'),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        content: Text(e is ApiException ? e.message : e.toString()),
+      ));
+    } finally {
+      if (mounted) setState(() => _verifying.remove(sheet.classId));
     }
   }
 
@@ -359,16 +394,15 @@ class _GradeSheetsTabState extends State<GradeSheetsTab> with CurrentTermUser {
               ],
             ),
           ),
-          // Why there is no "Verify" button here: the Registrar is the one who can change a
-          // mark, so she is not the one who certifies that the sheet is right. A Program Head
-          // checks their own programme's classes and a College Head any of them, in their own
-          // app. This page shows the result of that check, which is what the Registrar needs
-          // before she releases a term.
+          // The rule is not which office checks the sheet, it is which person: whoever typed
+          // the marks is not the one who certifies them. Since every mark at DBTC is encoded
+          // in this office, the second pass happens here too -- by somebody else at this desk.
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: Text(
-              'Verified by a Program Head or the College Head — not here, because the office '
-              'that can change a mark should not be the one that signs it off.',
+              'A sheet is verified by somebody other than whoever entered the marks — another '
+              'member of this office, the Program Head for that programme, or the College Head. '
+              'Sheets you entered or corrected yourself are marked as your own work.',
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ),
@@ -415,7 +449,7 @@ class _GradeSheetsTabState extends State<GradeSheetsTab> with CurrentTermUser {
                             fontWeight:
                                 s.noFinalYet > 0 ? FontWeight.w700 : FontWeight.w400),
                       )),
-                      DataCell(_verifiedChip(s)),
+                      DataCell(_verifiedCell(s)),
                     ],
                   ),
               ],
@@ -427,28 +461,70 @@ class _GradeSheetsTabState extends State<GradeSheetsTab> with CurrentTermUser {
     );
   }
 
-  Widget _verifiedChip(GradeSheet s) {
-    if (!s.isVerified) {
-      return const Row(
+  Widget _verifiedCell(GradeSheet s) {
+    if (_verifying.contains(s.classId)) {
+      return const SizedBox(
+          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2));
+    }
+
+    if (s.isVerified) {
+      final who = s.verifiedByName?.isNotEmpty == true ? s.verifiedByName! : 'somebody';
+      return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.remove_circle_outline_rounded, size: 15, color: AppColors.textMuted),
-          SizedBox(width: 6),
-          Text('Not verified', style: TextStyle(color: AppColors.textMuted)),
+          Tooltip(
+            message: 'Verified by $who on ${_day.format(s.verifiedAt!.toLocal())}',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.verified_rounded, size: 15, color: AppColors.success),
+                const SizedBox(width: 6),
+                Text(_day.format(s.verifiedAt!.toLocal()),
+                    style: const TextStyle(color: AppColors.accentGreenDark)),
+              ],
+            ),
+          ),
+          // Undoing somebody else's check is allowed; undoing it on your own work is not,
+          // or the rule would be one click away from nothing: unverify, then verify.
+          if (!s.encodedByCaller)
+            IconButton(
+              key: ValueKey('unverify_sheet_${s.classId}'),
+              icon: const Icon(Icons.close_rounded, size: 14),
+              tooltip: 'Take the verification off',
+              color: AppColors.textMuted,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.only(left: 6),
+              onPressed: () => _toggleVerified(s),
+            ),
         ],
       );
     }
-    final who = s.verifiedByName?.isNotEmpty == true ? s.verifiedByName! : 'a Program Head';
-    return Tooltip(
-      message: 'Verified by $who on ${_day.format(s.verifiedAt!.toLocal())}',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.verified_rounded, size: 15, color: AppColors.success),
-          const SizedBox(width: 6),
-          Text(_day.format(s.verifiedAt!.toLocal()),
-              style: const TextStyle(color: AppColors.accentGreenDark)),
-        ],
+
+    if (s.encodedByCaller) {
+      return Tooltip(
+        key: ValueKey('own_work_${s.classId}'),
+        message: 'You entered or corrected these marks, so somebody else has to verify '
+            'this sheet.',
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_outline_rounded, size: 15, color: AppColors.textMuted),
+            SizedBox(width: 6),
+            Text('Your own work', style: TextStyle(color: AppColors.textMuted)),
+          ],
+        ),
+      );
+    }
+
+    return TextButton.icon(
+      key: ValueKey('verify_sheet_${s.classId}'),
+      onPressed: () => _toggleVerified(s),
+      icon: const Icon(Icons.check_rounded, size: 16),
+      label: const Text('Verify'),
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
   }

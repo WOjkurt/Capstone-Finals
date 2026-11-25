@@ -60,7 +60,12 @@ public class ReportsController : ControllerBase
     {
         try
         {
-            return Ok(await _reports.GetGradeSheetsAsync(termId, classId));
+            // Who is asking decides whether each sheet may be verified by them, so the caller
+            // is part of the question, not just of the permission to ask it.
+            var callerId = HttpContext.Items.TryGetValue("user_id", out var idObj) && idObj is Guid id
+                ? id
+                : (Guid?)null;
+            return Ok(await _reports.GetGradeSheetsAsync(termId, classId, callerId));
         }
         catch (KeyNotFoundException ex)
         {

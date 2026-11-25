@@ -159,9 +159,17 @@ public class ClassService : IClassService
     }
 
     /// <summary>
-    /// Verifying a class's grade sheet: somebody other than the person who can change a mark has
-    /// looked at it. A Program Head may only do this for their own programme's classes; a
-    /// College Head or Admin is not narrowed that way.
+    /// Verifying a class's grade sheet: somebody other than the person who entered the marks has
+    /// looked at them.
+    ///
+    /// Who may: a Program Head for their own programme's classes; a College Head or Admin for
+    /// any; and Registrar staff, because at DBTC the marks are encoded in the Registrar's office
+    /// and the second pass over them is done there -- by a different member of staff. That last
+    /// part is enforced here and not merely expected: a registrar who encoded or corrected any
+    /// mark on the sheet cannot verify it, and cannot unverify it either. Checking your own
+    /// typing is not a check.
+    ///
+    /// Admin is not narrowed this way. It is the account that exists to get the office unstuck.
     ///
     /// It records a check, nothing more. It does not freeze the marks, and it does not by itself
     /// show anything to a student -- releasing the term does that.
@@ -184,6 +192,30 @@ public class ClassService : IClassService
             {
                 throw new UnauthorizedAccessException(
                     "A Program Head can only verify grade sheets for their own programme's classes.");
+            }
+        }
+
+        if (callerRole == RoleUtils.Registrar)
+        {
+            // Encoded by her, or corrected by her: either way she has already had her hands on
+            // these marks, so she is not the second pair of eyes on them.
+            // Two plain queries over keys, deliberately: reaching through g.StudyLoad.ClassID
+            // reads as null on Postgres unless the navigation was included, which is how the
+            // active-term rule in f59d0ae passed 21 tests and refused every real grade.
+            var loadIds = await _context.StudyLoads
+                .AsNoTracking()
+                .Where(l => l.ClassID == classId)
+                .Select(l => l.StudyLoadID)
+                .ToListAsync();
+            var hersAlready = await _context.Grades
+                .AsNoTracking()
+                .AnyAsync(g => loadIds.Contains(g.StudyLoadID)
+                    && (g.SubmittedByUserID == callerId || g.ModifiedByUserID == callerId));
+            if (hersAlready)
+            {
+                throw new UnauthorizedAccessException(
+                    "You entered or corrected the marks on this sheet, so somebody else in the "
+                    + "office has to verify it.");
             }
         }
 
