@@ -32,6 +32,20 @@ public sealed class PostgresFactAttribute : FactAttribute
 /// One student through a whole school year on real PostgreSQL, with a fresh DbContext per step as in real
 /// requests. The in-memory database used by the other tests cannot catch query translation, transaction or
 /// constraint problems; this does. Never point TEST_POSTGRES at a database you care about.
+///
+/// <para>
+/// How to run it on the Mac, with no password anywhere. The EDB install on 5432 wants one; the Homebrew
+/// cluster does not -- its pg_hba is all <c>trust</c> -- so use that one on another port:
+/// <code>
+/// LC_ALL=en_US.UTF-8 /opt/homebrew/opt/postgresql@17/bin/pg_ctl -D /opt/homebrew/var/postgresql@17 ///     -o "-p 5433" -l /tmp/pg17.log start
+/// psql -h localhost -p 5433 -d postgres -c "create database dbtc_pgtest"
+/// cd Api &amp;&amp; dotnet ef database update --connection "Host=localhost;Port=5433;Database=dbtc_pgtest;Username=$USER"
+/// cd Api.Tests &amp;&amp; TEST_POSTGRES="Host=localhost;Port=5433;Database=dbtc_pgtest;Username=$USER" dotnet test
+/// </code>
+/// Without <c>LC_ALL</c> the server dies at startup with "postmaster became multithreaded". Stop it with
+/// <c>pg_ctl ... stop</c>. The database is reusable between runs -- the suite tags its own rows -- and the
+/// terms it creates sit in years 3000+ so they cannot collide with anything real.
+/// </para>
 /// </summary>
 public class SchoolYearPostgresTests
 {
@@ -39,6 +53,7 @@ public class SchoolYearPostgresTests
     private readonly string _tag = Guid.NewGuid().ToString("N")[..8];
     private readonly Guid _registrar = Guid.NewGuid(), _collegeHead = Guid.NewGuid(), _teacher = Guid.NewGuid(), _student = Guid.NewGuid();
     private readonly Guid _term1 = Guid.NewGuid(), _term2 = Guid.NewGuid();
+    private Guid _curriculum;
     private int _program, _otherProgram;
     private readonly Dictionary<string, Guid> _subject = new();
     private readonly Dictionary<(string Code, Guid Term), Guid> _class = new();
@@ -59,6 +74,7 @@ public class SchoolYearPostgresTests
         s.AddScoped<IStudyLoadRepository, StudyLoadRepository>();
         s.AddScoped<IGradeRepository, GradeRepository>();
         s.AddScoped<IGradeClearanceRepository, GradeClearanceRepository>();
+        s.AddScoped<IAcademicTermRepository, AcademicTermRepository>();
         s.AddScoped<IEnrollmentService, EnrollmentService>();
         s.AddScoped<ICreditedSubjectService, CreditedSubjectService>();
         s.AddScoped<IReportService, ReportService>();
@@ -91,7 +107,11 @@ public class SchoolYearPostgresTests
     private Task Activate(Guid termId) => Step(async sp =>
     {
         var db = Svc<AppDbContext>(sp);
-        foreach (var t in await db.AcademicTerms.Where(t => t.TermID == _term1 || t.TermID == _term2).ToListAsync())
+        // Any active term, not just this run's two. These tests share one database and
+        // idx_academic_terms_single_active is a partial unique index over the whole table, so a
+        // term another test left active collides with this one. The in-memory provider does not
+        // create that index, which is why only this suite can see the problem.
+        foreach (var t in await db.AcademicTerms.Where(t => t.IsActive || t.TermID == termId).ToListAsync())
         {
             t.IsActive = t.TermID == termId;
         }
@@ -134,9 +154,20 @@ public class SchoolYearPostgresTests
             _program = p.ProgramID;
             _otherProgram = q.ProgramID;
 
+            // Every subject belongs to a curriculum, and Subject.CurriculumID is a non-nullable
+            // FK. The in-memory provider does not enforce foreign keys, so leaving it empty was
+            // invisible to every other test and made all eight of these fail on the first insert.
+            var curriculum = new Curriculum
+            { CurriculumID = Guid.NewGuid(), ProgramID = p.ProgramID, Name = "Test curriculum " + _tag, EffectiveFromYear = 2026, CreatedAt = DateTime.UtcNow };
+            var otherCurriculum = new Curriculum
+            { CurriculumID = Guid.NewGuid(), ProgramID = q.ProgramID, Name = "Other curriculum " + _tag, EffectiveFromYear = 2026, CreatedAt = DateTime.UtcNow };
+            db.Curricula.AddRange(curriculum, otherCurriculum);
+            await db.SaveChangesAsync();
+            _curriculum = curriculum.CurriculumID;
+
             void Add(string code, int program, int year2, int sem, bool minor = false, decimal lec = 3)
             {
-                var s = new Subject { SubjectID = Guid.NewGuid(), SubjectCode = code, SubjectTitle = code + " title", LecUnits = lec, ProgramID = program, YearLevel = year2, DefaultSemester = sem, IsMinor = minor };
+                var s = new Subject { SubjectID = Guid.NewGuid(), SubjectCode = code, SubjectTitle = code + " title", LecUnits = lec, ProgramID = program, YearLevel = year2, DefaultSemester = sem, IsMinor = minor, CurriculumID = program == p.ProgramID ? curriculum.CurriculumID : otherCurriculum.CurriculumID };
                 db.Subjects.Add(s);
                 _subject[program == _program ? code : "other " + code] = s.SubjectID;
             }
@@ -192,9 +223,10 @@ public class SchoolYearPostgresTests
     private async Task Correct(string code, Guid term, decimal from, decimal to)
     {
         var grade = (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, term, _registrar, RoleUtils.Registrar))).Single(g => g.SubjectCode == code);
-        // The correction request is gone; the Registrar changes the grade directly now, which
-        // is only allowed while the school is in that term.
-        await Activate(term);
+        // The Registrar changes the grade directly, in any term: the active-term rule was lifted
+        // in f62ef55. Activating the term here is not just unnecessary now, it breaks -- these
+        // tests share one database, and idx_academic_terms_single_active allows one active term
+        // across the whole table, so the second test to run collides with the first one's.
         await Step(sp => Svc<IGradeService>(sp).ModifyAsync(grade.GradeId,
             new Api.DTOs.Grading.ModifyGradeDto { FinalGrade = to, Reason = "Test" }, _registrar));
     }
@@ -312,7 +344,7 @@ public class SchoolYearPostgresTests
             var db = Svc<AppDbContext>(sp);
             foreach (var i in Enumerable.Range(0, 8))
             {
-                var s = new Subject { SubjectID = Guid.NewGuid(), SubjectCode = "X " + i, SubjectTitle = "x", LecUnits = 3, ProgramID = _program, YearLevel = 3, DefaultSemester = 1 };
+                var s = new Subject { SubjectID = Guid.NewGuid(), SubjectCode = "X " + i, SubjectTitle = "x", LecUnits = 3, ProgramID = _program, YearLevel = 3, DefaultSemester = 1, CurriculumID = _curriculum };
                 var c = new Class { ClassID = Guid.NewGuid(), SubjectID = s.SubjectID, TermID = _term1, ClassName = "X" + i, CreatedAt = DateTime.UtcNow };
                 db.Subjects.Add(s); db.Classes.Add(c); _class[("X " + i, _term1)] = c.ClassID;
             }
@@ -491,8 +523,9 @@ public class SchoolYearPostgresTests
         await Step(sp => Svc<IAcademicTermService>(sp).SetGradesReleasedAsync(_term1, true, _registrar));
         Assert.Equal(4, (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _student, RoleUtils.Student))).Count);
 
-        // The Registrar changes a recorded grade: 2.5 becomes 2.0.
-        await Activate(_term1);
+        // The Registrar changes a recorded grade: 2.5 becomes 2.0. No need to be in that term
+        // any more -- f62ef55 lifted that rule, because on the real data every grade is in a
+        // past term and the active one has none.
         var ge = (await Step(sp => Svc<IGradeService>(sp).GetByStudentIdAsync(_student, _term1, _registrar, RoleUtils.Registrar))).Single(g => g.SubjectCode == "GE 101");
         await Step(sp => Svc<IGradeService>(sp).ModifyAsync(ge.GradeId,
             new Api.DTOs.Grading.ModifyGradeDto { FinalGrade = 2.0m, Reason = "Encoding error" }, _registrar));
