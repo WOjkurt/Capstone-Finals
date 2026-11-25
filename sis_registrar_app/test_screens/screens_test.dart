@@ -13,7 +13,6 @@ import 'package:http/testing.dart';
 import 'package:sis_registrar_app/blocs/applications_bloc.dart';
 import 'package:sis_registrar_app/blocs/auth_bloc.dart';
 import 'package:sis_registrar_app/blocs/clearance_bloc.dart';
-import 'package:sis_registrar_app/blocs/corrections_bloc.dart';
 import 'package:sis_registrar_app/blocs/dashboard_bloc.dart';
 import 'package:sis_registrar_app/blocs/link_accounts_bloc.dart';
 import 'package:sis_registrar_app/blocs/responses_bloc.dart';
@@ -79,7 +78,6 @@ Widget app() => MultiBlocProvider(
         BlocProvider<LinkAccountsBloc>(create: (_) => getIt<LinkAccountsBloc>()),
         BlocProvider<ClearanceBloc>(create: (_) => getIt<ClearanceBloc>()),
         BlocProvider<SetupBloc>(create: (_) => getIt<SetupBloc>()),
-        BlocProvider<CorrectionsBloc>(create: (_) => getIt<CorrectionsBloc>()),
         BlocProvider<StaffBloc>(create: (_) => getIt<StaffBloc>()),
       ],
       child: RepaintBoundary(

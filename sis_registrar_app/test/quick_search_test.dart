@@ -124,12 +124,13 @@ void main() {
     _searchDelay = Duration.zero;
   });
 
-  testWidgets('a calm menu: 6 page links and badges only; Ctrl+K jumps to the Students search', (tester) async {
+  testWidgets('a calm menu: 7 page links and badges only; Ctrl+K jumps to the Students search', (tester) async {
     await http.runWithClient(() async {
       final clearance = await _pumpApp(tester);
 
       final titles = MainLayoutView.buildNavItems(role: 2, roleName: 'Registrar').map((i) => i['title']).toList();
-      expect(titles, ['Dashboard', 'Admissions', 'Students', 'Pending loads', 'Reports', 'Setup']);
+      expect(titles,
+          ['Dashboard', 'Admissions', 'Students', 'Pending loads', 'Grades', 'Reports', 'Setup']);
       for (final t in titles) {
         expect(find.byKey(ValueKey('nav_$t')), findsOneWidget, reason: t);
       }

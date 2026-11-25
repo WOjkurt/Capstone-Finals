@@ -18,8 +18,14 @@ const Map<String, String> kActivityActionLabels = {
   'STUDENT_ID_CHANGED': 'Student ID changed',
   'RECORDS_IMPORTED': 'Records imported',
   'SCHOOL_EMAIL_SET': 'School email set',
+  // The correction-request workflow is gone, but rows written under its two codes are still
+  // in the table, so they keep their labels rather than rendering as raw codes.
   'GRADE_CORRECTION_APPROVED': 'Grade correction approved',
   'GRADE_CORRECTION_REJECTED': 'Grade correction rejected',
+  'GRADE_MODIFIED': 'Grade corrected',
+  'GRADE_SHEET_VERIFIED': 'Grade sheet verified',
+  'GRADES_RELEASED': 'Grades released',
+  'GRADE_SUBMITTED': 'Grade submitted',
   'TEACHER_ASSIGNED': 'Teacher assigned',
   'CLEARANCE_CHANGED': 'Clearance changed',
   'PERSONAL_DETAILS_UPDATED': 'Personal details updated',
