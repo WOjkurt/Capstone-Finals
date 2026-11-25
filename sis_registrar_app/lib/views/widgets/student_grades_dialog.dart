@@ -427,7 +427,9 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     );
   }
 
-  /// A pencil where the mark can still be changed, and a mark of its own where one already was.
+  /// A pencil on every recorded mark, and a mark of its own where one has already been changed.
+  /// Any term, not only the active one: on the live data every grade belongs to a past term, so
+  /// restricting it to the active term left nothing to edit anywhere.
   Widget _rowActions(StudentGradeModel g) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,

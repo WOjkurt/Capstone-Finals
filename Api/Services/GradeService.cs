@@ -524,23 +524,17 @@ public class GradeService : IGradeService
         GradeScale.EnsureValid(dto.MidtermGrade);
         GradeScale.EnsureValid(dto.FinalGrade);
 
-        // Asked of the database rather than read off a loaded navigation. A safety check that
-        // depends on an Include is one a missing Include can switch off, and this one is the
-        // difference between fixing last week's mark and reopening a transcript. The repository
-        // did not load Class.Term at all until this was found: in-memory tests passed because
-        // the provider fills navigations in by fixup, and Postgres would have refused every
-        // change instead.
-        var inActiveTerm = await _context.Grades
-            .AsNoTracking()
-            .Where(g => g.GradeID == gradeId)
-            .AnyAsync(g => g.StudyLoad!.Class!.Term!.IsActive);
-
-        if (!inActiveTerm)
-        {
-            throw new InvalidOperationException(
-                "Only grades in the term that is currently active can be changed. For an earlier term, "
-                + "the record has to be corrected through the Registrar's own process.");
-        }
+        // Any term, not just the active one.
+        //
+        // This started as active-term-only, on the reasoning that an older mark has been
+        // reported on and printed. The data said otherwise: every grade on the server belongs
+        // to a past term and the active one has none, so the rule made the feature impossible
+        // to use — the Registrar could never see it at all. Her own system lets her pick a
+        // school year and correct a mark in it, which is the work she actually does.
+        //
+        // What stands in for the restriction is the trail, not a refusal: a reason is required,
+        // the activity log keeps the old and new marks, and the student is shown that the grade
+        // was corrected and when.
 
         var wasMidterm = grade.MidtermGrade;
         var wasFinal = grade.FinalGrade;
@@ -582,7 +576,8 @@ public class GradeService : IGradeService
             GradeId = g.GradeID,
             StudyLoadId = g.StudyLoadID,
             ModifiedAt = g.ModifiedAt,
-            CanModify = term?.IsActive == true,
+            // Every recorded grade can be corrected; only one that does not exist yet cannot.
+            CanModify = true,
             MidtermGrade = g.MidtermGrade,
             FinalGrade = g.FinalGrade,
             Remarks = g.Remarks,

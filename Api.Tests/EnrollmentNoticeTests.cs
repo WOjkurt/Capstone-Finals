@@ -19,7 +19,7 @@ namespace Api.Tests;
 /// </summary>
 public class FakeActivityLog
 {
-    public record Entry(Guid? Actor, string Action, string Summary, Guid? StudentId);
+    public record Entry(Guid? Actor, string Action, string Summary, Guid? StudentId, Guid? TermId);
 
     public List<Entry> Entries { get; } = new();
     public bool Fails { get; set; }
@@ -30,10 +30,10 @@ public class FakeActivityLog
         var mock = new Mock<IActivityLogService>();
         mock.Setup(l => l.LogAsync(It.IsAny<Guid?>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<Guid?>(), It.IsAny<Guid?>()))
-            .Returns((Guid? actor, string action, string summary, Guid? studentId, Guid? _) =>
+            .Returns((Guid? actor, string action, string summary, Guid? studentId, Guid? termId) =>
             {
                 if (Fails) throw new InvalidOperationException("the log is down");
-                Entries.Add(new Entry(actor, action, summary, studentId));
+                Entries.Add(new Entry(actor, action, summary, studentId, termId));
                 return Task.CompletedTask;
             });
         Service = mock.Object;

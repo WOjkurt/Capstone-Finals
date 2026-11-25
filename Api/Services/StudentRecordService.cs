@@ -700,8 +700,6 @@ public class StudentRecordService : IStudentRecordService
         var grades = await _context.Grades.AsNoTracking()
             .Where(g => ids.Contains(g.StudyLoadID))
             .ToDictionaryAsync(g => g.StudyLoadID);
-        var activeTermId = await _context.AcademicTerms.AsNoTracking()
-            .Where(t => t.IsActive).Select(t => (Guid?)t.TermID).FirstOrDefaultAsync();
         var teacherIds = loads.Where(l => l.TeacherId.HasValue).Select(l => l.TeacherId!.Value).Distinct().ToList();
         var teachers = await _context.UserDetails.AsNoTracking()
             .Where(u => teacherIds.Contains(u.UserID))
@@ -730,8 +728,8 @@ public class StudentRecordService : IStudentRecordService
                     LoadStatus = l.LoadStatus,
                     TeacherName = l.TeacherId.HasValue ? teachers.GetValueOrDefault(l.TeacherId.Value) : null,
                     ModifiedAt = g?.ModifiedAt,
-                    // Nothing to change until a grade exists, and only in the active term.
-                    CanModify = g != null && activeTermId != null && l.TermID == activeTermId,
+                    // Nothing to change until a grade exists; the term it belongs to no longer matters.
+                    CanModify = g != null,
                 };
             })
             .ToList();

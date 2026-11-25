@@ -180,12 +180,28 @@ public class GradeModificationTests : IDisposable
     // ── What must not be possible ───────────────────────────────────────────
 
     [Fact]
-    public async Task AGradeFromAnEarlierTerm_CannotBeChanged()
+    public async Task AGradeFromAnEarlierTerm_CanBeChanged()
     {
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.ModifyAsync(_gradeThen, Change(final: 1.0m), _registrar));
+        // This was refused at first, on the reasoning that an old mark has been reported on and
+        // printed. Every grade on the live server turned out to belong to a past term, so the
+        // rule made the feature impossible to use at all. The trail stands in for the refusal.
+        await _service.ModifyAsync(_gradeThen, Change(final: 1.0m), _registrar);
 
-        Assert.Contains("currently active", refused.Message);
+        var saved = await Stored(_gradeThen);
+        Assert.Equal(1.0m, saved.FinalGrade);
+        Assert.Equal(_registrar, saved.ModifiedByUserID);
+        Assert.NotNull(saved.ModifiedAt);
+    }
+
+    [Fact]
+    public async Task AnOldGradeStillNeedsAReason_AndStillHasToBeOnTheScale()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.ModifyAsync(_gradeThen, Change(final: 1.0m, reason: "  "), _registrar));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.ModifyAsync(_gradeThen, Change(final: 2.33m), _registrar));
+
+        // Widening which terms can be touched did not widen anything else.
         Assert.Equal(1.5m, (await Stored(_gradeThen)).FinalGrade);
         Assert.Null((await Stored(_gradeThen)).ModifiedAt);
     }
@@ -278,14 +294,18 @@ public class GradeModificationTests : IDisposable
     }
 
     [Fact]
-    public async Task AnEarlierTermsGradeIsRefusedByTheEndpoint_AndLogsNothing()
+    public async Task AnEarlierTermsGradeIsLoggedLikeAnyOther()
     {
         var (controller, log) = Endpoint();
 
-        var result = await controller.Modify(_gradeThen, Change(final: 1.0m));
+        var result = await controller.Modify(_gradeThen, Change(final: 1.0m, reason: "Transcript query"));
 
-        Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Empty(log.Of(ActivityActions.GradeModified));
+        Assert.IsType<OkObjectResult>(result);
+        var entry = Assert.Single(log.Of(ActivityActions.GradeModified));
+        Assert.Contains("final 1.50 → 1.00", entry.Summary);
+        Assert.Contains("Transcript query", entry.Summary);
+        // The term it belongs to is on the entry, so an old correction is findable by term.
+        Assert.Equal(_lastYear.TermID, entry.TermId);
     }
 
     [Fact]
