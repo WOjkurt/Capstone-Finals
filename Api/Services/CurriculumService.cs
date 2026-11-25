@@ -1,4 +1,5 @@
 using Api.Auth;
+using Api.DTOs.Setup;
 using Api.Domain.Enrollment;
 using Api.Domain.IdentityAccess;
 using Api.DTOs.Curriculum;
@@ -12,6 +13,12 @@ public interface ICurriculumService
     Task<CurriculumDto> CreateAsync(SaveCurriculumDto dto);
     Task<CurriculumDto> UpdateAsync(Guid curriculumId, SaveCurriculumDto dto);
     Task DeleteAsync(Guid curriculumId);
+
+    /// <summary>
+    /// Copies a curriculum's subjects and requisites into a new one. Pass DryRun to see what it
+    /// would do without writing anything.
+    /// </summary>
+    Task<CopyCurriculumResultDto> CopyAsync(Guid sourceCurriculumId, CopyCurriculumDto dto);
 
     /// <summary>The program's newest curriculum, made first if the program has none yet.</summary>
     Task<Guid> NewestOrCreateAsync(int programId);
@@ -119,6 +126,134 @@ public class CurriculumService : ICurriculumService
         curriculum.EffectiveFromYear = dto.EffectiveFromYear;
         await _context.SaveChangesAsync();
         return (await GetAllAsync(curriculum.ProgramID)).First(c => c.CurriculumID == curriculumId);
+    }
+
+    public async Task<CopyCurriculumResultDto> CopyAsync(Guid sourceCurriculumId, CopyCurriculumDto dto)
+    {
+        var source = await _context.Curricula.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CurriculumID == sourceCurriculumId)
+            ?? throw new KeyNotFoundException("That curriculum was not found.");
+
+        var name = (dto.Name ?? string.Empty).Trim();
+        if (name.Length == 0) throw new InvalidOperationException("Give the new curriculum a name.");
+
+        if (await _context.Curricula.AnyAsync(c => c.ProgramID == source.ProgramID && c.Name == name))
+        {
+            throw new InvalidOperationException($"This programme already has a curriculum called \"{name}\".");
+        }
+
+        var subjects = await _context.Subjects.AsNoTracking()
+            .Where(s => s.CurriculumID == sourceCurriculumId)
+            .ToListAsync();
+        if (subjects.Count == 0)
+        {
+            throw new InvalidOperationException("That curriculum has no subjects to copy.");
+        }
+
+        var sourceIds = subjects.Select(s => s.SubjectID).ToHashSet();
+        var requisites = await _context.SubjectPrerequisites.AsNoTracking()
+            .Where(p => sourceIds.Contains(p.SubjectID))
+            .ToListAsync();
+
+        // A requisite points at a SubjectID, and the copy has new ones, so each link is
+        // re-resolved by subject code inside the NEW curriculum. Copying the rows as they stand
+        // would leave the new curriculum's subjects pointing at the old curriculum's rows --
+        // which looks right on screen and misbehaves in the study load builder.
+        var codeOf = subjects.ToDictionary(s => s.SubjectID, s => s.SubjectCode);
+
+        // Keyed on SubjectID, which is unique by definition. Keying on the normalised code threw
+        // on any curriculum holding two codes that normalise alike -- "IT 101A" and "IT-101-A"
+        // are both IT101A to SubjectCodes.Key -- and the controller does not catch
+        // ArgumentException, so a copy of such a curriculum answered 500.
+        var newIdBySourceId = subjects.ToDictionary(s => s.SubjectID, _ => Guid.NewGuid());
+
+        // A fallback for a requisite pointing at a subject outside this curriculum: if the copy
+        // has that code, point at the copy's own row rather than dropping the rule. First one
+        // wins, because a curriculum with colliding codes is a data problem to fix elsewhere,
+        // not a reason a copy should fail.
+        var newIdByCode = new Dictionary<string, Guid>();
+        foreach (var s in subjects)
+        {
+            newIdByCode.TryAdd(SubjectCodes.Key(s.SubjectCode), newIdBySourceId[s.SubjectID]);
+        }
+
+        var result = new CopyCurriculumResultDto
+        {
+            DryRun = dto.DryRun,
+            SourceName = source.Name,
+            NewName = name,
+            SubjectsCopied = subjects.Count,
+        };
+
+        var carried = new List<SubjectPrerequisite>();
+        foreach (var p in requisites)
+        {
+            // Inside this curriculum the mapping is exact; otherwise fall back to the code.
+            if (!newIdBySourceId.TryGetValue(p.PrerequisiteSubjectID, out var newRequisiteId))
+            {
+                var outsideCode = await _context.Subjects.AsNoTracking()
+                    .Where(s => s.SubjectID == p.PrerequisiteSubjectID)
+                    .Select(s => s.SubjectCode).FirstOrDefaultAsync();
+                if (outsideCode != null)
+                {
+                    newIdByCode.TryGetValue(SubjectCodes.Key(outsideCode), out newRequisiteId);
+                }
+            }
+
+            if (newRequisiteId == Guid.Empty)
+            {
+                // The requisite points outside this curriculum, so there is nothing in the copy
+                // to point at. Said out loud rather than dropped quietly.
+                var subjectCode = codeOf.GetValueOrDefault(p.SubjectID) ?? "a subject";
+                var missing = await _context.Subjects.AsNoTracking()
+                    .Where(s => s.SubjectID == p.PrerequisiteSubjectID)
+                    .Select(s => s.SubjectCode).FirstOrDefaultAsync() ?? "a subject not in this curriculum";
+                result.RequisitesDropped.Add($"{subjectCode} required {missing}");
+                continue;
+            }
+
+            carried.Add(new SubjectPrerequisite
+            {
+                PrerequisiteID = Guid.NewGuid(),
+                SubjectID = newIdBySourceId[p.SubjectID],
+                PrerequisiteSubjectID = newRequisiteId,
+                RequisiteType = p.RequisiteType,
+            });
+        }
+        result.RequisitesCarried = carried.Count;
+
+        if (dto.DryRun) return result;
+
+        var curriculum = new Curriculum
+        {
+            CurriculumID = Guid.NewGuid(),
+            ProgramID = source.ProgramID,
+            Name = name,
+            EffectiveFromYear = dto.EffectiveFromYear,
+            CreatedAt = DateTime.UtcNow,
+        };
+        _context.Curricula.Add(curriculum);
+        _context.Subjects.AddRange(subjects.Select(s => new Subject
+        {
+            SubjectID = newIdBySourceId[s.SubjectID],
+            SubjectCode = s.SubjectCode,
+            SubjectTitle = s.SubjectTitle,
+            LecUnits = s.LecUnits,
+            LabUnits = s.LabUnits,
+            LecHours = s.LecHours,
+            LabHours = s.LabHours,
+            ProgramID = s.ProgramID,
+            CurriculumID = curriculum.CurriculumID,
+            YearLevel = s.YearLevel,
+            DefaultSemester = s.DefaultSemester,
+            StandingYear = s.StandingYear,
+            IsMinor = s.IsMinor,
+        }));
+        _context.SubjectPrerequisites.AddRange(carried);
+        await _context.SaveChangesAsync();
+
+        result.CurriculumId = curriculum.CurriculumID;
+        return result;
     }
 
     public async Task DeleteAsync(Guid curriculumId)

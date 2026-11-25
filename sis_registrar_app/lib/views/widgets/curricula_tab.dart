@@ -70,6 +70,14 @@ class _CurriculaTabState extends State<CurriculaTab> {
     }
   }
 
+  Future<void> _copy(CurriculumModel c) async {
+    final made = await showDialog<bool>(
+      context: context,
+      builder: (_) => _CopyCurriculumDialog(repo: _repo, source: c),
+    );
+    if (made == true) _load();
+  }
+
   Future<void> _delete(CurriculumModel c) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -231,6 +239,17 @@ class _CurriculaTabState extends State<CurriculaTab> {
                                                   ? () => Navigator.of(context).push(MaterialPageRoute(
                                                       builder: (_) => CurriculumViewPage(curriculum: c)))
                                                   : null,
+                                            ),
+                                            // Making next year's curriculum from this one,
+                                            // rather than retyping sixty subjects.
+                                            IconButton(
+                                              key: ValueKey('copy_${c.curriculumId}'),
+                                              tooltip: c.subjectCount > 0
+                                                  ? 'Copy into a new curriculum'
+                                                  : 'Nothing to copy yet',
+                                              icon: const Icon(Icons.copy_all_outlined,
+                                                  size: 18, color: AppColors.primary),
+                                              onPressed: c.subjectCount > 0 ? () => _copy(c) : null,
                                             ),
                                             IconButton(
                                               key: ValueKey('edit_${c.curriculumId}'),
@@ -545,6 +564,179 @@ class _CurriculumImportDialogState extends State<CurriculumImportDialog> {
           for (final w in p.warnings.take(10)) line('${w.row > 0 ? 'Row ${w.row}: ' : ''}${w.message}', color: AppColors.textSecondary),
           if (p.warnings.length > 10) line('…and ${p.warnings.length - 10} more.', color: AppColors.textSecondary),
         ],
+      ],
+    );
+  }
+}
+
+/// Copying a curriculum into a new one.
+///
+/// The preview is not decoration: this writes sixty-odd subjects and their requisites in one go,
+/// and the Registrar already works this way with the credits and records imports. It also
+/// surfaces the one outcome worth catching — a requisite that could not be re-pointed, which
+/// would otherwise leave a curriculum that looks complete and is missing a rule.
+class _CopyCurriculumDialog extends StatefulWidget {
+  final CurriculumRepository repo;
+  final CurriculumModel source;
+
+  const _CopyCurriculumDialog({required this.repo, required this.source});
+
+  @override
+  State<_CopyCurriculumDialog> createState() => _CopyCurriculumDialogState();
+}
+
+class _CopyCurriculumDialogState extends State<_CopyCurriculumDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name =
+      TextEditingController(text: '${widget.source.programCode ?? ''} ${DateTime.now().year}'.trim());
+  late final TextEditingController _year =
+      TextEditingController(text: '${DateTime.now().year}');
+
+  CopyCurriculumResult? _preview;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _year.dispose();
+    super.dispose();
+  }
+
+  int? get _effectiveYear => int.tryParse(_year.text.trim());
+
+  Future<void> _run({required bool dryRun}) async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result = await widget.repo.copy(
+        widget.source.curriculumId,
+        name: _name.text.trim(),
+        effectiveFromYear: _effectiveYear!,
+        dryRun: dryRun,
+      );
+      if (!mounted) return;
+      if (dryRun) {
+        setState(() {
+          _preview = result;
+          _busy = false;
+        });
+        return;
+      }
+      Navigator.of(context).pop(true);
+      messenger.showSnackBar(SnackBar(
+        backgroundColor: AppColors.success,
+        content: Text('${result.newName} created — ${result.subjectsCopied} subjects, '
+            '${result.requisitesCarried} requisites carried.'),
+      ));
+    } catch (e, st) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      messenger.showSnackBar(SnackBar(
+        backgroundColor: AppColors.error,
+        content: Text(getFriendlyErrorMessage(e, st)),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = _preview;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: Text('Copy ${widget.source.name}',
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+      content: SizedBox(
+        width: 480,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Every subject, with its hours, units, year and semester, and the requisites '
+                  'between them. The new curriculum belongs to the same programme.',
+                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              TextFormField(
+                key: const ValueKey('copy_curriculum_name'),
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'New curriculum name *', border: OutlineInputBorder()),
+                validator: (v) => (v ?? '').trim().isEmpty ? 'Give the new curriculum a name' : null,
+                onChanged: (_) => setState(() => _preview = null),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const ValueKey('copy_curriculum_year'),
+                controller: _year,
+                decoration: const InputDecoration(
+                    labelText: 'Takes effect in school year *', border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  final y = int.tryParse((v ?? '').trim());
+                  if (y == null) return 'Numbers only';
+                  if (y < 1900 || y > 2100) return 'That does not look like a school year';
+                  return null;
+                },
+                onChanged: (_) => setState(() => _preview = null),
+              ),
+              if (preview != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  key: const ValueKey('copy_curriculum_preview'),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.scaffoldBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${preview.subjectsCopied} subjects and '
+                          '${preview.requisitesCarried} requisites would be copied.',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      if (preview.requisitesDropped.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text('${preview.requisitesDropped.length} requisite(s) cannot be carried, '
+                            'because they point at subjects this curriculum does not contain:',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+                        const SizedBox(height: 4),
+                        for (final d in preview.requisitesDropped.take(8))
+                          Text('• $d', style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+                        if (preview.requisitesDropped.length > 8)
+                          Text('• and ${preview.requisitesDropped.length - 8} more',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFFB45309))),
+                      ],
+                      const SizedBox(height: 8),
+                      const Text('The copy inherits mistakes as faithfully as it inherits good '
+                          'data, so it is worth reviewing afterwards.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        if (preview == null)
+          FilledButton(
+            key: const ValueKey('copy_curriculum_preview_button'),
+            onPressed: _busy ? null : () => _run(dryRun: true),
+            child: Text(_busy ? 'Checking…' : 'Check first'),
+          )
+        else
+          FilledButton(
+            key: const ValueKey('copy_curriculum_confirm'),
+            onPressed: _busy ? null : () => _run(dryRun: false),
+            child: Text(_busy ? 'Copying…' : 'Copy ${preview.subjectsCopied} subjects'),
+          ),
       ],
     );
   }

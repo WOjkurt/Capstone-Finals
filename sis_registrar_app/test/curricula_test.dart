@@ -72,6 +72,17 @@ class FakeCurriculaApi {
         'errors': [],
       };
 
+  /// What the copy endpoint answers; `dryRun` comes from the body.
+  Map<String, dynamic> Function(bool dryRun) copyAnswer = (dryRun) => {
+        'dryRun': dryRun,
+        'curriculumId': dryRun ? null : 'copied-1',
+        'sourceName': '2021 curriculum',
+        'newName': 'BTVTED-MT 2026',
+        'subjectsCopied': 65,
+        'requisitesCarried': 38,
+        'requisitesDropped': <String>[],
+      };
+
   late final client = MockClient((req) async {
     requests.add('${req.method} ${req.url.path}${req.url.query.isEmpty ? '' : '?${req.url.query}'}');
     final path = req.url.path;
@@ -87,6 +98,11 @@ class FakeCurriculaApi {
         return http.Response(jsonEncode({'curriculumId': picked['curriculumID'], 'name': picked['name']}), 200);
       }
       return http.Response(jsonEncode(student), 200);
+    }
+    if (req.method == 'POST' && path.contains('/copy')) {
+      final body = jsonDecode(req.body) as Map<String, dynamic>;
+      bodies.add(body);
+      return http.Response(jsonEncode(copyAnswer(body['dryRun'] == true)), 200);
     }
     if (req.method == 'POST' && path.endsWith('/api/curricula')) {
       final body = jsonDecode(req.body) as Map<String, dynamic>;
@@ -376,5 +392,79 @@ void main() {
       expect(create.dto['curriculumID'], 'old');
       expect(create.dto['programID'], 1);
     });
+  });
+
+  testWidgets('copying checks first, then writes, and reports what it carried', (tester) async {
+    final api = await pumpTab(tester);
+
+    await tester.tap(find.byKey(const ValueKey('copy_old')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('copy_curriculum_name')), 'BTVTED-MT 2026');
+    await tester.enterText(find.byKey(const ValueKey('copy_curriculum_year')), '2026');
+
+    // Nothing is written until the check has been seen.
+    await tester.tap(find.byKey(const ValueKey('copy_curriculum_preview_button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('copy_curriculum_preview')), findsOneWidget);
+    expect(find.textContaining('65 subjects and 38 requisites'), findsOneWidget);
+    expect(api.bodies.last['dryRun'], isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('copy_curriculum_confirm')));
+    await tester.pumpAndSettle();
+
+    expect(api.bodies.last['dryRun'], isFalse);
+    expect(api.bodies.last['name'], 'BTVTED-MT 2026');
+    expect(api.bodies.last['effectiveFromYear'], 2026);
+    expect(api.requests.any((r) => r.contains('/copy')), isTrue);
+  });
+
+  testWidgets('a requisite that cannot be carried is named before anything is written',
+      (tester) async {
+    final api = await pumpTab(tester);
+    api.copyAnswer = (dryRun) => {
+          'dryRun': dryRun,
+          'sourceName': '2021 curriculum',
+          'newName': 'BTVTED-MT 2026',
+          'subjectsCopied': 65,
+          'requisitesCarried': 37,
+          'requisitesDropped': ['IT 104 required OLD 101'],
+        };
+
+    await tester.tap(find.byKey(const ValueKey('copy_old')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('copy_curriculum_name')), 'BTVTED-MT 2026');
+    await tester.enterText(find.byKey(const ValueKey('copy_curriculum_year')), '2026');
+    await tester.tap(find.byKey(const ValueKey('copy_curriculum_preview_button')));
+    await tester.pumpAndSettle();
+
+    // A curriculum that looks complete and is missing a rule is the thing worth catching.
+    expect(find.textContaining('IT 104 required OLD 101'), findsOneWidget);
+    expect(find.textContaining('cannot be carried'), findsOneWidget);
+  });
+
+  testWidgets('a curriculum with no subjects offers nothing to copy', (tester) async {
+    await pumpTab(tester);
+
+    // 'new' has no subjects; 'old' has 65.
+    final empty = tester.widget<IconButton>(find.byKey(const ValueKey('copy_new')));
+    expect(empty.onPressed, isNull);
+    final full = tester.widget<IconButton>(find.byKey(const ValueKey('copy_old')));
+    expect(full.onPressed, isNotNull);
+  });
+
+  testWidgets('a copy without a name or with a nonsense year is not sent', (tester) async {
+    final api = await pumpTab(tester);
+    final before = api.bodies.length;
+
+    await tester.tap(find.byKey(const ValueKey('copy_old')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('copy_curriculum_name')), '  ');
+    await tester.enterText(find.byKey(const ValueKey('copy_curriculum_year')), '20');
+    await tester.tap(find.byKey(const ValueKey('copy_curriculum_preview_button')));
+    await tester.pumpAndSettle();
+
+    expect(api.bodies.length, before);
+    expect(find.text('Give the new curriculum a name'), findsOneWidget);
+    expect(find.text('That does not look like a school year'), findsOneWidget);
   });
 }

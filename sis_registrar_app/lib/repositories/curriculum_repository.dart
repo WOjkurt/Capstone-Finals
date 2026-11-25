@@ -29,6 +29,20 @@ class CurriculumRepository {
 
   Future<void> delete(String id) async => _send('DELETE', id);
 
+  /// Copies a curriculum's subjects and requisites into a new one. With [dryRun] it reports what
+  /// it would do and writes nothing, so the Registrar sees the shape of a large write first.
+  Future<CopyCurriculumResult> copy(
+    String id, {
+    required String name,
+    required int effectiveFromYear,
+    required bool dryRun,
+  }) async =>
+      CopyCurriculumResult.fromJson(await _send('POST', '$id/copy', body: {
+        'name': name,
+        'effectiveFromYear': effectiveFromYear,
+        'dryRun': dryRun,
+      }) as Map<String, dynamic>);
+
   Future<StudentCurriculumModel> forStudent(String userId) async =>
       StudentCurriculumModel.fromJson(await _send('GET', 'student/$userId') as Map<String, dynamic>);
 

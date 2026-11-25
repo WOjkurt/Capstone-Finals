@@ -111,3 +111,39 @@ class CurriculumImportResult {
     );
   }
 }
+
+/// What copying a curriculum would do, or did.
+class CopyCurriculumResult {
+  final bool dryRun;
+  final String? curriculumId;
+  final String sourceName;
+  final String newName;
+  final int subjectsCopied;
+  final int requisitesCarried;
+
+  /// Links that could not be re-pointed, each said in full. A curriculum that looks complete and
+  /// is quietly missing a rule is the outcome worth avoiding.
+  final List<String> requisitesDropped;
+
+  const CopyCurriculumResult({
+    required this.dryRun,
+    this.curriculumId,
+    required this.sourceName,
+    required this.newName,
+    required this.subjectsCopied,
+    required this.requisitesCarried,
+    this.requisitesDropped = const [],
+  });
+
+  factory CopyCurriculumResult.fromJson(Map<String, dynamic> json) => CopyCurriculumResult(
+        dryRun: json['dryRun'] == true,
+        curriculumId: json['curriculumId']?.toString(),
+        sourceName: json['sourceName'] as String? ?? '',
+        newName: json['newName'] as String? ?? '',
+        subjectsCopied: (json['subjectsCopied'] as num?)?.toInt() ?? 0,
+        requisitesCarried: (json['requisitesCarried'] as num?)?.toInt() ?? 0,
+        requisitesDropped: [
+          for (final d in (json['requisitesDropped'] as List<dynamic>? ?? [])) d.toString()
+        ],
+      );
+}

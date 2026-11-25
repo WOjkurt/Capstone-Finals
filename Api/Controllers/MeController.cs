@@ -69,6 +69,24 @@ public class MeController : ControllerBase
             });
         }
 
+        // Checked last, on purpose. An unpaid balance and a missing clearance are both things a
+        // student can go and sort out, so those are worth saying first; a term that has not been
+        // released is nobody's to hurry, and sending them to an office over it wastes the trip.
+        //
+        // This gate was added to the grades themselves without being added here, so a cleared
+        // student in an unreleased term was told nothing was withheld while their list came back
+        // empty, and an uncleared one was sent to the Registrar over the wrong thing.
+        if (!activeTerm.AreGradesReleased)
+        {
+            return Ok(new
+            {
+                withheld = true,
+                reason = "NotReleased",
+                message = "Grades for this term have not been released yet. "
+                    + "They will appear once the Registrar releases them; there is nothing you need to do."
+            });
+        }
+
         return Ok(new { withheld = false, reason = (string?)null, message = (string?)null });
     }
 

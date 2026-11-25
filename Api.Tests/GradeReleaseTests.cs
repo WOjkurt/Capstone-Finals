@@ -338,6 +338,65 @@ public class GradeReleaseTests : IDisposable
         Assert.Empty(log.Of(ActivityActions.GradeSheetVerified));
     }
 
+    // ── What the student is told about why ──────────────────────────────────
+
+    private MeController Me()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["user_id"] = _student;
+        http.Items["role"] = RoleUtils.Student;
+        return new MeController(new UserDetailsRepository(_context), _context) { ControllerContext = new ControllerContext { HttpContext = http } };
+    }
+
+    private static (bool Withheld, string? Reason, string? Message) Read(IActionResult result)
+    {
+        var value = Assert.IsType<OkObjectResult>(result).Value!;
+        var type = value.GetType();
+        return ((bool)type.GetProperty("withheld")!.GetValue(value)!,
+            type.GetProperty("reason")!.GetValue(value) as string,
+            type.GetProperty("message")!.GetValue(value) as string);
+    }
+
+    [Fact]
+    public async Task AClearedStudentInAnUnreleasedTerm_IsToldTheTermIsNotOut()
+    {
+        _context.GradeClearances.Add(new GradeClearance
+        { ClearanceID = Guid.NewGuid(), UserID = _student, TermID = _termId, IsCleared = true });
+        await _context.SaveChangesAsync();
+
+        var (withheld, reason, message) = Read(await Me().GetGradeVisibility());
+
+        // Before this, they were told nothing was withheld while their grade list came back empty.
+        Assert.True(withheld);
+        Assert.Equal("NotReleased", reason);
+        Assert.Contains("nothing you need to do", message);
+    }
+
+    [Fact]
+    public async Task OnceTheTermIsReleased_AClearedStudentIsToldNothingIsWithheld()
+    {
+        _context.GradeClearances.Add(new GradeClearance
+        { ClearanceID = Guid.NewGuid(), UserID = _student, TermID = _termId, IsCleared = true });
+        await _context.SaveChangesAsync();
+        await _terms.SetGradesReleasedAsync(_termId, true, _registrar);
+
+        var (withheld, reason, _) = Read(await Me().GetGradeVisibility());
+
+        Assert.False(withheld);
+        Assert.Null(reason);
+    }
+
+    [Fact]
+    public async Task AnUnclearedStudentIsStillToldAboutClearanceFirst()
+    {
+        // Clearance is something they can go and sort out; an unreleased term is not. The
+        // actionable answer is the more useful one to lead with.
+        var (withheld, reason, _) = Read(await Me().GetGradeVisibility());
+
+        Assert.True(withheld);
+        Assert.Equal("NotCleared", reason);
+    }
+
     [Fact]
     public void BothActionsAreInTheRegistryTheActivityScreenReadsFrom()
     {

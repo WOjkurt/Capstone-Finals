@@ -95,4 +95,44 @@ public class CurriculaController : ControllerBase
     {
         if (this.ActivityLog() is { } log) await log.LogAsync(callerId, action, summary, studentId);
     }
+
+    /// <summary>
+    /// Copies a curriculum's subjects and requisites into a new one for the same programme.
+    /// Pass dryRun to see what it would do before anything is written.
+    /// </summary>
+    [HttpPost("{id:guid}/copy")]
+    [RequireRegistrarOrAdmin]
+    public async Task<IActionResult> Copy(Guid id, [FromBody] Api.DTOs.Setup.CopyCurriculumDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new { message = Api.Common.ValidationMessage.First(ModelState) });
+        }
+
+        try
+        {
+            var result = await _service.CopyAsync(id, dto);
+
+            var log = this.ActivityLog();
+            if (log != null && !result.DryRun)
+            {
+                var dropped = result.RequisitesDropped.Count > 0
+                    ? $", {result.RequisitesDropped.Count} requisite(s) could not be carried"
+                    : "";
+                await log.LogAsync(this.CallerId(), ActivityActions.CurriculumChanged,
+                    $"Copied curriculum {result.SourceName} into {result.NewName}: "
+                        + $"{result.SubjectsCopied} subjects, {result.RequisitesCarried} requisites{dropped}");
+            }
+
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
