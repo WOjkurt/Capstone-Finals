@@ -4,6 +4,7 @@ import '../../injection.dart';
 import '../../models/grading_models.dart';
 import '../../models/record_models.dart';
 import '../../repositories/grading_repository.dart';
+import '../../repositories/student_record_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/error_handler.dart';
 import '../../utils/student_record_pdf.dart';
@@ -85,10 +86,19 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
       try {
         credits = await getIt<CreditedSubjectRepository>().getForStudent(widget.userId);
       } catch (_) {}
+
+      // Only the residency printout needs this, so a failure costs the summary on that sheet
+      // and nothing else. Printing a zero here would read as "nothing earned", which is worse
+      // than saying nothing at all.
+      StudentEvaluation? evaluation;
+      try {
+        evaluation = await getIt<StudentRecordRepository>().evaluation(widget.userId);
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _grades = grades;
           _credits = credits;
+        _evaluation = evaluation;
         });
       }
     } catch (e) {
@@ -144,11 +154,18 @@ class _StudentGradesDialogState extends State<StudentGradesDialog> {
     }
   }
 
+  /// Loaded alongside the grades only so the residency sheet can say what the course asks for
+  /// and what has been earned. Null if it fails: the sheet drops the summary rather than
+  /// printing a zero that reads like a fact.
+  StudentEvaluation? _evaluation;
+
   RecordStudentInfo get _info => RecordStudentInfo(
         name: widget.studentName,
         lrn: widget.lrn,
         programCode: widget.programCode,
         yearLevel: widget.yearLevel,
+        unitsRequired: _evaluation?.totalUnits,
+        unitsEarned: _evaluation?.earnedUnits,
       );
 
   /// Residency record, grade sheet (one semester or subject) and Transcript of Records.

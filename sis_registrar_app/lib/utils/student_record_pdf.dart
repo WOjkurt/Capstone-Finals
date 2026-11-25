@@ -16,7 +16,21 @@ class RecordStudentInfo {
   final String? programName;
   final int? yearLevel;
 
-  const RecordStudentInfo({required this.name, this.lrn, this.programCode, this.programName, this.yearLevel});
+  /// Units the curriculum asks for, and units earned so far. Both null when the evaluation has
+  /// not been loaded, in which case the residency sheet simply leaves the summary out rather
+  /// than printing a zero that reads like a fact.
+  final double? unitsRequired;
+  final double? unitsEarned;
+
+  const RecordStudentInfo({
+    required this.name,
+    this.lrn,
+    this.programCode,
+    this.programName,
+    this.yearLevel,
+    this.unitsRequired,
+    this.unitsEarned,
+  });
 }
 
 String _num(double v) => unitsText(v);
@@ -365,6 +379,26 @@ Future<Uint8List> buildResidencyPdf(
     ]));
   }
   final overall = computeGwa(rows);
+
+  // The standing summary the Registrar reads first: what the course asks for, what has been
+  // earned, the average, and whether the student is regular. It goes at the top because that is
+  // the question the sheet is usually pulled to answer; the subject tables are the evidence.
+  if (student.unitsRequired != null || student.unitsEarned != null) {
+    final parts = residencySummaryParts(student, overall);
+    body.insert(
+      0,
+      pw.Container(
+        margin: const pw.EdgeInsets.only(bottom: 10),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey500, width: .5)),
+        child: pw.Wrap(spacing: 18, runSpacing: 4, children: [
+          for (final part in parts)
+            pw.Text(part, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+        ]),
+      ),
+    );
+  }
+
   body.add(pw.Padding(
     padding: const pw.EdgeInsets.only(top: 12),
     child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
@@ -384,6 +418,14 @@ Future<Uint8List> buildResidencyPdf(
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
 }
+
+/// What the standing summary says, as a list of parts, so the decision of what to include can
+/// be read without rendering a PDF. Anything unknown is left out: a zero would read as a fact.
+List<String> residencySummaryParts(RecordStudentInfo student, double? gwa) => [
+      if (student.unitsRequired != null) 'Units required: ${_num(student.unitsRequired!)}',
+      if (student.unitsEarned != null) 'Credit earned: ${_num(student.unitsEarned!)}',
+      if (gwa != null) 'GWA: ${averageText(gwa)}',
+    ];
 
 /// A grade sheet for one semester or one subject. [scope] is printed under the student's details,
 /// e.g. "Semester: 2025-2026 (1st Sem)" or "Subject: IT 101 - Introduction to Computing".
