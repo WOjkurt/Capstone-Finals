@@ -299,13 +299,33 @@ public partial class ReenrollmentService : IReenrollmentService
             await transaction.CommitAsync();
             return (application.ApplicationID, status.TermLabel!, changed);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (IsDuplicateSubmission(ex))
         {
             // The one-application-per-term index caught a second submission at the same moment.
             await transaction.RollbackAsync();
             throw new InvalidOperationException($"You already sent your enrollment for {status.TermLabel}.");
         }
+        catch (DbUpdateException)
+        {
+            // Anything else -- a row-level security policy refusing the insert, a missing grant, a
+            // constraint we did not think about -- is NOT a duplicate, and saying "you already sent
+            // it" to a student whose enrollment was never saved is worse than saying nothing: the
+            // page then reloads to Ready, so they try again and get the same lie forever. This cost
+            // a day on 2026-11-28, when RLS refused all four inserts and the student was told their
+            // enrollment had been sent. Let it surface as a 500 and land in the log instead.
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
+
+    /// <summary>
+    /// True only for the one-application-per-term unique index. PostgreSQL reports a unique
+    /// violation as SQLSTATE 23505; the InMemory provider used by most tests throws a bare
+    /// DbUpdateException with no inner exception, and the duplicate there is caught earlier by
+    /// the Submitted state check, so treating "no inner exception" as a duplicate is wrong.
+    /// </summary>
+    private static bool IsDuplicateSubmission(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
 
     private static int? AgeOn(DateOnly birth, DateOnly today) => Ages.On(birth, today);
 

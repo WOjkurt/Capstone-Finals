@@ -85,6 +85,36 @@ NOTICE:  RLS verification passed.
 Anything else — any line starting `RLS FAILED` — means **stop**. Do not continue to step 4.
 The message names the assertion that failed.
 
+## Step 3b — The two scripts that are not in the migration
+
+`rls_02_policies.sql` is the whole policy set, but two groups of policies were added after the
+first switch-on and are also kept as small scripts, so a live database can be brought forward
+without re-running everything. **Both are idempotent and both are needed before anyone enrolls.**
+
+```powershell
+psql -U dbtc_app -d dbtc_sis -f C:\dbtc\capstone\Api\Migrations\Scripts\rls_05_public_enrollment.sql
+psql -U dbtc_app -d dbtc_sis -f C:\dbtc\capstone\Api\Migrations\Scripts\rls_06_reenrollment.sql
+```
+
+- **rls_05** lets a stranger with no account submit the public application form (role -2).
+  Without it the Enroll button on the sign-in page fails at the moment of submitting.
+- **rls_06** lets a signed-in old student send their own re-enrollment (role 5). Without it
+  re-enrollment is broken: the submission writes four tables, all of which were staff-only, so
+  Postgres refuses the first insert and nothing is saved.
+
+**Neither failure can be seen while the enrollment window is shut**, because the window is
+checked before anything is written — and no test can see them either, since the suites either
+have no policies at all or connect as the table owner, which Postgres exempts. So confirm them
+by hand, as the API's own role:
+
+```powershell
+psql -U dbtc_app -d dbtc_sis -c "SELECT policyname FROM pg_policies WHERE policyname LIKE '%public_insert' OR policyname LIKE '%student_insert' ORDER BY policyname"
+```
+
+Expect five: one `EnrollmentResponses_public_insert` and four `..._student_insert`
+(`Contacts`, `EnrollmentApplications`, `EnrollmentForms`, `EnrollmentResponses`). Anything
+missing means that path is still refused.
+
 ## Step 4 — The switch
 
 Edit `appsettings.Production.json` and change `Username` and `Password` in

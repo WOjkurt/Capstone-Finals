@@ -159,6 +159,9 @@ DROP POLICY IF EXISTS "EnrollmentForms_staff" ON "EnrollmentForms";
 DROP POLICY IF EXISTS "EnrollmentForms_read" ON "EnrollmentForms";
 CREATE POLICY "EnrollmentForms_read" ON "EnrollmentForms" FOR SELECT
   USING (app.is_staff() OR app.owns_application("ApplicationID"));
+DROP POLICY IF EXISTS "EnrollmentForms_student_insert" ON "EnrollmentForms";
+CREATE POLICY "EnrollmentForms_student_insert" ON "EnrollmentForms" FOR INSERT
+  WITH CHECK (app.is_student() AND app.owns_application("ApplicationID"));
 DROP POLICY IF EXISTS "EnrollmentForms_write" ON "EnrollmentForms";
 CREATE POLICY "EnrollmentForms_write" ON "EnrollmentForms" FOR ALL
   USING (app.is_staff()) WITH CHECK (app.is_staff());
@@ -168,6 +171,9 @@ DROP POLICY IF EXISTS "Contacts_staff" ON "Contacts";
 DROP POLICY IF EXISTS "Contacts_read" ON "Contacts";
 CREATE POLICY "Contacts_read" ON "Contacts" FOR SELECT
   USING (app.is_staff() OR app.owns_enrollment("EnrollmentID"));
+DROP POLICY IF EXISTS "Contacts_student_insert" ON "Contacts";
+CREATE POLICY "Contacts_student_insert" ON "Contacts" FOR INSERT
+  WITH CHECK (app.is_student() AND app.owns_enrollment("EnrollmentID"));
 DROP POLICY IF EXISTS "Contacts_write" ON "Contacts";
 CREATE POLICY "Contacts_write" ON "Contacts" FOR ALL
   USING (app.is_staff()) WITH CHECK (app.is_staff());
@@ -198,6 +204,15 @@ CREATE POLICY "EnrollmentResponses_webhook_insert" ON "EnrollmentResponses" FOR 
 DROP POLICY IF EXISTS "EnrollmentResponses_public_insert" ON "EnrollmentResponses";
 CREATE POLICY "EnrollmentResponses_public_insert" ON "EnrollmentResponses" FOR INSERT
   WITH CHECK (app.role() = -2 AND "IsProcessed" = false);
+-- A signed-in old student re-enrolling (role 5). ReenrollmentService writes a response row too,
+-- but deliberately with IsProcessed = TRUE -- re-enrollment becomes a Pending application rather
+-- than joining the Registrar's queue of unprocessed Form responses -- so the -2 policy above
+-- cannot be reused: its IsProcessed = false clause is what refused every student. Ownership is
+-- enforced on the application; a response names no student on its own. See rls_06.
+DROP POLICY IF EXISTS "EnrollmentResponses_student_insert" ON "EnrollmentResponses";
+CREATE POLICY "EnrollmentResponses_student_insert" ON "EnrollmentResponses" FOR INSERT
+  WITH CHECK (app.is_student() AND app.email() <> '' AND LOWER("EmailAddress") = app.email());
+
 DROP POLICY IF EXISTS "EnrollmentResponses_staff_write" ON "EnrollmentResponses";
 CREATE POLICY "EnrollmentResponses_staff_write" ON "EnrollmentResponses" FOR ALL
   USING (app.is_staff()) WITH CHECK (app.is_staff());
@@ -209,6 +224,18 @@ DROP POLICY IF EXISTS "EnrollmentApplications_read" ON "EnrollmentApplications";
 CREATE POLICY "EnrollmentApplications_read" ON "EnrollmentApplications" FOR SELECT USING (
   app.is_staff() OR app.owns("StudentUserID")
 );
+-- A student re-enrolling may create their OWN application and only as Pending and returning:
+-- they cannot approve themselves, and cannot file one in anybody else's name. INSERT only --
+-- once it is sent, only the Registrar may change it. See rls_06.
+DROP POLICY IF EXISTS "EnrollmentApplications_student_insert" ON "EnrollmentApplications";
+CREATE POLICY "EnrollmentApplications_student_insert" ON "EnrollmentApplications" FOR INSERT
+  WITH CHECK (
+    app.is_student()
+    AND app.owns("StudentUserID")
+    AND "Status" = 1
+    AND "IsReturning" = true
+  );
+
 DROP POLICY IF EXISTS "EnrollmentApplications_write" ON "EnrollmentApplications";
 CREATE POLICY "EnrollmentApplications_write" ON "EnrollmentApplications" FOR ALL
   USING (app.is_staff()) WITH CHECK (app.is_staff());

@@ -5,13 +5,23 @@ namespace Api.DTOs.Enrollment;
 
 public class EnrollmentFormDto
 {
+    // ── Locked fields may be empty ───────────────────────────────────────────
+    // A field in ReenrollmentService.LockedFields is server-authoritative: whatever the client
+    // sends is thrown away and the value is copied from the student's record. So an empty one
+    // must not fail validation -- the student is shown the API's own payload and cannot edit
+    // these, so a 400 here is a dead end with nothing to fix. Several are legitimately empty in
+    // real records: the columns are NOT NULL, and '' is how "no suffix", "no middle name" and
+    // "never went to college" are stored. Plain [Required] rejects '' as well as null, which
+    // refused every such student's re-enrollment. AllowEmptyStrings still rejects null, so the
+    // key must be present. FirstName, LastName and Sex stay strict on purpose: '' there is
+    // broken data for the Registrar to repair, not something to wave through.
     // ── Name ────────────────────────────────────────────────────────────────
     [Required]
     [StringLength(ValidationConstants.NameMax)]
     [Api.Common.PersonName]
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string FirstName { get; set; }
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(ValidationConstants.ShortMax)]
     [Api.Common.PersonName]
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
@@ -21,7 +31,7 @@ public class EnrollmentFormDto
     [Api.Common.PersonName]
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
     public required string LastName { get; set; }
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(ValidationConstants.ShortMax)]
     [Api.Common.PersonName]
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.PlainNameConverter))]
@@ -30,7 +40,7 @@ public class EnrollmentFormDto
     // ── Personal Information ─────────────────────────────────────────────────
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.FlexibleDateConverter))]
     public DateOnly DateOfBirth { get; set; }
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(ValidationConstants.AddressMax)]
     public required string PlaceOfBirth { get; set; }
     [Required]
@@ -103,17 +113,17 @@ public class EnrollmentFormDto
     [Required]
     [StringLength(ValidationConstants.LongAddressMax)]
     public required string LastSchoolAttended { get; set; }
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(ValidationConstants.LongAddressMax)]
     public required string SchoolAddress { get; set; }
     [StringLength(ValidationConstants.AddressMax)]
     public string? ProgramTrackStrand { get; set; }
     [System.Text.Json.Serialization.JsonConverter(typeof(Api.Common.FlexibleDateConverter))]
     public DateOnly YearGraduated { get; set; }
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(ValidationConstants.AddressMax)]
     public required string PreviousCollege { get; set; }
-    [Required]
+    [Required(AllowEmptyStrings = true)]
     [StringLength(ValidationConstants.AddressMax)]
     public required string PreviousCourse { get; set; }
 
